@@ -8,34 +8,43 @@ server:
 # Adres agenta na maszynie obliczeniowej
 agent:
   url: "http://192.168.1.XXX:3001"
-  timeout_ms: 120000                  # 2 minuty timeout na pojedyncze żądanie
+  timeout_ms: 0                       # 0 = brak limitu (żądania mogą trwać godzinami)
 
 # Wake on LAN — budzenie maszyny obliczeniowej
+# Użyj IP maszyny (unicast) zamiast broadcast jeśli Gate działa w Docker bridge
 wol:
   mac: "AA:BB:CC:DD:EE:FF"           # MAC adres karty sieciowej maszyny
-  broadcast: "192.168.1.255"          # adres broadcast Twojej sieci
+  broadcast: "192.168.1.XXX"          # IP maszyny (unicast) lub broadcast sieci
   port: 9                             # standardowy port WoL
   min_priority: 3                     # od jakiego priorytetu budzić komputer
   boot_timeout_ms: 120000             # ile czekać na uruchomienie (max 120s)
   poll_interval_ms: 2000              # co ile sprawdzać czy agent żyje
 
 # Klucze API — każdy klient ma swój klucz
+# min_priority / max_priority = zakres w jakim klient może dynamicznie
+# ustawiać priorytet nagłówkiem X-MindGate-Priority
 auth:
   keys:
     - name: "antigravity"
       key: "mg-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-      default_priority: 2
+      default_priority: 3
+      min_priority: 1
+      max_priority: 5
     - name: "webui"
       key: "mg-yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy"
       default_priority: 2
+      min_priority: 1
+      max_priority: 4
     - name: "scripts"
       key: "mg-zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz"
       default_priority: 1
+      min_priority: 1
+      max_priority: 2
 
 # Kolejka żądań
 queue:
   max_size: 100                       # max żądań w kolejce
-  request_timeout_ms: 300000          # 5 minut max czekania w kolejce
+  request_timeout_ms: 0               # 0 = bez limitu czasu w kolejce
 
 # Automatyczne wyłączanie maszyny po okresie bezczynności
 shutdown:
@@ -53,3 +62,4 @@ models:
 pipelines:
   - "reasoning+flash"
   - "coding-hard+flash"
+

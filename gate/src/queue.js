@@ -32,14 +32,16 @@ export function enqueue({ req, reply, model, priority }) {
   return new Promise((resolve, reject) => {
     const item = { req, reply, model, priority, resolve, reject, timer: null }
 
-    // Timeout — max czas w kolejce
-    item.timer = setTimeout(() => {
-      const idx = queue.indexOf(item)
-      if (idx !== -1) {
-        queue.splice(idx, 1)
-        reject(new Error('queue_timeout'))
-      }
-    }, config.queue.request_timeout_ms)
+    // Timeout — max czas w kolejce (0 = bez limitu)
+    if (config.queue.request_timeout_ms > 0) {
+      item.timer = setTimeout(() => {
+        const idx = queue.indexOf(item)
+        if (idx !== -1) {
+          queue.splice(idx, 1)
+          reject(new Error('queue_timeout'))
+        }
+      }, config.queue.request_timeout_ms)
+    }
 
     // Wstaw w odpowiednie miejsce (posortowane malejąco po priorytecie)
     let inserted = false

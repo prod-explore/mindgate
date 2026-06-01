@@ -27,19 +27,24 @@ app.post('/v1/chat/completions', async (req, reply) => {
   const model = resolveModel(req, reply)
   if (!model) return
 
-  // 3. Wyznacz priorytet
-  const priority = req.headers['x-mindgate-priority']
-    ? parseInt(req.headers['x-mindgate-priority'], 10)
-    : apiKey.default_priority
+  // 3. Wyznacz priorytet (z zakresu dozwolonego dla klucza)
+  const keyMin = apiKey.min_priority ?? 1
+  const keyMax = apiKey.max_priority ?? 5
 
-  if (priority < 1 || priority > 5 || isNaN(priority)) {
-    return reply.code(400).send({
-      error: {
-        message: 'Priorytet musi być liczbą 1-5',
-        type: 'invalid_request_error',
-        code: 'invalid_priority'
-      }
-    })
+  let priority = apiKey.default_priority
+  if (req.headers['x-mindgate-priority']) {
+    const requested = parseInt(req.headers['x-mindgate-priority'], 10)
+    if (isNaN(requested) || requested < 1 || requested > 5) {
+      return reply.code(400).send({
+        error: {
+          message: 'Priorytet musi być liczbą 1-5',
+          type: 'invalid_request_error',
+          code: 'invalid_priority'
+        }
+      })
+    }
+    // Ogranicz do dozwolonego zakresu klucza
+    priority = Math.max(keyMin, Math.min(keyMax, requested))
   }
 
   // 4. Upewnij się że agent jest dostępny (WoL jeśli potrzeba)

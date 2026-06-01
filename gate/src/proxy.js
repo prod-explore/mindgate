@@ -15,12 +15,16 @@ export async function proxyToAgent(req, model) {
     stream: false
   }
 
-  const res = await fetch(`${config.agent.url}/v1/chat/completions`, {
+  const fetchOpts = {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(config.agent.timeout_ms)
-  })
+    body: JSON.stringify(body)
+  }
+  if (config.agent.timeout_ms > 0) {
+    fetchOpts.signal = AbortSignal.timeout(config.agent.timeout_ms)
+  }
+
+  const res = await fetch(`${config.agent.url}/v1/chat/completions`, fetchOpts)
 
   if (!res.ok) {
     const errorBody = await res.text()
@@ -44,12 +48,16 @@ export async function proxyStreamToAgent(req, reply, model) {
     stream: true
   }
 
-  const res = await fetch(`${config.agent.url}/v1/chat/completions`, {
+  const fetchOpts = {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(config.agent.timeout_ms)
-  })
+    body: JSON.stringify(body)
+  }
+  if (config.agent.timeout_ms > 0) {
+    fetchOpts.signal = AbortSignal.timeout(config.agent.timeout_ms)
+  }
+
+  const res = await fetch(`${config.agent.url}/v1/chat/completions`, fetchOpts)
 
   if (!res.ok) {
     const errorBody = await res.text()
