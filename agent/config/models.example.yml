@@ -1,0 +1,54 @@
+# MindGate Agent — konfiguracja modeli
+# Skopiuj do models.yml i dostosuj do swojego GPU
+
+models:
+  flash:
+    ollama: "qwen2.5:3b"
+    max_tokens: 2048
+    description: "Szybkie odpowiedzi, formatowanie, podsumowania"
+
+  reasoning:
+    ollama: "qwq:32b"
+    max_tokens: 8192
+    description: "Analiza, planowanie, rozwiązywanie problemów"
+
+  coding-fast:
+    ollama: "qwen2.5-coder:7b"
+    max_tokens: 4096
+    description: "Autouzupełnianie, małe poprawki kodu"
+
+  coding-hard:
+    ollama: "qwen2.5-coder:32b"
+    max_tokens: 8192
+    description: "Architektura, refactoring, trudne problemy"
+
+  extreme:
+    ollama: "llama3.3:70b"
+    max_tokens: 16384
+    description: "Maksymalna jakość, bez ograniczeń czasowych"
+
+# Pipeline — multi-model przetwarzanie
+pipelines:
+  reasoning+flash:
+    steps:
+      - model: reasoning
+        role: "Przeanalizuj problem i podaj szczegółową odpowiedź"
+      - model: flash
+        role: "Sformułuj zwięzłą, czytelną odpowiedź na podstawie analizy"
+
+  coding-hard+flash:
+    steps:
+      - model: coding-hard
+        role: "Napisz kod rozwiązujący problem"
+      - model: flash
+        role: "Dodaj komentarze i wyjaśnienia do kodu"
+
+# Serwer agenta
+server:
+  port: 3001
+  host: "0.0.0.0"
+
+# Ollama
+ollama:
+  url: "http://localhost:11434"
+  request_timeout_ms: 600000      # 10 minut dla dużych modeli

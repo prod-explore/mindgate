@@ -1,0 +1,55 @@
+# MindGate Gate — konfiguracja
+# Skopiuj do config.yml i uzupełnij wartości
+
+server:
+  port: 3000
+  host: "0.0.0.0"
+
+# Adres agenta na maszynie obliczeniowej
+agent:
+  url: "http://192.168.1.XXX:3001"
+  timeout_ms: 120000                  # 2 minuty timeout na pojedyncze żądanie
+
+# Wake on LAN — budzenie maszyny obliczeniowej
+wol:
+  mac: "AA:BB:CC:DD:EE:FF"           # MAC adres karty sieciowej maszyny
+  broadcast: "192.168.1.255"          # adres broadcast Twojej sieci
+  port: 9                             # standardowy port WoL
+  min_priority: 3                     # od jakiego priorytetu budzić komputer
+  boot_timeout_ms: 120000             # ile czekać na uruchomienie (max 120s)
+  poll_interval_ms: 2000              # co ile sprawdzać czy agent żyje
+
+# Klucze API — każdy klient ma swój klucz
+auth:
+  keys:
+    - name: "antigravity"
+      key: "mg-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+      default_priority: 2
+    - name: "webui"
+      key: "mg-yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy"
+      default_priority: 2
+    - name: "scripts"
+      key: "mg-zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz"
+      default_priority: 1
+
+# Kolejka żądań
+queue:
+  max_size: 100                       # max żądań w kolejce
+  request_timeout_ms: 300000          # 5 minut max czekania w kolejce
+
+# Automatyczne wyłączanie maszyny po okresie bezczynności
+shutdown:
+  idle_minutes: 15                    # po ilu minutach bez żądań wysłać shutdown
+
+# Dostępne profile modeli (do walidacji i /v1/models)
+models:
+  - flash
+  - reasoning
+  - coding-fast
+  - coding-hard
+  - extreme
+
+# Dostępne pipeline'y
+pipelines:
+  - "reasoning+flash"
+  - "coding-hard+flash"

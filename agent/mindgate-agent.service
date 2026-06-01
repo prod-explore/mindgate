@@ -1,0 +1,23 @@
+[Unit]
+Description=MindGate Agent
+After=network.target ollama.service
+Wants=ollama.service
+
+[Service]
+Type=simple
+User=twoj-user
+WorkingDirectory=/home/twoj-user/mindgate/agent
+ExecStart=/usr/bin/node src/index.js
+Restart=always
+RestartSec=5
+Environment=NODE_ENV=production
+Environment=MINDGATE_CONFIG=/home/twoj-user/mindgate/agent/config/models.yml
+Environment=MINDGATE_MCP_CONFIG=/home/twoj-user/mindgate/agent/config/mcp.yml
+
+# Logowanie do journald
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=mindgate-agent
+
+[Install]
+WantedBy=multi-user.target

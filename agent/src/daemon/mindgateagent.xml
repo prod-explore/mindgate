@@ -1,0 +1,33 @@
+<service>
+	<id>mindgateagent.exe</id>
+	<name>MindGate Agent</name>
+	<description>MindGate AI Agent — lokalny serwis modeli</description>
+	<executable>C:\Program Files\nodejs\node.exe</executable>
+	<argument>D:\Users\justx\Documents\=HUSTLA=\.PROJECT\FUTUMORE\mindgate\agent\node_modules\node-windows\lib\wrapper.js</argument>
+	<argument>--file</argument>
+	<argument>D:\Users\justx\Documents\=HUSTLA=\.PROJECT\FUTUMORE\mindgate\agent\src\index.js</argument>
+	<argument>--scriptoptions=</argument>
+	<argument>--log</argument>
+	<argument>MindGate Agent wrapper</argument>
+	<argument>--grow</argument>
+	<argument>0.25</argument>
+	<argument>--wait</argument>
+	<argument>1</argument>
+	<argument>--maxrestarts</argument>
+	<argument>3</argument>
+	<argument>--abortonerror</argument>
+	<argument>n</argument>
+	<argument>--stopparentfirst</argument>
+	<argument>undefined</argument>
+	<logmode>rotate</logmode>
+	<stoptimeout>30sec</stoptimeout>
+	<env name="NODE_ENV" value="production"/>
+	<env name="MINDGATE_CONFIG" value="D:\Users\justx\Documents\=HUSTLA=\.PROJECT\FUTUMORE\mindgate\agent\config\models.yml"/>
+	<env name="MINDGATE_MCP_CONFIG" value="D:\Users\justx\Documents\=HUSTLA=\.PROJECT\FUTUMORE\mindgate\agent\config\mcp.yml"/>
+	<serviceaccount>
+		<domain>MIKO-PC</domain>
+		<user>LocalSystem</user>
+		<password></password>
+	</serviceaccount>
+	<workingdirectory>D:\Users\justx\Documents\=HUSTLA=\.PROJECT\FUTUMORE\mindgate\agent</workingdirectory>
+</service>

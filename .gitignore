@@ -1,0 +1,28 @@
+node_modules/
+dist/
+*.log
+npm-debug.log*
+
+# Config secrets (keep .example files)
+gate/config/config.yml
+agent/config/models.yml
+agent/config/mcp.yml
+tray/config/tray.yml
+
+# Environment
+.env
+.env.*
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Docker
+gate/data/

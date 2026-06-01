@@ -1,0 +1,22 @@
+{
+  "name": "mindgate-tray",
+  "version": "1.0.0",
+  "description": "MindGate Tray — system tray app for shutdown guard",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "install-autostart": "node scripts/install-autostart-windows.js"
+  },
+  "dependencies": {
+    "systray2": "^2.1.4",
+    "express": "^5.1.0",
+    "js-yaml": "^4.1.0",
+    "pino": "^9.6.0"
+  },
+  "optionalDependencies": {
+    "ffi-napi": "^4.0.3",
+    "ref-napi": "^3.0.3",
+    "ref-struct-napi": "^1.1.1"
+  }
+}

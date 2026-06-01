@@ -1,0 +1,46 @@
+# MindGate Agent — konfiguracja MCP servers
+# Skopiuj do mcp.yml i uzupełnij klucze API
+
+mcp_servers:
+  brave-search:
+    command: "npx"
+    args: ["-y", "@modelcontextprotocol/server-brave-search"]
+    env:
+      BRAVE_API_KEY: "${BRAVE_API_KEY}"
+
+  filesystem:
+    command: "npx"
+    args:
+      - "-y"
+      - "@modelcontextprotocol/server-filesystem"
+      - "/home/twoj-user/dokumenty"
+
+  memory:
+    command: "npx"
+    args: ["-y", "@modelcontextprotocol/server-memory"]
+    env:
+      MEMORY_FILE_PATH: "/home/twoj-user/.mindgate/memory.json"
+
+  sqlite:
+    command: "npx"
+    args: ["-y", "@modelcontextprotocol/server-sqlite", "--db-path", "/home/twoj-user/.mindgate/data.db"]
+
+# Które profile modeli mają dostęp do których MCP servers
+permissions:
+  flash:
+    - brave-search
+    - memory
+  reasoning:
+    - brave-search
+    - memory
+    - filesystem
+    - sqlite
+  coding-fast:
+    - filesystem
+    - sqlite
+  coding-hard:
+    - filesystem
+    - sqlite
+    - brave-search
+  extreme:
+    - "*"                          # wszystkie narzędzia

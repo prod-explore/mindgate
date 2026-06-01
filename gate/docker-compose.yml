@@ -1,0 +1,21 @@
+services:
+  gate:
+    build: .
+    container_name: mindgate-gate
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./config:/app/config:ro
+    environment:
+      - NODE_ENV=production
+    networks:
+      - mindgate
+    # Potrzebuje dostępu do sieci hosta dla WoL broadcast
+    # Jeśli WoL nie działa w trybie bridge, użyj:
+    # network_mode: host
+    # i usuń sekcję ports/networks
+
+networks:
+  mindgate:
+    driver: bridge
