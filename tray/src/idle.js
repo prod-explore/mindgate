@@ -99,7 +99,8 @@ function getIdleWindows_powershell() {
 
   const result = execSync(`powershell -NoProfile -EncodedCommand ${base64}`, {
     encoding: 'utf8',
-    timeout: 5000
+    timeout: 5000,
+    windowsHide: true
   })
   return parseInt(result.trim(), 10) || 0
 }

@@ -60,6 +60,9 @@ app.post('/v1/chat/completions', async (req, reply) => {
     }
     // Jeśli streaming, reply jest już wysłany przez proxy
   } catch (err) {
+    if (reply.sent || reply.raw.headersSent) {
+      return
+    }
     if (err.message === 'queue_timeout') {
       return reply.code(504).send({
         error: {
@@ -70,6 +73,17 @@ app.post('/v1/chat/completions', async (req, reply) => {
       })
     }
     if (err.statusCode) {
+      let parsedBody
+      try {
+        parsedBody = typeof err.body === 'string' ? JSON.parse(err.body) : err.body
+      } catch {
+        parsedBody = null
+      }
+
+      if (parsedBody && parsedBody.error) {
+        return reply.code(err.statusCode).send(parsedBody)
+      }
+
       return reply.code(err.statusCode).send({
         error: {
           message: err.body || err.message,

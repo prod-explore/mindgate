@@ -121,14 +121,7 @@ export async function proxyStreamToAgent(req, reply, model) {
   } catch (err) {
     if (isConnectionError(err)) {
       req.log.warn({ err: err.message }, 'Utracono połączenie z agentem przed rozpoczęciem streamingu')
-      reply.code(502).send({
-        error: {
-          message: 'Maszyna obliczeniowa straciła połączenie. Spróbuj ponownie.',
-          type: 'server_error',
-          code: 'agent_connection_lost'
-        }
-      })
-      return
+      throw makeAgentDownError(err)
     }
     throw err
   }
@@ -180,6 +173,11 @@ export async function proxyStreamToAgent(req, reply, model) {
     } catch {
       // Klient mógł się już rozłączyć
     }
+
+    if (isConnectionError(err)) {
+      throw makeAgentDownError(err)
+    }
+    throw err
   } finally {
     reply.raw.end()
   }

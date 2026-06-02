@@ -34,6 +34,8 @@ async function sendShutdownSignal() {
   }
 }
 
+import { getAgentStatus } from './wol.js'
+
 /**
  * Sprawdza czy minął idle_minutes od ostatniego żądania.
  */
@@ -41,7 +43,8 @@ function checkIdle() {
   const idleMs = Date.now() - getLastRequestTime()
   const thresholdMs = config.shutdown.idle_minutes * 60 * 1000
 
-  if (idleMs >= thresholdMs) {
+  // Wysyłaj sygnał tylko jeśli minął czas i agent jest faktycznie online
+  if (idleMs >= thresholdMs && getAgentStatus() === 'online') {
     sendShutdownSignal()
   }
 }
