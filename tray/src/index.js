@@ -85,12 +85,12 @@ async function pollAgentStatus() {
   if (systrayInstance) {
     try {
       systrayInstance.sendAction({
-        type: 'update-item',
-        item: {
+        type: 'update-menu',
+        menu: {
           icon: getCurrentIcon(),
           title: 'MindGate',
           tooltip: `MindGate — ${getAgentState().status}`,
-          enabled: true
+          items: systrayInstance._conf.menu.items
         }
       })
     } catch {
