@@ -2,8 +2,8 @@ import Fastify from 'fastify'
 import { config } from './config.js'
 import { authenticate } from './auth.js'
 import { resolveModel, getModelList } from './router.js'
-import { enqueue, getQueueLength } from './queue.js'
-import { ensureAwake, getAgentStatus, startHealthChecks } from './wol.js'
+import { enqueue, getQueueLength, isQueuePaused, resumeQueue } from './queue.js'
+import { ensureAwake, getAgentStatus, startHealthChecks, onAgentOnline } from './wol.js'
 import { startShutdownWatcher } from './shutdown.js'
 
 const app = Fastify({
@@ -106,6 +106,7 @@ app.get('/health', async () => ({
   status: 'ok',
   agent: getAgentStatus(),
   queue_length: getQueueLength(),
+  queue_paused: isQueuePaused(),
   uptime: Math.floor(process.uptime())
 }))
 
@@ -120,6 +121,9 @@ try {
   // Startuj background tasks
   startHealthChecks()
   startShutdownWatcher()
+
+  // Gdy agent wraca online po awarii (np. utrata zasilania) — wznów kolejkę
+  onAgentOnline(resumeQueue)
 
   app.log.info({
     port: config.server.port,

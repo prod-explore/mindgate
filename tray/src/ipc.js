@@ -110,6 +110,22 @@ async function reportToAgent() {
 }
 
 /**
+ * Sprawdza aktywność użytkownika i automatycznie włącza toggle
+ * "Używam PC" gdy wykryje ruch myszy lub klawiaturę.
+ * Toggle zostaje włączony do momentu ręcznego wyłączenia przez menu tray.
+ */
+export function checkUserActivity() {
+  if (userToggleActive) return // już włączony — nic nie rób
+
+  const idleSeconds = getIdleSeconds()
+  if (idleSeconds < config.shutdown_guard.idle_threshold_seconds) {
+    userToggleActive = true
+    log.info({ idle_seconds: idleSeconds }, 'Wykryto aktywność użytkownika — automatycznie włączam "Używam PC"')
+    reportToAgent()
+  }
+}
+
+/**
  * Startuje periodyczny raport do agenta.
  */
 export function startAgentReporting() {

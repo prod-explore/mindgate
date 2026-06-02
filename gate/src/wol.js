@@ -7,17 +7,32 @@ import wol from 'wake_on_lan'
 
 let agentStatus = 'unknown' // 'online' | 'offline' | 'unknown'
 let lastHealthCheck = 0
+let _onAgentOnlineCallback = null
+
+/**
+ * Rejestruje callback wywoływany gdy agent wraca online po awarii.
+ * Używane przez queue.js do wznowienia przetwarzania.
+ */
+export function onAgentOnline(callback) {
+  _onAgentOnlineCallback = callback
+}
 
 /**
  * Sprawdza czy agent żyje (GET /health).
  */
-async function checkAgentHealth() {
+export async function checkAgentHealth() {
+  const previousStatus = agentStatus
   try {
     const res = await fetch(`${config.agent.url}/health`, {
       signal: AbortSignal.timeout(5000)
     })
     if (res.ok) {
       agentStatus = 'online'
+
+      // Agent wrócił po awarii — powiadom zainteresowanych (queue)
+      if (previousStatus !== 'online' && _onAgentOnlineCallback) {
+        _onAgentOnlineCallback()
+      }
       return true
     }
     agentStatus = 'offline'

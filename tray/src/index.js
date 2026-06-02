@@ -5,9 +5,10 @@ import { readFileSync } from 'fs'
 import { resolve, dirname } from 'path'
 import { fileURLToPath } from 'url'
 import { config } from './config.js'
-import { startIpcServer, startAgentReporting } from './ipc.js'
+import { startIpcServer, startAgentReporting, checkUserActivity } from './ipc.js'
 import { buildMenuItems, updateAgentState, getAgentState } from './menu.js'
 import pino from 'pino'
+import { updateShutdownBlock } from './shutdown-block.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const log = pino({ name: 'mindgate-tray' })
@@ -65,12 +66,20 @@ async function pollAgentStatus() {
         models: data.models_loaded || [],
         ollama: data.ollama
       })
+
+      // Blokuj shutdown Windows gdy agent przetwarza żądania
+      updateShutdownBlock(data.queue_length || 0)
     } else {
       updateAgentState({ status: 'error', queue_length: 0 })
+      updateShutdownBlock(0)
     }
   } catch {
     updateAgentState({ status: 'offline', queue_length: 0 })
+    updateShutdownBlock(0)
   }
+
+  // Sprawdź aktywność użytkownika — auto-włącz "Używam PC" przy ruchu myszy
+  checkUserActivity()
 
   // Aktualizuj ikonę
   if (systrayInstance) {
