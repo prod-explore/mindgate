@@ -22,6 +22,15 @@ const app = express()
 app.use(express.json({ limit: '10mb' }))
 app.use(pinoHttp({ logger: log }))
 
+// Middleware sprawdzający współdzielony sekret
+app.use((req, res, next) => {
+  if (req.headers['x-mindgate-secret'] !== config.server.secret) {
+    log.warn({ ip: req.ip, path: req.path }, 'Odrzucono żądanie — niepoprawny X-MindGate-Secret')
+    return res.status(401).json({ error: { message: 'Unauthorized', type: 'authentication_error' } })
+  }
+  next()
+})
+
 /**
  * POST /v1/chat/completions — OpenAI-compatible endpoint
  */

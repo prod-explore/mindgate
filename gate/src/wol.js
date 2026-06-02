@@ -24,6 +24,7 @@ export async function checkAgentHealth() {
   const previousStatus = agentStatus
   try {
     const res = await fetch(`${config.agent.url}/health`, {
+      headers: { 'X-MindGate-Secret': config.agent.secret },
       signal: AbortSignal.timeout(5000)
     })
     if (res.ok) {

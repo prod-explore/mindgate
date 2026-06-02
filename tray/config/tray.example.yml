@@ -4,6 +4,7 @@
 # Agent HTTP — do pollowania statusu
 agent:
   url: "http://localhost:3001"
+  secret: "mg-internal-secret-zmien-mnie"
   poll_interval_ms: 5000              # co ile sprawdzać status agenta
 
 # IPC server — mini serwer HTTP na localhost
@@ -13,16 +14,6 @@ ipc:
 # Shutdown guard — warunki blokujące wyłączenie
 shutdown_guard:
   idle_threshold_seconds: 120         # 2 minuty braku inputu = "nieaktywny"
-
-  # Procesy które blokują shutdown
-  whitelist_processes:
-    - "Spotify.exe"
-    - "spotify"
-    - "vlc"
-    - "mpv"
-    - "setup.exe"
-    - "install"
-    - "winget"
 
   # Czy komputer uruchomiony ręcznie (nie przez WoL) powinien być chroniony?
   # true = nie wyłączaj bez wyraźnej zgody użytkownika

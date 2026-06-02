@@ -29,6 +29,13 @@ function loadConfig() {
     host: '0.0.0.0',
     ...cfg.server
   }
+  if (process.env.MINDGATE_SERVER_SECRET) {
+    cfg.server.secret = process.env.MINDGATE_SERVER_SECRET
+  }
+  if (!cfg.server.secret) {
+    console.error('[config] Brak server.secret w konfiguracji agenta')
+    process.exit(1)
+  }
   cfg.ollama = {
     url: 'http://localhost:11434',
     request_timeout_ms: 600000,

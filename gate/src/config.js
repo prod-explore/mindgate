@@ -28,6 +28,9 @@ function loadConfig() {
   if (process.env.MINDGATE_AGENT_URL) {
     cfg.agent.url = process.env.MINDGATE_AGENT_URL
   }
+  if (process.env.MINDGATE_AGENT_SECRET) {
+    cfg.agent.secret = process.env.MINDGATE_AGENT_SECRET
+  }
   if (process.env.MINDGATE_WOL_MAC) {
     cfg.wol.mac = process.env.MINDGATE_WOL_MAC
   }
@@ -43,6 +46,10 @@ function loadConfig() {
   // Walidacja wymaganych pól
   if (!cfg.agent?.url) {
     console.error('[config] Brak agent.url w konfiguracji')
+    process.exit(1)
+  }
+  if (!cfg.agent?.secret) {
+    console.error('[config] Brak agent.secret w konfiguracji')
     process.exit(1)
   }
   if (!cfg.auth?.keys?.length) {

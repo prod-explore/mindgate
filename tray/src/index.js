@@ -91,6 +91,7 @@ function refreshMenuUI() {
 async function pollAgentStatus() {
   try {
     const res = await fetch(`${config.agent.url}/health`, {
+      headers: { 'X-MindGate-Secret': config.agent.secret },
       signal: AbortSignal.timeout(3000)
     })
     if (res.ok) {

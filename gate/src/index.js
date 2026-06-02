@@ -116,13 +116,18 @@ app.get('/v1/models', async (req, reply) => {
 /**
  * GET /health — status Gate
  */
-app.get('/health', async () => ({
-  status: 'ok',
-  agent: getAgentStatus(),
-  queue_length: getQueueLength(),
-  queue_paused: isQueuePaused(),
-  uptime: Math.floor(process.uptime())
-}))
+app.get('/health', async (req, reply) => {
+  const apiKey = authenticate(req, reply)
+  if (!apiKey) return
+
+  return {
+    status: 'ok',
+    agent: getAgentStatus(),
+    queue_length: getQueueLength(),
+    queue_paused: isQueuePaused(),
+    uptime: Math.floor(process.uptime())
+  }
+})
 
 // --- Uruchomienie ---
 

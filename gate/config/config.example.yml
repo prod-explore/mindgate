@@ -8,6 +8,7 @@ server:
 # Adres agenta na maszynie obliczeniowej
 agent:
   url: "http://192.168.1.XXX:3001"
+  secret: "mg-internal-secret-zmien-mnie"
   timeout_ms: 0                       # 0 = brak limitu (żądania mogą trwać godzinami)
 
 # Wake on LAN — budzenie maszyny obliczeniowej

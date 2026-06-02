@@ -18,7 +18,10 @@ async function sendShutdownSignal() {
   try {
     const res = await fetch(`${config.agent.url}/internal/shutdown-request`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'X-MindGate-Secret': config.agent.secret
+      },
       body: JSON.stringify({ idle_minutes: idleMinutes }),
       signal: AbortSignal.timeout(10000)
     })

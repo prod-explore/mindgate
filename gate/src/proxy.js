@@ -62,7 +62,10 @@ export async function proxyToAgent(req, model) {
 
   const fetchOpts = {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 
+      'Content-Type': 'application/json',
+      'X-MindGate-Secret': config.agent.secret
+    },
     body: JSON.stringify(body)
   }
   if (config.agent.timeout_ms > 0) {
@@ -108,7 +111,10 @@ export async function proxyStreamToAgent(req, reply, model) {
 
   const fetchOpts = {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 
+      'Content-Type': 'application/json',
+      'X-MindGate-Secret': config.agent.secret
+    },
     body: JSON.stringify(body)
   }
   if (config.agent.timeout_ms > 0) {

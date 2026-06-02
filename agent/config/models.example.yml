@@ -47,6 +47,7 @@ pipelines:
 server:
   port: 3001
   host: "0.0.0.0"
+  secret: "mg-internal-secret-zmien-mnie"
 
 # Ollama
 ollama:

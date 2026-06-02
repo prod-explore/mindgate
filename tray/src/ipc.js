@@ -36,8 +36,7 @@ export function startIpcServer() {
     const idle = getIdleSeconds()
     res.json({
       user_toggle_active: userToggleActive,
-      idle_seconds: idle,
-      whitelist_active: false
+      idle_seconds: idle
     })
   })
 
@@ -91,7 +90,10 @@ async function reportToAgent() {
   try {
     await fetch(`${config.agent.url}/internal/set-user-active`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'X-MindGate-Secret': config.agent.secret
+      },
       body: JSON.stringify({
         active: userToggleActive,
         last_input_seconds_ago: getIdleSeconds()

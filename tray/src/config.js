@@ -26,13 +26,19 @@ function loadConfig() {
     poll_interval_ms: 5000,
     ...cfg.agent
   }
+  if (process.env.MINDGATE_AGENT_SECRET) {
+    cfg.agent.secret = process.env.MINDGATE_AGENT_SECRET
+  }
+  if (!cfg.agent.secret) {
+    console.error('[config] Brak agent.secret w konfiguracji tray')
+    process.exit(1)
+  }
   cfg.ipc = {
     port: 3002,
     ...cfg.ipc
   }
   cfg.shutdown_guard = {
     idle_threshold_seconds: 120,
-    whitelist_processes: [],
     respect_manual_boot: true,
     ...cfg.shutdown_guard
   }
