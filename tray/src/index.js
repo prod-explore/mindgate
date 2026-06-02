@@ -58,18 +58,15 @@ function refreshMenuUI() {
 
   try {
     const newItems = buildMenuItems()
-    newItems.forEach((newItem, i) => {
-      systrayInstance.sendAction({
-        type: 'update-item',
-        item: {
-          title: newItem.title,
-          tooltip: newItem.title,
-          checked: newItem.checked || false,
-          enabled: newItem.enabled !== false
-        },
-        seq_id: i
-      })
-    })
+    const mappedItems = newItems.map(item => ({
+      title: item.title,
+      tooltip: item.title,
+      checked: item.checked || false,
+      enabled: item.enabled !== false,
+      hidden: false
+    }))
+
+    systrayInstance._conf.menu.items = mappedItems
 
     systrayInstance.sendAction({
       type: 'update-menu',
@@ -77,7 +74,7 @@ function refreshMenuUI() {
         icon: getCurrentIcon(),
         title: 'MindGate',
         tooltip: `MindGate — ${getAgentState().status}`,
-        items: systrayInstance._conf.menu.items
+        items: mappedItems
       }
     })
   } catch {
