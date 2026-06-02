@@ -1,7 +1,6 @@
 import express from 'express'
 import { config } from './config.js'
 import { getIdleSeconds } from './idle.js'
-import { isWhitelistProcessRunning } from './processes.js'
 import pino from 'pino'
 
 const log = pino({ name: 'ipc' })
@@ -38,7 +37,7 @@ export function startIpcServer() {
     res.json({
       user_toggle_active: userToggleActive,
       idle_seconds: idle,
-      whitelist_active: isWhitelistProcessRunning(config.shutdown_guard.whitelist_processes)
+      whitelist_active: false
     })
   })
 
@@ -61,11 +60,6 @@ function evaluateShutdown(idleMinutes) {
   const idleSeconds = getIdleSeconds()
   if (idleSeconds < config.shutdown_guard.idle_threshold_seconds) {
     return { allow: false, reason: 'user_recently_active', idle_seconds: idleSeconds }
-  }
-
-  // 3. Whitelist procesów
-  if (isWhitelistProcessRunning(config.shutdown_guard.whitelist_processes)) {
-    return { allow: false, reason: 'whitelist_process_running' }
   }
 
   // Wszystkie warunki spełnione — można wyłączyć
