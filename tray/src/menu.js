@@ -20,6 +20,14 @@ let agentState = {
 export function buildMenuItems() {
   const toggle = getUserToggle()
 
+  let dot = '⚪'
+  switch (agentState.status) {
+    case 'ok': dot = agentState.queue_length > 0 ? '🟡' : '🟢'; break;
+    case 'degraded': dot = '🔴'; break;
+    case 'idle': dot = '🔵'; break;
+    default: dot = '⚪'; break;
+  }
+
   return [
     {
       title: `MindGate v1.0.0`,
@@ -27,8 +35,8 @@ export function buildMenuItems() {
     },
     { title: '─────────────────────' , enabled: false },
     {
-      title: `● Agent: ${agentState.status}  |  Kolejka: ${agentState.queue_length}`,
-      enabled: false
+      title: `${dot} Agent: ${agentState.status}  |  Kolejka: ${agentState.queue_length}`,
+      enabled: true
     },
     { title: '─────────────────────', enabled: false },
     {
