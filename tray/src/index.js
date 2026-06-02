@@ -60,13 +60,19 @@ function refreshMenuUI() {
     const newItems = buildMenuItems()
     const confItems = systrayInstance._conf.menu.items
 
-    // Mutate existing items to preserve __id added by systray2
+    // Mutate existing items to preserve __id added by systray2 and send update-item
     newItems.forEach((newItem, i) => {
       if (confItems[i]) {
         confItems[i].title = newItem.title
         confItems[i].tooltip = newItem.title
         confItems[i].checked = newItem.checked || false
         confItems[i].enabled = newItem.enabled !== false
+
+        systrayInstance.sendAction({
+          type: 'update-item',
+          item: confItems[i],
+          seq_id: i
+        })
       }
     })
 
