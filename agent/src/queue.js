@@ -42,7 +42,7 @@ async function processNext() {
  * Długość kolejki.
  */
 export function getQueueLength() {
-  return queue.length
+  return queue.length + (processing ? 1 : 0)
 }
 
 /**
