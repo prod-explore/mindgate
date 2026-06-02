@@ -51,6 +51,41 @@ function getCurrentIcon() {
 }
 
 /**
+ * Odświeża UI traya (ikonę, tooltip i pozycje w menu).
+ */
+function refreshMenuUI() {
+  if (!systrayInstance) return
+
+  try {
+    const newItems = buildMenuItems()
+    newItems.forEach((newItem, i) => {
+      systrayInstance.sendAction({
+        type: 'update-item',
+        item: {
+          title: newItem.title,
+          tooltip: newItem.title,
+          checked: newItem.checked || false,
+          enabled: newItem.enabled !== false
+        },
+        seq_id: i
+      })
+    })
+
+    systrayInstance.sendAction({
+      type: 'update-menu',
+      menu: {
+        icon: getCurrentIcon(),
+        title: 'MindGate',
+        tooltip: `MindGate — ${getAgentState().status}`,
+        items: systrayInstance._conf.menu.items
+      }
+    })
+  } catch {
+    // systray może być w trakcie zamykania lub nie obsługiwać update'ów
+  }
+}
+
+/**
  * Pobiera status agenta (polling).
  */
 async function pollAgentStatus() {
@@ -81,22 +116,8 @@ async function pollAgentStatus() {
   // Sprawdź aktywność użytkownika — auto-włącz "Używam PC" przy ruchu myszy
   checkUserActivity()
 
-  // Aktualizuj ikonę
-  if (systrayInstance) {
-    try {
-      systrayInstance.sendAction({
-        type: 'update-menu',
-        menu: {
-          icon: getCurrentIcon(),
-          title: 'MindGate',
-          tooltip: `MindGate — ${getAgentState().status}`,
-          items: systrayInstance._conf.menu.items
-        }
-      })
-    } catch {
-      // systray nie obsługuje aktualizacji ikony w runtime w każdej wersji
-    }
-  }
+  // Aktualizuj UI traya po pobraniu statusu lub wykryciu aktywności
+  refreshMenuUI()
 }
 
 // Główna instancja systray
@@ -128,24 +149,13 @@ function initTray() {
   systrayInstance = new SysTray(systrayConfig)
 
   systrayInstance.onClick(action => {
-    const item = menuItems[action.seq_id]
+    // Pobierz z najnowszego menu żeby użyć aktualnego handlera
+    const currentItems = buildMenuItems()
+    const item = currentItems[action.seq_id]
+    
     if (item?.click) {
       item.click()
-
-      // Przebuduj menu po zmianie
-      const newItems = buildMenuItems()
-      newItems.forEach((newItem, i) => {
-        systrayInstance.sendAction({
-          type: 'update-item',
-          item: {
-            title: newItem.title,
-            tooltip: newItem.title,
-            checked: newItem.checked || false,
-            enabled: newItem.enabled !== false
-          },
-          seq_id: i
-        })
-      })
+      refreshMenuUI()
     }
   })
 
