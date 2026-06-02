@@ -54,7 +54,7 @@ function getCurrentIcon() {
  * Odświeża UI traya (ikonę, tooltip i pozycje w menu).
  */
 function refreshMenuUI() {
-  if (!systrayInstance) return
+  if (!systrayInstance || !systrayReady) return
 
   try {
     const newItems = buildMenuItems()
@@ -129,6 +129,8 @@ async function pollAgentStatus() {
 // Główna instancja systray
 let systrayInstance = null
 
+let systrayReady = false
+
 /**
  * Inicjalizuje system tray.
  */
@@ -166,7 +168,9 @@ function initTray() {
   })
 
   systrayInstance.ready().then(() => {
+    systrayReady = true
     log.info('🟢 MindGate Tray uruchomiony')
+    refreshMenuUI()
     systrayInstance.onError(err => {
       log.error({ err }, 'Systray error')
     })
