@@ -54,7 +54,8 @@ app.post('/v1/chat/completions', async (req, res) => {
     const messages = req.body.messages || []
     const options = {
       temperature: req.body.temperature,
-      top_p: req.body.top_p
+      top_p: req.body.top_p,
+      tools: req.body.tools || []
     }
 
     // Pipeline mode
@@ -66,8 +67,10 @@ app.post('/v1/chat/completions', async (req, res) => {
     }
 
     // Single model mode
-    const tools = getToolsForModel(resolved.profile)
-    if (tools.length) options.tools = tools
+    const mcpTools = getToolsForModel(resolved.profile)
+    if (mcpTools.length) {
+      options.tools = [...options.tools, ...mcpTools]
+    }
 
     if (isStream) {
       // Streaming

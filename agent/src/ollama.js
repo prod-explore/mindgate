@@ -160,6 +160,7 @@ function convertToOpenAIFormat(ollamaResponse, modelName) {
 export function createOpenAIStreamTransformer(modelName) {
   const chatId = `chatcmpl-${Date.now()}`
   let buffer = ''
+  let hasToolCalls = false
 
   return new TransformStream({
     transform(chunk, controller) {
@@ -178,11 +179,33 @@ export function createOpenAIStreamTransformer(modelName) {
             model: modelName,
             choices: [{
               index: 0,
-              delta: data.done
-                ? {}
-                : { content: data.message?.content || '' },
-              finish_reason: data.done ? 'stop' : null
+              delta: {},
+              finish_reason: null
             }]
+          }
+
+          if (!data.done && data.message) {
+            if (data.message.content) {
+              sseChunk.choices[0].delta.content = data.message.content
+            }
+            if (data.message.tool_calls?.length) {
+              hasToolCalls = true
+              sseChunk.choices[0].delta.tool_calls = data.message.tool_calls.map((tc, i) => ({
+                index: i,
+                id: `call_${Date.now()}_${i}`,
+                type: 'function',
+                function: {
+                  name: tc.function.name,
+                  arguments: typeof tc.function.arguments === 'string'
+                    ? tc.function.arguments
+                    : JSON.stringify(tc.function.arguments)
+                }
+              }))
+            }
+          }
+
+          if (data.done) {
+            sseChunk.choices[0].finish_reason = hasToolCalls ? 'tool_calls' : 'stop'
           }
 
           controller.enqueue(
@@ -203,6 +226,20 @@ export function createOpenAIStreamTransformer(modelName) {
         try {
           const data = JSON.parse(buffer)
           if (data.done) {
+            const sseChunk = {
+              id: chatId,
+              object: 'chat.completion.chunk',
+              created: Math.floor(Date.now() / 1000),
+              model: modelName,
+              choices: [{
+                index: 0,
+                delta: {},
+                finish_reason: hasToolCalls ? 'tool_calls' : 'stop'
+              }]
+            }
+            controller.enqueue(
+              new TextEncoder().encode(`data: ${JSON.stringify(sseChunk)}\n\n`)
+            )
             controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n'))
           }
         } catch {
