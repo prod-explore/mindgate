@@ -26,3 +26,8 @@ desktop.ini
 
 # Docker
 gate/data/
+
+# Build artifacts
+*.exe
+*.pdb
+tray/start-tray.vbs

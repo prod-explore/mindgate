@@ -1,5 +1,11 @@
 import { execSync } from 'child_process'
+import path from 'path'
+import fs from 'fs'
+import { fileURLToPath } from 'url'
 import pino from 'pino'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 
 const log = pino({ name: 'idle' })
 
@@ -69,40 +75,58 @@ function getIdleWindows_native() {
 }
 
 /**
- * Windows — PowerShell fallback.
+ * Windows — C# Executable fallback (zamiast PowerShell).
+ * Kompiluje i uruchamia mały program w C#, by uniknąć okienek PowerShell.
  */
 function getIdleWindows_powershell() {
-  const script = `
-    Add-Type @"
-    using System;
-    using System.Runtime.InteropServices;
+  const exePath = path.join(__dirname, 'get-idle-time.exe')
+  
+  try {
+    if (!fs.existsSync(exePath)) {
+      const csPath = path.join(__dirname, 'get-idle-time.cs')
+      if (!fs.existsSync(csPath)) {
+          // Jeśli brakuje kodu źródłowego, zapisz go w locie
+          const csCode = `
+using System;
+using System.Runtime.InteropServices;
+
+public class IdleTimeFinder {
     public struct LASTINPUTINFO {
         public uint cbSize;
         public uint dwTime;
     }
-    public class IdleTime {
-        [DllImport("user32.dll")]
-        public static extern bool GetLastInputInfo(ref LASTINPUTINFO plii);
-        public static uint GetIdleTime() {
-            LASTINPUTINFO info = new LASTINPUTINFO();
-            info.cbSize = (uint)Marshal.SizeOf(info);
-            GetLastInputInfo(ref info);
-            return ((uint)Environment.TickCount - info.dwTime);
+    
+    [DllImport("user32.dll")]
+    public static extern bool GetLastInputInfo(ref LASTINPUTINFO plii);
+    
+    public static void Main() {
+        LASTINPUTINFO info = new LASTINPUTINFO();
+        info.cbSize = (uint)Marshal.SizeOf(info);
+        if (GetLastInputInfo(ref info)) {
+            uint idleTime = ((uint)Environment.TickCount - info.dwTime) / 1000;
+            Console.WriteLine(idleTime);
+        } else {
+            Console.WriteLine(0);
         }
     }
-"@
-    [Math]::Floor([IdleTime]::GetIdleTime() / 1000)
-  `.trim()
+}
+`
+          fs.writeFileSync(csPath, csCode)
+      }
+      log.info('Kompiluję get-idle-time.exe (fallback dla idle)...')
+      execSync(`C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\csc.exe /nologo /target:exe /out:"${exePath}" "${csPath}"`, { windowsHide: true })
+    }
 
-  const buffer = Buffer.from(script, 'utf16le')
-  const base64 = buffer.toString('base64')
-
-  const result = execSync(`powershell -NoProfile -EncodedCommand ${base64}`, {
-    encoding: 'utf8',
-    timeout: 5000,
-    windowsHide: true
-  })
-  return parseInt(result.trim(), 10) || 0
+    const result = execSync(`"${exePath}"`, {
+      encoding: 'utf8',
+      timeout: 5000,
+      windowsHide: true
+    })
+    return parseInt(result.trim(), 10) || 0
+  } catch (err) {
+    log.warn({ err: err.message }, 'Błąd podczas wykonywania get-idle-time.exe')
+    return 0
+  }
 }
 
 /**

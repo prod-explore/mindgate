@@ -1,11 +1,17 @@
 import { execSync, spawn } from 'child_process'
+import { existsSync } from 'fs'
+import { fileURLToPath } from 'url'
+import { dirname, join } from 'path'
 import pino from 'pino'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = dirname(__filename)
 
 const log = pino({ name: 'shutdown-block' })
 
 /**
  * Blokuje systemowy shutdown gdy agent przetwarza żądania.
- * Używa Windows API ShutdownBlockReasonCreate przez ukryte okno PowerShell.
+ * Używa C# WinForms EXE do obsługi WM_QUERYENDSESSION.
  * Gdy użytkownik kliknie "Zamknij" w menu Start, Windows pokaże dialog:
  *   "Ta aplikacja blokuje wyłączenie: MindGate przetwarza żądania AI"
  *
@@ -17,70 +23,27 @@ let isBlocking = false
 
 /**
  * Aktywuje blokadę shutdown.
- * Tworzy ukryte okno Windows z zarejestrowanym ShutdownBlockReason.
+ * Kompiluje (jeśli trzeba) i uruchamia ukryty program C# blokujący zamknięcie.
  */
 export function enableShutdownBlock() {
   if (process.platform !== 'win32') return
   if (isBlocking) return
 
   try {
-    // PowerShell script that creates a hidden WinForms window with ShutdownBlockReasonCreate.
-    // The window intercepts WM_QUERYENDSESSION and blocks shutdown.
-    // The process stays alive until we kill it (when queue empties).
-    const script = `
-Add-Type -AssemblyName System.Windows.Forms
-Add-Type @"
-using System;
-using System.Runtime.InteropServices;
-using System.Windows.Forms;
+    const exePath = join(__dirname, 'shutdown-blocker.exe')
+    const csPath = join(__dirname, 'blocker.cs')
 
-public class ShutdownBlocker : Form {
-    [DllImport("user32.dll")]
-    public static extern bool ShutdownBlockReasonCreate(IntPtr hWnd, [MarshalAs(UnmanagedType.LPWStr)] string pwszReason);
-
-    [DllImport("user32.dll")]
-    public static extern bool ShutdownBlockReasonDestroy(IntPtr hWnd);
-
-    private const int WM_QUERYENDSESSION = 0x0011;
-
-    public ShutdownBlocker() {
-        this.Text = "MindGate Shutdown Guard";
-        this.ShowInTaskbar = false;
-        this.WindowState = FormWindowState.Minimized;
-        this.FormBorderStyle = FormBorderStyle.None;
-        this.Opacity = 0;
+    if (!existsSync(exePath) && existsSync(csPath)) {
+      log.info('Kompiluję shutdown-blocker.exe...')
+      execSync(`C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\csc.exe /nologo /target:winexe /out:"${exePath}" "${csPath}"`)
     }
 
-    protected override void OnHandleCreated(EventArgs e) {
-        base.OnHandleCreated(e);
-        ShutdownBlockReasonCreate(this.Handle, "MindGate przetwarza żądania AI — poczekaj na zakończenie.");
+    if (!existsSync(exePath)) {
+      log.error('Nie znaleziono shutdown-blocker.exe ani kodu źródłowego.')
+      return
     }
 
-    protected override void WndProc(ref Message m) {
-        if (m.Msg == WM_QUERYENDSESSION) {
-            m.Result = IntPtr.Zero; // Block shutdown
-            return;
-        }
-        base.WndProc(ref m);
-    }
-
-    protected override void OnFormClosing(FormClosingEventArgs e) {
-        ShutdownBlockReasonDestroy(this.Handle);
-        base.OnFormClosing(e);
-    }
-}
-"@
-
-$form = New-Object ShutdownBlocker
-[System.Windows.Forms.Application]::Run($form)
-`.trim()
-
-    blockerProcess = spawn('powershell', [
-      '-NoProfile',
-      '-NoLogo',
-      '-WindowStyle', 'Hidden',
-      '-Command', script
-    ], {
+    blockerProcess = spawn(exePath, [], {
       detached: false,
       stdio: 'ignore',
       windowsHide: true
