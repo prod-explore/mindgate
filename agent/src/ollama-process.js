@@ -1,5 +1,5 @@
 import { spawn, execSync } from 'child_process'
-import { existsSync } from 'fs'
+import { existsSync, readdirSync } from 'fs'
 import pino from 'pino'
 
 const log = pino({ name: 'ollama-process' })
@@ -9,13 +9,26 @@ const log = pino({ name: 'ollama-process' })
  * Startuje Ollamę przy starcie, zamyka przy shutdown.
  */
 
-// Standardowe ścieżki fallback (bez hardcoded prywatnych ścieżek)
+
+// Dynamicznie szukamy Ollamy w katalogach użytkowników oraz standardowych lokalizacjach
 const OLLAMA_PATHS_WIN = [
   process.env.OLLAMA_PATH,
-  `C:\\Users\\${process.env.USERNAME}\\AppData\\Local\\Programs\\Ollama\\ollama.exe`,
   'C:\\Program Files\\Ollama\\ollama.exe',
   'C:\\Program Files (x86)\\Ollama\\ollama.exe',
 ].filter(Boolean)
+
+try {
+  const usersDir = 'C:\\Users'
+  if (existsSync(usersDir)) {
+    const users = readdirSync(usersDir)
+    for (const user of users) {
+      if (user === 'Public' || user === 'All Users' || user === 'Default' || user === 'Default User') continue
+      OLLAMA_PATHS_WIN.push(`C:\\Users\\${user}\\AppData\\Local\\Programs\\Ollama\\ollama.exe`)
+    }
+  }
+} catch (err) {
+  // Ignoruj błędy odczytu C:\Users (np. brak uprawnień)
+}
 
 const OLLAMA_PATHS_LINUX = [
   process.env.OLLAMA_PATH,
