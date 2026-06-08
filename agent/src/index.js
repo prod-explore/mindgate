@@ -161,6 +161,34 @@ app.post('/internal/set-user-active', (req, res) => {
   res.json({ ok: true })
 })
 
+/**
+ * POST /internal/exit — zamknij agenta i powiązane usługi
+ */
+app.post('/internal/exit', async (req, res) => {
+  log.info('Otrzymano żądanie zamknięcia agenta od Tray App')
+  res.json({ ok: true })
+
+  // Uruchom zamknięcie z lekkim opóźnieniem, aby dać czas na odesłanie odpowiedzi
+  setTimeout(async () => {
+    log.info('Zamykanie agenta i usług...')
+    stopMcpServers()
+    stopOllama()
+    
+    // Spróbuj zatrzymać usługę Windows (jeśli istnieje i działa)
+    if (process.platform === 'win32') {
+      try {
+        const { exec } = await import('child_process')
+        exec('powershell -Command "Stop-Service mindgateagent.exe -Force"')
+      } catch (err) {
+        log.error({ err: err.message }, 'Nie udało się zatrzymać usługi mindgateagent.exe')
+        process.exit(0)
+      }
+    } else {
+      process.exit(0)
+    }
+  }, 1000)
+})
+
 // --- Uruchomienie ---
 
 const PORT = config.server.port

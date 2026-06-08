@@ -3,6 +3,7 @@ import { readFileSync } from 'fs'
 import { resolve, dirname } from 'path'
 import { fileURLToPath } from 'url'
 import pino from 'pino'
+import { config } from './config.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
@@ -66,8 +67,21 @@ export function buildMenuItems() {
     { title: '─────────────────────', enabled: false },
     {
       title: '✕  Zamknij tray',
-      click: () => {
-        log.info('Zamykanie tray app...')
+      click: async () => {
+        log.info('Zamykanie tray app i agenta...')
+        try {
+          await fetch(`${config.agent.url}/internal/exit`, {
+            method: 'POST',
+            headers: { 
+              'Content-Type': 'application/json',
+              'X-MindGate-Secret': config.agent.secret
+            },
+            body: JSON.stringify({ source: 'tray' }),
+            signal: AbortSignal.timeout(3000)
+          })
+        } catch (err) {
+          log.warn({ err: err.message }, 'Nie udalo sie poinformowac agenta o zamknieciu')
+        }
         process.exit(0)
       }
     }
