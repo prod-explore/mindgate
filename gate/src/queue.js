@@ -1,5 +1,8 @@
 import { config } from './config.js'
 import { proxyToAgent, proxyStreamToAgent } from './proxy.js'
+import pino from 'pino'
+
+const log = pino({ name: 'queue' })
 
 /**
  * Kolejka priorytetowa — sortuje żądania 5→1, FIFO w ramach priorytetu.
@@ -123,7 +126,7 @@ async function processNext() {
 export function resumeQueue() {
   if (!paused) return
   paused = false
-  console.log('[queue] Wznawiam przetwarzanie kolejki — agent jest z powrotem online')
+  log.info('Wznawiam przetwarzanie kolejki — agent jest z powrotem online')
   setImmediate(processNext)
 }
 

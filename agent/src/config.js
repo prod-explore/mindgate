@@ -41,6 +41,10 @@ function loadConfig() {
     request_timeout_ms: 600000,
     ...cfg.ollama
   }
+  cfg.tray = {
+    url: 'http://localhost:3002',
+    ...cfg.tray
+  }
   cfg.models = cfg.models || {}
   cfg.pipelines = cfg.pipelines || {}
 

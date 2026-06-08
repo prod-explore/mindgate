@@ -1,4 +1,4 @@
-import { spawn } from 'child_process'
+import { spawn, execSync } from 'child_process'
 import { existsSync } from 'fs'
 import pino from 'pino'
 
@@ -9,10 +9,10 @@ const log = pino({ name: 'ollama-process' })
  * Startuje Ollamę przy starcie, zamyka przy shutdown.
  */
 
-// Możliwe ścieżki Ollama na Windows i Linux
+// Standardowe ścieżki fallback (bez hardcoded prywatnych ścieżek)
 const OLLAMA_PATHS_WIN = [
   process.env.OLLAMA_PATH,
-  'C:\\Users\\MIKI\\AppData\\Local\\Programs\\Ollama\\ollama.exe',
+  `C:\\Users\\${process.env.USERNAME}\\AppData\\Local\\Programs\\Ollama\\ollama.exe`,
   'C:\\Program Files\\Ollama\\ollama.exe',
   'C:\\Program Files (x86)\\Ollama\\ollama.exe',
 ].filter(Boolean)
@@ -28,15 +28,38 @@ let ollamaReady = false
 
 /**
  * Znajduje ścieżkę do binarki Ollama.
+ * Kolejność: OLLAMA_PATH env → PATH systemowy (where/which) → znane lokalizacje
  */
 function findOllamaPath() {
+  // 1. Zmienna środowiskowa — najwyższy priorytet
+  if (process.env.OLLAMA_PATH && existsSync(process.env.OLLAMA_PATH)) {
+    log.info({ path: process.env.OLLAMA_PATH }, 'Znaleziono Ollama (OLLAMA_PATH)')
+    return process.env.OLLAMA_PATH
+  }
+
+  // 2. PATH systemowy — działa dla standardowych instalacji
+  try {
+    const cmd = process.platform === 'win32' ? 'where ollama' : 'which ollama'
+    const result = execSync(cmd, { encoding: 'utf8', timeout: 3000, windowsHide: true }).trim()
+    const firstLine = result.split('\n')[0].trim() // where może zwrócić wiele wyników
+    if (firstLine && existsSync(firstLine)) {
+      log.info({ path: firstLine }, 'Znaleziono Ollama (PATH systemowy)')
+      return firstLine
+    }
+  } catch {
+    // nie w PATH — szukamy dalej
+  }
+
+  // 3. Znane lokalizacje fallback
   const paths = process.platform === 'win32' ? OLLAMA_PATHS_WIN : OLLAMA_PATHS_LINUX
   for (const p of paths) {
     if (existsSync(p)) {
-      log.info({ path: p }, 'Znaleziono Ollama')
+      log.info({ path: p }, 'Znaleziono Ollama (znana lokalizacja)')
       return p
     }
   }
+
+  log.error('Nie znaleziono Ollama. Zainstaluj: https://ollama.ai lub ustaw OLLAMA_PATH')
   return null
 }
 

@@ -1,10 +1,9 @@
 import { isIdle } from './queue.js'
+import { config } from './config.js'
 import pino from 'pino'
 import { execSync } from 'child_process'
 
 const log = pino({ name: 'shutdown' })
-
-const TRAY_URL = 'http://localhost:3002'
 let userActive = false
 let lastInputSecondsAgo = 0
 
@@ -23,7 +22,7 @@ export async function handleShutdownRequest(idleMinutes) {
 
   // Sprawdź z tray app
   try {
-    const res = await fetch(`${TRAY_URL}/shutdown-check`, {
+    const res = await fetch(`${config.tray.url}/shutdown-check`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ idle_minutes: idleMinutes }),

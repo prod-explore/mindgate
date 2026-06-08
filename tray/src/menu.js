@@ -1,7 +1,21 @@
 import { getUserToggle, setUserToggle } from './ipc.js'
+import { readFileSync } from 'fs'
+import { resolve, dirname } from 'path'
+import { fileURLToPath } from 'url'
 import pino from 'pino'
 
+const __dirname = dirname(fileURLToPath(import.meta.url))
+
 const log = pino({ name: 'menu' })
+
+// Odczytaj wersję z package.json
+let TRAY_VERSION = '?'
+try {
+  const pkg = JSON.parse(readFileSync(resolve(__dirname, '..', '..', 'package.json'), 'utf8'))
+  TRAY_VERSION = pkg.version || '?'
+} catch {
+  // fallback — package.json nie istnieje lub błąd parsowania
+}
 
 /**
  * Buduje konfigurację menu dla systray.
@@ -30,7 +44,7 @@ export function buildMenuItems() {
 
   return [
     {
-      title: `MindGate v1.0.0`,
+      title: `MindGate v${TRAY_VERSION}`,
       enabled: false
     },
     { title: '─────────────────────' , enabled: false },
