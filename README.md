@@ -1,6 +1,10 @@
 <div align="center">
   <h1>🧠 MindGate</h1>
   <p><strong>A secure, self-hosted Local AI Gateway & Orchestrator</strong></p>
+  
+  [![Build Status](https://github.com/prod-explore/mindgate/actions/workflows/ci.yml/badge.svg)](https://github.com/prod-explore/mindgate/actions)
+  [![Node.js](https://img.shields.io/badge/Node.js-18.x-green.svg)](https://nodejs.org/)
+  [![License](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 </div>
 
 ## 📌 Overview
