@@ -1,6 +1,6 @@
 @echo off
 echo Running Restart script...
-cd /d "D:\Users\justx\Documents\=HUSTLA=\.PROJECT\FUTUMORE\mindgate"
+cd /d "%~dp0"
 echo Pulling latest code changes...
 git pull
 echo.
@@ -12,8 +12,8 @@ powershell -Command "Get-CimInstance Win32_Process -Filter \"name='node.exe'\" |
 powershell -Command "Stop-Process -Name 'tray_windows*' -Force -ErrorAction SilentlyContinue"
 echo.
 echo Set WshShell = CreateObject("WScript.Shell") > "%temp%\run_tray.vbs"
-echo WshShell.CurrentDirectory = "D:\Users\justx\Documents\=HUSTLA=\.PROJECT\FUTUMORE\mindgate\tray" >> "%temp%\run_tray.vbs"
-echo WshShell.Run "node.exe D:\Users\justx\Documents\=HUSTLA=\.PROJECT\FUTUMORE\mindgate\tray\src\index.js", 0, False >> "%temp%\run_tray.vbs"
+echo WshShell.CurrentDirectory = "%~dp0tray" >> "%temp%\run_tray.vbs"
+echo WshShell.Run "node.exe """"%~dp0tray\src\index.js"""""", 0, False >> "%temp%\run_tray.vbs"
 wscript "%temp%\run_tray.vbs"
 del "%temp%\run_tray.vbs"
 echo.
