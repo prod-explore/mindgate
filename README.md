@@ -15,8 +15,8 @@ It consists of a lightweight edge gateway (e.g., Raspberry Pi) and a dedicated h
 
 MindGate employs a distributed, two-tier architecture:
 
-1. **Edge Gateway (`mindgate-gate`)**: Runs 24/7 on a low-power device (e.g., Raspberry Pi). Handles HTTPS termination, API key validation, request queuing, and waking the compute node only when necessary.
-2. **Compute Node (`mindgate-agent` & `mindgate-tray`)**: A high-performance machine running local models via Ollama. It features a system tray app for process whitelisting and status monitoring.
+1. **Edge Gateway (`mindgate-gate`)**: Runs 24/7 on a low-power device (e.g., Raspberry Pi). Handles HTTPS termination, API key validation, request queuing, and routing traffic to appropriate compute nodes (waking them up only when necessary).
+2. **Compute Nodes (`mindgate-agent` & `mindgate-tray`)**: One or more high-performance machines running local models via Ollama. Each features a system tray app for process whitelisting and status monitoring.
 
 ```mermaid
 graph TD
