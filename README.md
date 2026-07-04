@@ -43,6 +43,14 @@ graph TD
 
 ---
 
+## 🧠 Key Decisions
+
+- **Why Fastify for the Gate, but Express for the Agent?**: The Gate (`mindgate-gate`) runs 24/7 on a low-power edge device (Raspberry Pi), where minimal overhead and high throughput are critical. Fastify was chosen for its raw speed and low memory footprint. In contrast, the Agent (`mindgate-agent`) runs on a high-performance compute node where raw framework speed is negligible compared to model inference time. Express was chosen here to leverage its mature ecosystem of routing and middleware for complex tool orchestration (MCP servers, local DBs, file operations).
+- **Why a Two-Tier Architecture?**: Running a local LLM requires a power-hungry GPU compute node, which is expensive and inefficient to keep active 24/7. The two-tier setup allows the lightweight Gate to remain always-on and instantly accessible on the local network. When a high-priority request arrives, the Gate uses Wake-on-LAN (WoL) to boot the compute node only when necessary, balancing 24/7 availability with significant power savings.
+- **Why Priority Levels (1-5) instead of a FIFO Queue?**: A standard First-In-First-Out queue fails when mixing interactive and background tasks. For example, an autocomplete request from Cursor (IDE) needs an immediate response, while a background script summarizing 50 documents can afford to wait. Priority levels ensure that critical, user-facing requests instantly bypass long-running batch jobs in the queue.
+
+---
+
 ## ✨ Features
 
 - **OpenAI-Compatible API**: Works out-of-the-box with any standard OpenAI client by simply changing the base URL.
