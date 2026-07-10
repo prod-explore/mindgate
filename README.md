@@ -69,7 +69,7 @@ MindGate requires setting up both the Edge Gateway and the Compute Node.
 ### 1. Edge Gateway Deployment (Raspberry Pi/Linux)
 The gateway runs natively on Node.js using Fastify.
 ```bash
-git clone https://github.com/your-org/mindgate.git
+git clone https://github.com/prod-explore/mindgate.git
 cd mindgate/gate
 npm install
 npm start
