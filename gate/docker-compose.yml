@@ -13,5 +13,5 @@ services:
 
 networks:
   mindgate_net:
-    driver: bridge
+    external: true
 
