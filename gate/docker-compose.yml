@@ -14,4 +14,3 @@ services:
 networks:
   mindgate_net:
     external: true
-
