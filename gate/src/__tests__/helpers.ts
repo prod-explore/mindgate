@@ -206,6 +206,7 @@ export async function startHub(opts: TestHubOptions = {}): Promise<TestHub> {
       fetch(base + path, { method, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}`, ...headers }, ...(body !== undefined ? { body: JSON.stringify(body) } : {}) }),
     close: async () => {
       hub.nodes.stop();
+      hub.nodeClient.stop();
       hub.sync.stop();
       await app.close();
       hub.db.close();
@@ -237,3 +238,96 @@ export function parseSse(text: string): Array<Json | string> {
 }
 
 export const sleep = (ms: number): Promise<void> => new Promise(r => setTimeout(r, ms));
+
+// ─── A MindGate agent, as far as the hub is concerned ────────────────────────
+
+export interface FakeAgentState {
+  /** Bearer token the agent insists on; null = open. */
+  secret: string | null;
+  models: Json[];
+  pulls: Map<string, Json>;
+  loaded: string[];
+  /** What POST /node/power/shutdown-request answers. */
+  shutdownRequest: { status?: number; body?: unknown };
+  status: Json;
+  calls: Array<{ method: string; path: string; body: Json | null; auth: string | undefined }>;
+}
+
+export interface FakeAgent extends Upstream {
+  state: FakeAgentState;
+  /** Finishes a download the way the real agent would: the model appears and the job succeeds. */
+  finishPull(id: string, model?: Json): void;
+}
+
+export async function startFakeAgent(secret: string | null = 'node-secret-for-tests-0123456789', models: Json[] = [{ id: 'tiny:1b', object: 'model', kind: 'chat', locality: 'local', context_length: 4096 }]): Promise<FakeAgent> {
+  const state: FakeAgentState = {
+    secret,
+    models: [...models],
+    pulls: new Map(),
+    loaded: [],
+    shutdownRequest: { body: { allow: true, reason: 'shutdown_initiated' } },
+    status: { node_id: 'fake-pc', version: '2.0.0', runtime: { name: 'ollama', ok: true }, in_flight: 0, downloads: 0, loaded: [], safe_to_shutdown: true },
+    calls: [],
+  };
+  let n = 0;
+  const up = await startUpstream((req, res) => {
+    const path = req.path;
+    state.calls.push({ method: req.method, path, body: req.body, auth: req.headers['authorization'] as string | undefined });
+    if (state.secret && req.headers['authorization'] !== `Bearer ${state.secret}`) {
+      return sendJson(res, 401, { error: { message: 'Unauthorized', type: 'authentication_error', code: 'invalid_node_secret' } });
+    }
+    const err = (status: number, code: string, message: string) => sendJson(res, status, { error: { message, type: 'invalid_request_error', code } });
+
+    if (req.method === 'GET' && path === '/health') return sendJson(res, 200, { status: 'ok', node_id: 'fake-pc' });
+    if (req.method === 'GET' && path === '/v1/models') return sendJson(res, 200, { object: 'list', data: state.models });
+    if (req.method === 'POST' && path === '/v1/chat/completions') return sendJson(res, 200, completion(`from the agent: ${req.body?.['model']}`));
+    if (req.method === 'GET' && path === '/node/status') return sendJson(res, 200, state.status);
+    if (req.method === 'GET' && path === '/node/models') {
+      return sendJson(res, 200, { object: 'list', data: state.models.map(m => ({ id: m['id'], kind: m['kind'] ?? 'chat', size_bytes: 1000, loaded: state.loaded.includes(String(m['id'])) ? { vram_bytes: 1 } : null })) });
+    }
+    if (req.method === 'POST' && path === '/node/pulls') {
+      const job = { id: `job${++n}`, name: req.body?.['name'], status: 'running', phase: 'pulling', percent: 10, error: null };
+      state.pulls.set(job.id, job);
+      return sendJson(res, 202, job);
+    }
+    if (req.method === 'GET' && path === '/node/pulls') return sendJson(res, 200, { object: 'list', data: [...state.pulls.values()].reverse() });
+    const pull = /^\/node\/pulls\/([^/]+)$/.exec(path);
+    if (pull) {
+      const job = state.pulls.get(pull[1]!);
+      if (!job) return err(404, 'pull_not_found', 'There is no such download');
+      if (req.method === 'DELETE') {
+        job['status'] = 'cancelled';
+        return sendJson(res, 200, job);
+      }
+      return sendJson(res, 200, job);
+    }
+    if (req.method === 'DELETE' && path.startsWith('/node/models/')) {
+      const name = decodeURIComponent(path.slice('/node/models/'.length));
+      const i = state.models.findIndex(m => m['id'] === name);
+      if (i < 0) return err(404, 'model_not_found', `model '${name}' not found`);
+      state.models.splice(i, 1);
+      return sendJson(res, 200, { ok: true, name });
+    }
+    if (req.method === 'POST' && path === '/node/models/load') {
+      state.loaded.push(String(req.body?.['name']));
+      return sendJson(res, 200, { ok: true, name: req.body?.['name'] });
+    }
+    if (req.method === 'POST' && path === '/node/models/unload') {
+      state.loaded = state.loaded.filter(x => x !== req.body?.['name']);
+      return sendJson(res, 200, { ok: true, name: req.body?.['name'] });
+    }
+    if (req.method === 'POST' && path === '/node/power/shutdown-request') return sendJson(res, state.shutdownRequest.status ?? 200, state.shutdownRequest.body ?? {});
+    if (req.method === 'POST' && path === '/node/power/shutdown') return sendJson(res, 200, { allow: true, reason: req.body?.['force'] ? 'forced' : 'shutdown_initiated' });
+    return err(404, 'unknown_endpoint', `Unknown endpoint: ${req.method} ${path}`);
+  });
+  return {
+    ...up,
+    state,
+    finishPull(id, model) {
+      const job = state.pulls.get(id)!;
+      job['status'] = 'succeeded';
+      job['percent'] = 100;
+      state.models.push(model ?? { id: job['name'], object: 'model', kind: 'chat', locality: 'local' });
+    },
+  };
+}

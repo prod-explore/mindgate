@@ -124,8 +124,10 @@ Dostawca z ustawionym `node` to komputer, który hub budzi:
 - żądanie z priorytetem `>= min_wake_priority` (domyślnie 3) wysyła magic packet i czeka (do `boot_timeout_ms`), a przy streamingu, gdy robi się cicho, wysyła komentarze SSE (`MINDGATE_KEEPALIVE_*`), żeby nginx i klient nie zerwali połączenia;
 - żądanie z niższym priorytetem **nie budzi** maszyny: dostaje `503 node_asleep` — a jeśli to alias, hub od razu bierze następny cel (np. chmurę);
 - wiele żądań czekających na tę samą maszynę to jedno budzenie;
-- po `idle_shutdown_minutes` bez żądań hub prosi agenta o wyłączenie (`shutdown_url`); agent decyduje, czy faktycznie (np. ktoś pracuje przy komputerze);
+- po `idle_shutdown_minutes` bez żądań hub prosi agenta o wyłączenie (`POST <control_url>/node/power/shutdown-request`, albo własny `shutdown_url`); agent decyduje, czy faktycznie (trwa żądanie lub pobieranie, ktoś pracuje przy komputerze). Odmowa lub błąd to 5 minut przerwy, zanim hub zapyta ponownie;
 - gdy maszyna zniknie w trakcie (zasilanie), hub sprawdza ją na nowo, w razie potrzeby budzi i ponawia **raz**; potem `502 node_connection_lost`.
+
+Z `node.control_url` (adres agenta MindGate, np. `http://pc.lan:3001`) hub zarządza też **modelami na maszynie**: pobiera je, usuwa, ładuje do karty i pokazuje stan sprzętu — [05 - Węzły](05-nodes.md), [04 - Modele](04-models.md). Hub **nie budzi** maszyny, żeby coś takiego zrobić; jeśli śpi, dostajesz jasny błąd.
 
 Konfiguracja WoL po stronie komputera i routera: [06 - Wake on LAN](06-wol.md).
 
@@ -137,7 +139,7 @@ W logu żądań: kiedy, który klucz, jaki model i dostawca, kod odpowiedzi, cza
 
 ## Migracja ze starego gate'a
 
-Stary `config.yml` (agent, WoL, klucze, profile) przenosi jedno polecenie:
+Stary `config.yml` (agent, WoL, klucze) przenosi jedno polecenie:
 
 ```bash
 docker compose exec -T gate sh -c 'cat > /tmp/config.yml' < config/config.yml
@@ -147,11 +149,13 @@ docker compose exec gate node dist/cli.js import-legacy /tmp/config.yml
 
 Powstaje:
 
-- dostawca `agent` — lokalny, jedno żądanie naraz, z budzeniem WoL, wyłączaniem po bezczynności i sekretem w nagłówku `X-MindGate-Secret` (tak jak dotąd);
-- po jednym modelu na profil i pipeline oraz **alias o tej samej nazwie** (`flash`, `reasoning`, `pipeline:reasoning+flash`…), więc istniejący klienci działają bez zmian;
+- dostawca `agent` — lokalny, jedno żądanie naraz, z budzeniem WoL, wyłączaniem po bezczynności i `control_url` wskazującym na nowego agenta. Dawny sekret z `config.yml` staje się jego kluczem, więc **wpisz go w `agent/.env` jako `MINDGATE_NODE_SECRET`** (co najmniej 24 znaki, bez słów w rodzaju „change-me”; ze słabszym agent nie wystartuje — wtedy wymyśl nowy i wpisz go też w hubie: `PATCH /admin/api/providers/agent` z `api_key`);
+- **modele nie są kopiowane** — hub pozna je z maszyny po uruchomieniu nowego agenta (`POST /admin/api/providers/agent/sync` albo samo po starcie). Dawne nazwy profili (`flash`, `reasoning`…) nie są przenoszone. Chcesz, żeby klienci dalej ich używali: podaj `--agent-models <ścieżka>` do swojego starego `models.yml` agenta (na komputerze z GPU, w `agent/config/`; zrób jego kopię przed aktualizacją, nowy agent już go nie czyta), a każdy profil stanie się **aliasem** na prawdziwy model Ollamy, który oznaczał. Albo utwórz aliasy sam w panelu;
 - klucze klientów z tymi samymi wartościami i priorytetami (placeholdery z przykładu są pomijane). Teraz są skrótami: plik `config.yml` możesz usunąć.
 
-Zmienia się: kolejka i port to teraz zmienne środowiskowe (import wypisze które), a pojedyncze żądanie czeka najwyżej godzinę (stary gate nie miał limitu). Agent i tray działają bez zmian.
+Czego już nie ma: **pipeline'ów** i **narzędzi MCP** wstrzykiwanych przez agenta — hub zwraca to, co mówi model, a łączenie modeli w ciąg to sprawa klienta. Alias z kilkoma celami to lista fallbacku, nie sekwencja. Import wypisze, które pipeline'y miałeś.
+
+Zmienia się też: kolejka i port to teraz zmienne środowiskowe (import wypisze które), a pojedyncze żądanie czeka najwyżej godzinę (stary gate nie miał limitu). Agent wymaga aktualizacji do wersji 2 — [02 - Agent](02-agent.md).
 
 ---
 

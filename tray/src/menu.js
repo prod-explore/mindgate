@@ -25,7 +25,7 @@ try {
 // Stan aktualny
 let agentState = {
   status: 'unknown',
-  queue_length: 0,
+  busy: 0,
   lastCheck: null
 }
 
@@ -37,7 +37,7 @@ export function buildMenuItems() {
 
   let dot = '⚪'
   switch (agentState.status) {
-    case 'ok': dot = agentState.queue_length > 0 ? '🟡' : '🟢'; break;
+    case 'ok': dot = agentState.busy > 0 ? '🟡' : '🟢'; break;
     case 'degraded': dot = '🔴'; break;
     case 'idle': dot = '🔵'; break;
     default: dot = '⚪'; break;
@@ -50,7 +50,7 @@ export function buildMenuItems() {
     },
     { title: '─────────────────────' , enabled: false },
     {
-      title: `${dot} Agent: ${agentState.status}  |  Kolejka: ${agentState.queue_length}`,
+      title: `${dot} Agent: ${agentState.status}  |  Zadania: ${agentState.busy}`,
       enabled: true
     },
     { title: '─────────────────────', enabled: false },
@@ -70,11 +70,11 @@ export function buildMenuItems() {
       click: async () => {
         log.info('Zamykanie tray app i agenta...')
         try {
-          await fetch(`${config.agent.url}/internal/exit`, {
+          await fetch(`${config.agent.url}/node/exit`, {
             method: 'POST',
-            headers: { 
+            headers: {
               'Content-Type': 'application/json',
-              'X-MindGate-Secret': config.agent.secret
+              'Authorization': `Bearer ${config.agent.secret}`
             },
             body: JSON.stringify({ source: 'tray' }),
             signal: AbortSignal.timeout(3000)

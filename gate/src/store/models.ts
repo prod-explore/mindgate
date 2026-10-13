@@ -243,6 +243,11 @@ export class ModelStore {
     return this.require(id);
   }
 
+  /** Forgets a model for good, whatever its source: it was removed from the machine it lived on. */
+  purge(id: string): void {
+    this.db.prepare('DELETE FROM models WHERE id = ?').run(id);
+  }
+
   /** Deletes a manual model. A synced one would only come back with the next sync, so it is disabled instead. */
   delete(id: string): { deleted: boolean } {
     const rec = this.getRecord(id);

@@ -99,17 +99,18 @@ Toggle jest widoczny w menu jako pierwsza opcja — jeden klik.
 
 ## Logika shutdown guard
 
-Tray app odpowiada na `POST /internal/shutdown-request` od agenta. Zanim pozwoli na shutdown, sprawdza kilka warunków:
+Wyłączenie zaczyna się w hubie: po `idle_shutdown_minutes` bez żądań prosi agenta (`POST /node/power/shutdown-request`). Agent sprawdza po swojej stronie, a potem pyta tray (`POST /shutdown-check`):
 
 ```
-1. Czy toggle "Używam PC" jest włączony?  → NIE shutdown
-2. Czy kolejka agenta jest pusta?          → jeśli nie → NIE shutdown
-3. Czy minęło X minut od ostatniego inputu? (WinAPI / X11)
-4. Czy działają procesy z whitelisty?
-5. Czy użytkownik sam włączył komputer (nie przez WoL)?
+Agent (sam):
+  1. Trwa żądanie /v1 albo pobieranie modelu?  → NIE (requests_in_flight / download_in_progress)
+Tray (na prośbę agenta):
+  2. Czy toggle "Używam PC" jest włączony?     → NIE (user_toggle_active)
+  3. Czy minęło X sekund od ostatniego inputu? → jeśli nie → NIE (user_recently_active)
+  4. (planowane) czy działają procesy z whitelisty?
 ```
 
-Tylko gdy wszystkie warunki są spełnione — tray odpowiada agentowi że można wyłączyć, a agent wykonuje `shutdown`.
+Werdykt traya jest ostateczny. Jeśli tray nie odpowiada (nie działa, zawieszony), agent odmawia (`tray_unreachable`): komputera, przy którym może siedzieć człowiek, nie wyłącza się „na zgadywanie”. Na serwerze bez traya (`MINDGATE_TRAY_URL=` puste w `agent/.env`) agent decyduje sam. Tylko gdy wszystkie warunki są spełnione, agent uruchamia `shutdown` z opóźnieniem (`MINDGATE_SHUTDOWN_DELAY_SECONDS`, domyślnie 30 s). Gdy agent pracuje (żądanie w toku albo pobieranie), tray dodatkowo blokuje na Windows ręczne wyłączenie systemu z menu Start — Windows pokaże, że MindGate przetwarza żądania.
 
 ### Sprawdzanie aktywności użytkownika
 
@@ -137,63 +138,33 @@ function getIdleSeconds() {
 }
 ```
 
-### Whitelist procesów
+### Whitelist procesów (planowane)
 
-Procesy które blokują shutdown (konfigurowalne):
+Blokowanie wyłączenia, gdy działa wskazany program (odtwarzacz, instalator, przeglądarka), nie jest jeszcze zaimplementowane. Dziś o wyłączeniu decydują: toggle „Używam PC”, czas od ostatniego inputu i to, czy agent pracuje.
 
 ```yaml
 # tray/config/tray.yml
 shutdown_guard:
   idle_threshold_seconds: 120     # 2 minuty braku inputu = "nieaktywny"
-  whitelist_processes:
-    - "Spotify.exe"
-    - "spotify"
-    - "vlc"
-    - "mpv"
-    - "chrome"                    # usuń jeśli nie chcesz blokować przez przeglądarkę
-    - "setup.exe"
-    - "install"
-    - "apt"
-    - "apt-get"
-    - "winget"
-
-  # Czy komputer był uruchomiony przez WoL (automatycznie)?
-  # Jeśli tak — można wyłączyć gdy idle
-  # Jeśli nie (user sam włączył) — nie wyłączaj bez wyraźnej zgody
   respect_manual_boot: true
-```
-
-Sprawdzanie whitelisty (Windows):
-
-```javascript
-import { execSync } from 'child_process'
-
-function isWhitelistProcessRunning(whitelist) {
-  const processes = execSync('tasklist /fo csv /nh')
-    .toString()
-    .toLowerCase()
-  return whitelist.some(p => processes.includes(p.toLowerCase()))
-}
 ```
 
 ---
 
 ## IPC z agentem
 
-Tray app komunikuje się z agentem przez HTTP na localhost:
+Tray i agent rozmawiają przez HTTP na localhost. Ścieżki agenta wymagają `Authorization: Bearer <MINDGATE_NODE_SECRET>`; tray bierze ten sam sekret z `agent.secret` w `tray.yml` (albo ze zmiennej środowiskowej `MINDGATE_NODE_SECRET`).
 
 ```
-Agent  →  POST /internal/shutdown-request  →  Tray
-Tray   →  GET  /internal/status            →  Agent  (polling co 5s)
-Tray   →  POST /internal/set-user-active   →  Agent  (gdy toggle zmieniony)
+Agent  →  POST http://127.0.0.1:3002/shutdown-check  →  Tray   { idle_minutes }  →  { allow, reason }
+Tray   →  GET  <agent>/health                         (co 5 s: stan, ikona, `in_flight` + `downloads` = „zajęty”)
+Tray   →  POST <agent>/node/user-active               (co 5 s i przy zmianie toggla: { active, last_input_seconds_ago })
+Tray   →  POST <agent>/node/exit                      (menu „Zamknij tray”: agent kończy pracę)
 ```
 
-Tray ma własny mini-serwer HTTP na porcie 3002 (tylko localhost):
+Mini-serwer traya (port 3002, tylko `127.0.0.1`) udostępnia też `GET /status` (`user_toggle_active`, `idle_seconds`).
 
-```
-POST http://localhost:3002/shutdown-response
-  { "allow": false, "reason": "user_toggle_active" }
-```
+Pełny kontrakt agenta: [05 - Węzły](05-nodes.md). Test w repozytorium (`e2e/`) sprawdza, że każda ścieżka, którą woła tray, istnieje w agencie.
 
 ---
 
@@ -205,7 +176,7 @@ tray/src/
 ├── menu.js           Budowanie i aktualizacja menu trayu
 ├── ipc.js            Komunikacja HTTP z agentem
 ├── idle.js           Sprawdzanie aktywności użytkownika
-├── processes.js      Whitelist procesów
+├── shutdown-block.js Blokada ręcznego wyłączenia Windows, gdy agent pracuje
 ├── icons/
 │   ├── green.ico
 │   ├── yellow.ico

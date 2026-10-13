@@ -26,8 +26,10 @@ function loadConfig() {
     poll_interval_ms: 5000,
     ...cfg.agent
   }
-  if (process.env.MINDGATE_AGENT_SECRET) {
-    cfg.agent.secret = process.env.MINDGATE_AGENT_SECRET
+  // ten sam sekret co MINDGATE_NODE_SECRET w agent/.env
+  const envSecret = process.env.MINDGATE_NODE_SECRET || process.env.MINDGATE_AGENT_SECRET
+  if (envSecret) {
+    cfg.agent.secret = envSecret
   }
   if (!cfg.agent.secret) {
     console.error('[config] Brak agent.secret w konfiguracji tray')

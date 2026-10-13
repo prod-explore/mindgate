@@ -47,8 +47,42 @@ jobs:
           docker logs hub
           exit 1
 
-  node-machine:
-    name: agent and tray (install)
+  agent:
+    name: agent (build + tests)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: agent/package-lock.json
+      - name: Install
+        run: npm ci
+        working-directory: agent
+      - name: Build and test
+        run: npm test
+        working-directory: agent
+
+  chain:
+    name: end to end (hub -> agent -> model runtime)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Build the hub
+        run: npm ci && npm run build
+        working-directory: gate
+      - name: Build the agent
+        run: npm ci && npm run build
+        working-directory: agent
+      - name: Run the chain
+        run: node --test --test-timeout=60000 e2e/*.test.mjs
+
+  tray:
+    name: tray (install + syntax)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -56,6 +90,7 @@ jobs:
         with:
           node-version: 22
       - name: Install
-        run: |
-          cd agent && npm install && npm run build --if-present
-          cd ../tray && npm install
+        run: npm install
+        working-directory: tray
+      - name: Every source file at least parses
+        run: for f in tray/src/*.js tray/scripts/*.js; do node --check "$f"; done

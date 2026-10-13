@@ -4,6 +4,24 @@ cd /d "%~dp0"
 echo Pulling latest code changes...
 git pull
 echo.
+echo Updating the agent (npm install, build)...
+pushd "%~dp0agent"
+call npm install
+if errorlevel 1 (
+  popd
+  echo The agent did not install. The service was NOT restarted, so the previous version keeps running.
+  pause
+  exit /b 1
+)
+call npm run build
+if errorlevel 1 (
+  popd
+  echo The agent did not build. The service was NOT restarted, so the previous version keeps running.
+  pause
+  exit /b 1
+)
+popd
+echo.
 echo Restarting MindGate Agent Service...
 powershell -Command "Start-Process powershell -ArgumentList '-NoProfile -Command Restart-Service mindgateagent.exe -Force' -Verb RunAs -Wait"
 echo.

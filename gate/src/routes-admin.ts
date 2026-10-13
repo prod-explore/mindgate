@@ -4,13 +4,13 @@ import { authenticateAdmin, type AuthThrottle } from './auth.js';
 import type { Hub } from './context.js';
 import { HubError, badRequest } from './errors.js';
 import { withDeadline } from './upstream.js';
-import { aliasView, camelKeys, keyView, modelView, providerView } from './present.js';
+import { aliasView, camelKeys, keyView, modelView, providerView, snakeKeys } from './present.js';
 import { PRESETS } from './presets.js';
 import type { ProviderInput, ProviderPatch } from './store/providers.js';
 import { dayKey } from './time.js';
 import type { AuthScheme, Locality, NodeConfig, ProviderOptions, ProviderType } from './types.js';
 import { isPlainObject } from './util.js';
-import type { ModelPatch } from './store/models.js';
+import { canonicalId, type ModelPatch } from './store/models.js';
 import type { KeyInput, KeyPatch } from './store/keys.js';
 
 type Body = Record<string, unknown>;
@@ -194,6 +194,93 @@ export function registerAdmin(app: FastifyInstance, hub: Hub, throttle: AuthThro
         if (!provider.node) throw badRequest('not_a_node', `"${provider.id}" has no node settings (Wake-on-LAN)`);
         await hub.nodes.wake(provider);
         return { status: hub.nodes.status(provider) };
+      });
+
+      // ── nodes: the machine behind a provider, through its MindGate agent ──
+      /** What the hub knows about the machine, and — when it is up — what its agent says. */
+      admin.get('/providers/:id/node', async req => {
+        const provider = hub.providers.require((req.params as { id: string }).id);
+        if (!provider.node) throw badRequest('not_a_node', `"${provider.id}" has no node settings (Wake-on-LAN)`);
+        const out: Record<string, unknown> = { provider: provider.id, status: hub.nodes.status(provider), node: snakeKeys(provider.node), agent_configured: Boolean(provider.node.controlUrl), agent: null, agent_error: null };
+        if (provider.node.controlUrl) {
+          try {
+            out['agent'] = await hub.nodeClient.status(provider);
+          } catch (e) {
+            if (!(e instanceof HubError)) throw e;
+            out['agent_error'] = { code: e.code, message: e.message };
+          }
+        }
+        return out;
+      });
+
+      /** The models on the machine, each with the hub's record of it (null until the next sync has seen it). */
+      admin.get('/providers/:id/node/models', async req => {
+        const provider = hub.providers.require((req.params as { id: string }).id);
+        const onNode = await hub.nodeClient.models(provider);
+        const records = new Map(hub.models.records(provider.id).map(r => [r.id, r]));
+        const known = new Map(hub.models.list(provider.id).map(m => [m.id, m]));
+        return {
+          data: onNode.map(m => {
+            const id = canonicalId(provider.id, String(m['id']));
+            const resolved = known.get(id);
+            return { ...m, hub_id: id, hub: resolved ? modelView(resolved, records.get(id)) : null };
+          }),
+        };
+      });
+
+      admin.get('/providers/:id/node/pulls', async req => ({ data: await hub.nodeClient.pulls(hub.providers.require((req.params as { id: string }).id)) }));
+
+      /** Starts a download. The hub follows it and puts the model into its catalog when it is done. */
+      admin.post('/providers/:id/node/pulls', async (req, reply) => {
+        const provider = hub.providers.require((req.params as { id: string }).id);
+        const name = str(body(req), 'name');
+        if (!name) throw badRequest('invalid_request', 'name is required (for example "qwen3:4b" or "hf.co/user/repo:Q4_K_M")', 'name');
+        return reply.code(202).send(await hub.nodeClient.pull(provider, name));
+      });
+
+      admin.get('/providers/:id/node/pulls/:pull', async req => {
+        const { id, pull } = req.params as { id: string; pull: string };
+        return hub.nodeClient.pullStatus(hub.providers.require(id), pull);
+      });
+
+      admin.delete('/providers/:id/node/pulls/:pull', async req => {
+        const { id, pull } = req.params as { id: string; pull: string };
+        return hub.nodeClient.cancelPull(hub.providers.require(id), pull);
+      });
+
+      admin.post('/providers/:id/node/models/load', async req => {
+        const provider = hub.providers.require((req.params as { id: string }).id);
+        const b = body(req);
+        const name = str(b, 'name');
+        if (!name) throw badRequest('invalid_request', 'name is required', 'name');
+        if (has(b, 'keep_alive') && typeof b['keep_alive'] !== 'string' && typeof b['keep_alive'] !== 'number') throw badRequest('invalid_request', 'keep_alive must be a duration like "10m", or -1', 'keep_alive');
+        return hub.nodeClient.load(provider, name, b['keep_alive'] as string | number | undefined);
+      });
+
+      admin.post('/providers/:id/node/models/unload', async req => {
+        const provider = hub.providers.require((req.params as { id: string }).id);
+        const name = str(body(req), 'name');
+        if (!name) throw badRequest('invalid_request', 'name is required', 'name');
+        return hub.nodeClient.unload(provider, name);
+      });
+
+      /** Deletes the model from the machine's disk and forgets it here. Aliases that pointed at it are listed. */
+      admin.delete('/providers/:id/node/models/*', async req => {
+        const params = req.params as { id: string; '*': string };
+        const provider = hub.providers.require(params.id);
+        const name = params['*'];
+        const result = await hub.nodeClient.removeModel(provider, name);
+        const id = canonicalId(provider.id, name);
+        const affected = hub.aliases.list().filter(a => a.targets.includes(id)).map(a => a.name);
+        if (hub.models.getRecord(id)) hub.models.purge(id);
+        return { ...result, id, aliases_affected: affected };
+      });
+
+      /** `force` is a person's decision and skips the checks that stop an idle timer from powering off a PC in use. */
+      admin.post('/providers/:id/node/shutdown', async req => {
+        const provider = hub.providers.require((req.params as { id: string }).id);
+        const b = isPlainObject(req.body) ? req.body : {};
+        return hub.nodeClient.shutdown(provider, b['force'] === true);
       });
 
       // ── models ───────────────────────────────────────────────────────────

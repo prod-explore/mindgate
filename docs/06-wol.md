@@ -143,8 +143,7 @@ curl -X PATCH http://localhost:3000/admin/api/providers/agent \
     "min_wake_priority": 3,
     "boot_timeout_ms": 120000,
     "poll_interval_ms": 2000,
-    "health_url": "http://192.168.1.100:3001/health",
-    "shutdown_url": "http://192.168.1.100:3001/internal/shutdown-request",
+    "control_url": "http://192.168.1.100:3001",
     "idle_shutdown_minutes": 15
   }
 }'
@@ -153,10 +152,11 @@ curl -X PATCH http://localhost:3000/admin/api/providers/agent \
 - `broadcast` — adres broadcast sieci. Dla sieci `192.168.1.x` z maską `/24` to `192.168.1.255`; może być też `255.255.255.255`, jeśli router to przepuszcza.
 - **Hub w Dockerze (mostek):** broadcast zwykle nie przechodzi przez mostek. Wpisz tu **adres IP maszyny** (unicast) — magic packet i tak trafi na jej kartę.
 - `min_wake_priority` — od jakiego priorytetu żądanie budzi maszynę; słabsze dostają `503 node_asleep` (a alias przechodzi na kolejny cel).
-- `health_url` — adres, który odpowiada, gdy maszyna działa (agent: `/health`); hub sprawdza go, gdy żądanie trafia na maszynę, której ostatnia odpowiedź jest starsza niż 30 s, oraz co 30 s w tle.
-- `idle_shutdown_minutes` + `shutdown_url` — po tylu minutach bez żądań hub prosi agenta o wyłączenie; agent może odmówić.
+- `control_url` — adres agenta MindGate ([02 - Agent](02-agent.md)). Z niego hub wyprowadza dwa pozostałe adresy, więc zwykle nic więcej nie wpisujesz. Daje też zarządzanie modelami na maszynie ([05 - Węzły](05-nodes.md)).
+- `health_url` (domyślnie `<control_url>/health`) — adres, który odpowiada, gdy maszyna działa; hub sprawdza go, gdy żądanie trafia na maszynę, której ostatnia odpowiedź jest starsza niż 30 s, oraz co 30 s w tle. Ustaw ręcznie tylko dla maszyny bez agenta (np. czysta Ollama: `http://192.168.1.100:11434/api/version`).
+- `idle_shutdown_minutes` — po tylu minutach bez żądań hub prosi agenta o wyłączenie (domyślnie `<control_url>/node/power/shutdown-request`; własny `shutdown_url` zastępuje to, gdy wyłączasz maszynę skryptem). Agent może odmówić (pracuje, ktoś siedzi przy komputerze) — wtedy hub pyta ponownie dopiero za 5 minut.
 
-Stały adres IP maszyny jest ważny: `base_url` dostawcy i `health_url` wskazują na nią.
+Stały adres IP maszyny jest ważny: `base_url` dostawcy i `control_url` wskazują na nią.
 
 ---
 

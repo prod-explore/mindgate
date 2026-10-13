@@ -39,14 +39,20 @@ export interface NodeConfig {
   /** Broadcast address of the LAN, or the machine's own IP (unicast works from a Docker bridge). */
   broadcast: string;
   port: number;
-  /** URL that answers while the machine is up. Default: the provider's models URL. */
+  /**
+   * Where the MindGate agent on this machine listens (e.g. http://pc.lan:3001). Setting it turns on model management for
+   * the node and fills in the defaults of healthUrl and shutdownUrl. The provider's credentials are used for it.
+   */
+  controlUrl?: string;
+  /** URL that answers while the machine is up. Default: `<controlUrl>/health`, else the provider's models URL. */
   healthUrl?: string;
   bootTimeoutMs: number;
   pollIntervalMs: number;
   /** Requests below this priority never wake the machine; they fail with `node_asleep` (so a fallback can answer). */
   minWakePriority: number;
-  /** Ask the machine to shut down after this many idle minutes (needs shutdownUrl). */
+  /** Ask the machine to shut down after this many idle minutes (needs shutdownUrl or controlUrl). */
   idleShutdownMinutes?: number;
+  /** Default: `<controlUrl>/node/power/shutdown-request`. */
   shutdownUrl?: string;
 }
 

@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import Fastify, { type FastifyBaseLogger, type FastifyError, type FastifyInstance } from 'fastify';
+import Fastify, { LogController, type FastifyBaseLogger, type FastifyError, type FastifyInstance } from 'fastify';
 import { AuthThrottle } from './auth.js';
 import type { Hub } from './context.js';
 import { HubError, isHubError } from './errors.js';
@@ -20,7 +20,7 @@ export async function buildServer(hub: Hub, opts: { logger?: FastifyBaseLogger }
       const given = req.headers['x-request-id'];
       return typeof given === 'string' && REQUEST_ID.test(given) ? given : `req_${randomBytes(8).toString('hex')}`;
     },
-    disableRequestLogging: true,
+    logController: new LogController({ disableRequestLogging: true }),
   });
 
   app.addHook('onRequest', async (req, reply) => {

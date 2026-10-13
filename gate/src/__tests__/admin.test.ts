@@ -149,7 +149,20 @@ describe('admin API', () => {
 
     it('lists presets for the usual providers', async () => {
       const ids = ((await call('GET', '/presets')).json.data as Json[]).map(p => p.id);
-      for (const id of ['openrouter', 'gemini', 'anthropic', 'openai', 'ollama', 'lmstudio']) assert.ok(ids.includes(id), id);
+      for (const id of ['openrouter', 'gemini', 'anthropic', 'openai', 'ollama', 'lmstudio', 'mindgate-node']) assert.ok(ids.includes(id), id);
+    });
+
+    it('the node preset becomes a working provider once the machine-specific fields are filled in', async () => {
+      const preset = ((await call('GET', '/presets')).json.data as Json[]).find(p => p.id === 'mindgate-node')!;
+      const { note: _note, ...fields } = preset;
+      const r = await call('POST', '/providers', { ...fields, id: 'preset-pc', api_key: 'node-secret-0123456789abcdef', sync: false, node: { ...(preset['node'] as Json), mac: 'AA:BB:CC:DD:EE:03', broadcast: '192.168.1.255' } });
+      assert.equal(r.status, 201, JSON.stringify(r.json));
+      assert.equal(r.json.kind, 'node');
+      assert.equal(r.json.locality, 'local');
+      assert.equal(r.json.node.control_url, 'http://pc.lan:3001');
+      assert.equal(r.json.node.idle_shutdown_minutes, 15);
+      assert.equal(r.json.auth_scheme, 'bearer');
+      await call('DELETE', '/providers/preset-pc');
     });
 
     it('deleting a provider removes its models and says which aliases lost a target', async () => {

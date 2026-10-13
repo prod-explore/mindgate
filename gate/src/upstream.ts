@@ -28,7 +28,7 @@ export interface ProviderRuntime {
 }
 
 export interface FetchOptions {
-  method?: 'GET' | 'POST';
+  method?: 'GET' | 'POST' | 'DELETE';
   headers: Record<string, string>;
   body?: string;
   signal: AbortSignal;
