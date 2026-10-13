@@ -88,11 +88,11 @@ export function getUserToggle() {
  */
 async function reportToAgent() {
   try {
-    await fetch(`${config.agent.url}/internal/set-user-active`, {
+    await fetch(`${config.agent.url}/node/user-active`, {
       method: 'POST',
-      headers: { 
+      headers: {
         'Content-Type': 'application/json',
-        'X-MindGate-Secret': config.agent.secret
+        'Authorization': `Bearer ${config.agent.secret}`
       },
       body: JSON.stringify({
         active: userToggleActive,

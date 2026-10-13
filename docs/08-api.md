@@ -71,6 +71,7 @@ Działa także dla klucza, który wyczerpał limit.
 | 400 | `wrong_model_kind` | model embeddingowy w czacie lub odwrotnie |
 | 400 | `context_length_exceeded` i inne kody dostawcy | dostawca odrzucił treść żądania — przekazane bez zmian, **bez fallbacku** |
 | 400 | `upstream_bad_request` | jw., gdy dostawca nie podał rozpoznawalnego kodu |
+| 400 | `not_a_node`, `no_agent`, `agent_rejected` | (tylko API administratora) dostawca nie ma ustawień `node` / nie ma `node.control_url` / agent odrzucił polecenie (np. zła nazwa modelu) |
 | 401 | `missing_auth_header`, `invalid_auth_format`, `invalid_api_key` | uwierzytelnienie |
 | 403 | `model_not_allowed` | klucz nie ma tego modelu na liście `allowed_models` |
 | 403 | `local_only_violation` | `local_only`, a model/alias nie ma celu lokalnego |
@@ -82,6 +83,7 @@ Działa także dla klucza, który wyczerpał limit.
 | 429 | `upstream_rate_limited` | limit po stronie dostawcy (z jego `Retry-After`) |
 | 502 | `upstream_error`, `upstream_unreachable`, `upstream_empty_response`, `upstream_invalid_response`, `upstream_auth_failed` | awaria dostawcy / zły klucz dostawcy (właściciela, nie klienta) |
 | 502 | `node_connection_lost` | maszyna zniknęła w trakcie, a ponowienie też się nie udało |
+| 502 | `node_auth_failed`, `agent_missing`, `agent_invalid_response`, `agent_error` | zarządzanie maszyną (`/admin/api/providers/{id}/node*`): agent odrzucił sekret / pod `control_url` nie ma agenta MindGate / odpowiedział czymś, co nie jest JSON-em / zgłosił błąd po swojej stronie |
 | 502 | `provider_secret_unreadable` | zmieniony `MINDGATE_MASTER_KEY` — wpisz klucz dostawcy od nowa |
 | 503 | `no_available_model` | żaden cel aliasu nie jest dostępny (dostawcy wyłączeni) |
 | 503 | `node_asleep` | maszyna śpi, a priorytet żądania jest za niski, by ją budzić |
@@ -101,7 +103,7 @@ Fallback po stronie aliasu następuje przy awariach dostawcy: `upstream_error`, 
 | Metoda i ścieżka | Do czego |
 |---|---|
 | `GET /status` | wersja, czas pracy, stan dostawców i kolejek, liczniki |
-| `GET /presets` | gotowe ustawienia dostawców (OpenRouter, Gemini, Anthropic, OpenAI, Ollama, LM Studio, własny) |
+| `GET /presets` | gotowe ustawienia dostawców (OpenRouter, Gemini, Anthropic, OpenAI, Ollama, LM Studio, własny, `mindgate-node` — maszyna z agentem MindGate) |
 | `GET /providers`, `GET /providers/{id}` | lista / jeden dostawca |
 | `POST /providers` | dodaj: `id`, `type` (`openai` / `anthropic`), `base_url`, `api_key`, `locality`, `auth_scheme` (`bearer` / `header` / `none`) + `auth_header`, `extra_headers`, `options`, `max_concurrency`, `node`, `enabled`. Od razu pobiera listę modeli (`"sync": false` to wyłącza) |
 | `PATCH /providers/{id}` | zmień dowolne z pól; `api_key: null` usuwa klucz, brak pola go nie rusza |
@@ -109,6 +111,13 @@ Fallback po stronie aliasu następuje przy awariach dostawcy: `upstream_error`, 
 | `POST /providers/{id}/test` | sprawdza połączenie bez zmian (`ok`, opóźnienie, liczba modeli) |
 | `POST /providers/{id}/sync` | odświeża listę modeli |
 | `POST /providers/{id}/wake` | budzi maszynę (dostawca z `node`) i czeka |
+| `GET /providers/{id}/node` | maszyna: stan znany hubowi + to, co mówi jej agent (`agent`: model w pamięci, zadania w toku, CPU/RAM/GPU/dysk; `agent_error`, gdy agent nie odpowiada) |
+| `GET /providers/{id}/node/models` | modele zainstalowane na maszynie (rozmiar, kwantyzacja, możliwości, `loaded`) razem z rekordem w hubie (`hub_id`, `hub`) |
+| `POST /providers/{id}/node/pulls` | pobierz model: `{"name":"qwen3:4b"}` lub `hf.co/…`; `202` + zadanie z `id`. Gdy się skończy, model sam trafia do katalogu huba |
+| `GET /providers/{id}/node/pulls`, `GET …/pulls/{pull}`, `DELETE …/pulls/{pull}` | zadania pobierania, postęp (`status`, `percent`, `completed`, `total`), przerwanie |
+| `POST /providers/{id}/node/models/load`, `…/unload` | załaduj do karty (`name`, opcjonalnie `keep_alive`: `"30m"`, `-1`) / zwolnij |
+| `DELETE /providers/{id}/node/models/{nazwa}` | usuń z dysku maszyny i z katalogu huba; odpowiedź wymienia aliasy, które straciły cel (`aliases_affected`) |
+| `POST /providers/{id}/node/shutdown` | wyłącz maszynę; `{"force":true}` pomija sprawdzenia, które chronią przed wyłączeniem zajętego komputera |
 | `GET /models[?provider=]` | modele z polami `reported` (co podał dostawca) i `overrides` (co ustawił właściciel) |
 | `POST /models` | dodaj model ręcznie (`provider`, `id`, opcjonalnie `name`, `kind`, `context_length`, …) |
 | `PATCH /models/{id}` | nadpisz `name`, `description`, `kind`, `tags`, `context_length`, `max_output_tokens`, `supports`, `locality`, `enabled`; `null` przywraca wartość od dostawcy |
@@ -133,4 +142,6 @@ Fallback po stronie aliasu następuje przy awariach dostawcy: `upstream_error`, 
 
 ### `node` (maszyna z usypianiem)
 
-`mac`, `broadcast`, `port` (9), `min_wake_priority` (3), `boot_timeout_ms` (120000), `poll_interval_ms` (2000), `health_url`, `shutdown_url`, `idle_shutdown_minutes` (wymaga `shutdown_url`). Zob. [06 - Wake on LAN](06-wol.md).
+`mac`, `broadcast`, `port` (9), `min_wake_priority` (3), `boot_timeout_ms` (120000), `poll_interval_ms` (2000), `control_url` (adres agenta MindGate, np. `http://pc.lan:3001` — włącza zarządzanie modelami i domyślne `health_url` oraz `shutdown_url`), `health_url`, `shutdown_url`, `idle_shutdown_minutes` (wymaga `shutdown_url` albo `control_url`). Zob. [06 - Wake on LAN](06-wol.md) i [05 - Węzły](05-nodes.md).
+
+Sekret agenta (`MINDGATE_NODE_SECRET`) to `api_key` dostawcy — szyfrowany jak każdy inny, nigdy nie wraca w odpowiedziach.

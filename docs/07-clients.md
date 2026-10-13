@@ -20,7 +20,7 @@ AntyGraviti obsługuje własne LLM endpoints przez ustawienia projektu.
 3. Ustaw:
    - **API Endpoint**: `https://raspi.twojadomena.pl/v1`
    - **API Key**: `mg-twoj-klucz`
-   - **Model**: `reasoning` (lub inny profil)
+   - **Model**: `smart` (lub dowolny inny alias / model z `GET /v1/models`)
 
 Jeśli AntyGraviti wymaga pola `baseURL` w formacie JSON:
 
@@ -30,11 +30,6 @@ Jeśli AntyGraviti wymaga pola `baseURL` w formacie JSON:
   "apiKey": "mg-twoj-klucz",
   "model": "coding-hard"
 }
-```
-
-Dla pipeline (po migracji ze starego gate'a nazwa jest ta sama):
-```
-model: "pipeline:reasoning+flash"
 ```
 
 ---
@@ -91,9 +86,9 @@ Edytuj `~/.continue/config.json`:
       "apiKey": "mg-twoj-klucz"
     },
     {
-      "title": "MindGate — Reasoning",
+      "title": "MindGate — Smart",
       "provider": "openai",
-      "model": "reasoning",
+      "model": "smart",
       "apiBase": "https://raspi.twojadomena.pl/v1",
       "apiKey": "mg-twoj-klucz"
     },
@@ -153,7 +148,7 @@ client = OpenAI(
 )
 
 response = client.chat.completions.create(
-    model="reasoning",
+    model="smart",
     messages=[
         {"role": "user", "content": "Wytłumacz mi quicksort"}
     ],
@@ -243,8 +238,8 @@ curl https://raspi.twojadomena.pl/v1/models \
       "context_length": 64000, "status": "online"
     },
     {
-      "id": "agent/flash", "object": "model", "owned_by": "agent",
-      "kind": "chat", "locality": "local", "status": "asleep"
+      "id": "pc/qwen3:4b", "object": "model", "owned_by": "pc",
+      "kind": "chat", "supports": ["tools"], "locality": "local", "context_length": 8192, "status": "asleep"
     }
   ]
 }

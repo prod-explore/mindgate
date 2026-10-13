@@ -2,6 +2,7 @@ import type { HubConfig } from './config.js';
 import { SecretBox } from './crypto.js';
 import { openDatabase, type Db } from './db.js';
 import { Limits } from './limits.js';
+import { NodeClient } from './node-client.js';
 import { NodeManager, type NodeDeps } from './node.js';
 import { Registry } from './registry.js';
 import { Router } from './routing.js';
@@ -35,6 +36,7 @@ export interface Hub {
   router: Router;
   limits: Limits;
   nodes: NodeManager;
+  nodeClient: NodeClient;
   sync: ModelSync;
   log: Logger;
   clock: () => Date;
@@ -44,6 +46,8 @@ export interface HubOverrides {
   db?: Db;
   clock?: () => Date;
   node?: NodeDeps;
+  /** How often the hub looks at a download it started (to put the finished model into the catalog). */
+  nodePullPollMs?: number;
 }
 
 export function createHub(config: HubConfig, log: Logger = silentLogger, overrides: HubOverrides = {}): Hub {
@@ -60,5 +64,6 @@ export function createHub(config: HubConfig, log: Logger = silentLogger, overrid
   const limits = new Limits(usage, config.usageTz, clock);
   const nodes = new NodeManager(providers, registry, { log, ...overrides.node });
   const sync = new ModelSync(providers, models, registry, nodes, log);
-  return { config, db, box, providers, models, aliases, keys, usage, registry, router, limits, nodes, sync, log, clock };
+  const nodeClient = new NodeClient(providers, registry, nodes, sync, log, overrides.nodePullPollMs);
+  return { config, db, box, providers, models, aliases, keys, usage, registry, router, limits, nodes, nodeClient, sync, log, clock };
 }

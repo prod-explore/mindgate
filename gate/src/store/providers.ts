@@ -150,11 +150,13 @@ export function normalizeNode(raw: unknown): NodeConfig | null {
     pollIntervalMs: intIn(raw['pollIntervalMs'], 'node.pollIntervalMs', 100, 60_000) ?? 2000,
     minWakePriority: intIn(raw['minWakePriority'], 'node.minWakePriority', 1, 5) ?? 3,
   };
-  if (raw['healthUrl'] !== undefined && raw['healthUrl'] !== null && raw['healthUrl'] !== '') n.healthUrl = normalizeUrlLoose(raw['healthUrl'], 'node.healthUrl');
+  const given = (k: string): boolean => raw[k] !== undefined && raw[k] !== null && raw[k] !== '';
+  if (given('controlUrl')) n.controlUrl = normalizeUrlLoose(raw['controlUrl'], 'node.controlUrl').replace(/\/+$/, '');
+  if (given('healthUrl')) n.healthUrl = normalizeUrlLoose(raw['healthUrl'], 'node.healthUrl');
   const idle = intIn(raw['idleShutdownMinutes'], 'node.idleShutdownMinutes', 1, 10_080);
   if (idle !== undefined) {
     n.idleShutdownMinutes = idle;
-    if (raw['shutdownUrl'] === undefined || raw['shutdownUrl'] === null || raw['shutdownUrl'] === '') throw badRequest('invalid_node', 'node.shutdownUrl is required with idleShutdownMinutes', 'node.shutdownUrl');
+    if (!given('shutdownUrl') && !n.controlUrl) throw badRequest('invalid_node', 'node.shutdownUrl (or node.controlUrl) is required with idleShutdownMinutes', 'node.shutdownUrl');
   }
   if (raw['shutdownUrl'] !== undefined && raw['shutdownUrl'] !== null && raw['shutdownUrl'] !== '') n.shutdownUrl = normalizeUrlLoose(raw['shutdownUrl'], 'node.shutdownUrl');
   return n;

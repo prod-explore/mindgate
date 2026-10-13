@@ -94,13 +94,14 @@ export function isShutdownBlocked() {
 }
 
 /**
- * Aktualizuje stan blokady na podstawie queue_length agenta.
+ * Aktualizuje stan blokady na podstawie zajętości agenta
+ * (żądania w toku + pobierane modele).
  * Wywołuj periodycznie z głównej pętli pollingu.
  */
-export function updateShutdownBlock(queueLength) {
-  if (queueLength > 0 && !isBlocking) {
+export function updateShutdownBlock(busy) {
+  if (busy > 0 && !isBlocking) {
     enableShutdownBlock()
-  } else if (queueLength === 0 && isBlocking) {
+  } else if (busy === 0 && isBlocking) {
     disableShutdownBlock()
   }
 }

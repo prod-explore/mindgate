@@ -43,6 +43,7 @@ async function main(): Promise<void> {
     log.info({ signal }, 'shutting down');
     clearInterval(pruneTimer);
     hub.nodes.stop();
+    hub.nodeClient.stop();
     hub.sync.stop();
     const force = setTimeout(() => process.exit(1), 15_000);
     force.unref();

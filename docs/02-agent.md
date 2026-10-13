@@ -1,341 +1,206 @@
-# Agent — Maszyna obliczeniowa
+# Agent — węzeł z modelami
 
-Serwis Node.js działający jako `systemd` service na maszynie obliczeniowej. Uruchamia się automatycznie po starcie systemu (w tym po Wake on LAN), przyjmuje żądania z Gate, zarządza kolejką lokalną, routuje do modeli Ollama i orkiestruje narzędzia MCP.
+Mały serwis na komputerze z GPU. Hub (patrz [01 - Hub](01-gate.md)) rozmawia z nim zamiast bezpośrednio z Ollamą i dzięki temu **wszystkim, co dotyczy modeli na tej maszynie, steruje się z huba**: co jest zainstalowane, pobranie nowego modelu, usunięcie, załadowanie do pamięci, wyłączenie komputera.
+
+Agent robi cztery rzeczy:
+
+1. **Pilnuje Ollamy.** Jeśli Ollama już działa — przejmuje ją; jeśli nie — uruchamia ją sam (i zamyka razem ze sobą). Jeśli padnie, następne żądanie uruchomi ją ponownie.
+2. **Przepuszcza `/v1/*` do Ollamy** (API zgodne z OpenAI) — za sekretem, nic nie przepisując. Jedyny wyjątek: `GET /v1/models`, bo agent wie o modelu więcej niż Ollama mówi wprost (co model potrafi, jaki ma realny kontekst, tagi).
+3. **Udostępnia hubowi API zarządzania** (`/node/*`): status maszyny, lista modeli, pobieranie w tle, usuwanie, ładowanie i zwalnianie z pamięci. Pełny opis: [05 - Protokół węzła](05-nodes.md).
+4. **Wyłącza komputer** na prośbę huba po okresie bezczynności — ale tylko wtedy, gdy nic nie jest w toku i nikt nie używa PC (zob. [03 - Tray](03-tray.md)).
+
+Czego agent **nie** robi (a stary agent robił): nie ma profili (`flash`, `reasoning`…), pipeline'ów, narzędzi MCP ani własnej kolejki. Nazwy dla klientów to **aliasy w hubie**, kolejkę prowadzi hub (`max_concurrency` dostawcy), a model wybierasz po prostu po nazwie z Ollamy. Dzięki temu agent jest tak prosty, że prawie nie ma co się w nim zepsuć.
 
 ---
 
 ## Wymagania
 
-- Linux (Ubuntu 22.04+ lub Debian 12+) albo Windows (z WSL2 dla systemd — patrz niżej)
-- Node.js 20+
-- Ollama zainstalowane i działające
-- GPU z CUDA (opcjonalnie, ale bardzo zalecane dla dużych modeli)
+- Windows 10/11 albo Linux (Ubuntu 22.04+ / Debian 12+)
+- Node.js 22+
+- [Ollama](https://ollama.com) zainstalowana (agent może ją uruchamiać, ale nie instaluje)
+- GPU z CUDA (opcjonalnie, ale bez niego dla większych modeli będzie wolno); `nvidia-smi` w PATH pozwala hubowi pokazać użycie pamięci karty
 
 ---
 
 ## Instalacja
 
-### 1. Node.js
-
-```bash
-curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-sudo apt install -y nodejs
-```
-
-### 2. Ollama
-
-```bash
-curl -fsSL https://ollama.com/install.sh | sh
-```
-
-Sprawdź czy działa:
-
-```bash
-ollama list
-curl http://localhost:11434/api/tags
-```
-
-### 3. Agent
-
 ```bash
 cd mindgate/agent
 npm install
-cp config/models.example.yml config/models.yml
-nano config/models.yml
+npm run build
+
+cp .env.example .env
+# wygeneruj sekret i wpisz go do MINDGATE_NODE_SECRET:
+openssl rand -hex 32
 ```
 
----
+Ten sam sekret trafia potem w trzy miejsca: `agent/.env` (`MINDGATE_NODE_SECRET`), do huba (jako „API key” dostawcy) i do `tray/config/tray.yml` (`agent.secret`). Agent **nie wystartuje** z placeholderem z `.env.example` ani z sekretem krótszym niż 24 znaki.
 
-## Konfiguracja modeli
-
-Plik `config/models.yml` mapuje semantyczne profile na konkretne modele Ollama:
-
-```yaml
-models:
-  flash:
-    ollama: "qwen2.5:3b"          # mały, szybki model
-    max_tokens: 2048
-    description: "Szybkie odpowiedzi, formatowanie, podsumowania"
-
-  reasoning:
-    ollama: "qwq:32b"             # model z chain-of-thought
-    max_tokens: 8192
-    description: "Analiza, planowanie, rozwiązywanie problemów"
-
-  coding-fast:
-    ollama: "qwen2.5-coder:7b"    # szybki model do kodu
-    max_tokens: 4096
-    description: "Autouzupełnianie, małe poprawki"
-
-  coding-hard:
-    ollama: "qwen2.5-coder:32b"   # duży model do kodu
-    max_tokens: 8192
-    description: "Architektura, refactoring, trudne problemy"
-
-  extreme:
-    ollama: "llama3.3:70b"        # największy dostępny
-    max_tokens: 16384
-    description: "Maksymalna jakość, bez ograniczeń czasowych"
-
-pipelines:
-  reasoning+flash:
-    steps:
-      - model: reasoning
-        role: "Przeanalizuj problem i podaj szczegółową odpowiedź"
-      - model: flash
-        role: "Sformułuj zwięzłą, czytelną odpowiedź na podstawie analizy"
-
-  coding-hard+flash:
-    steps:
-      - model: coding-hard
-        role: "Napisz kod rozwiązujący problem"
-      - model: flash
-        role: "Dodaj komentarze i wyjaśnienia do kodu"
-
-server:
-  port: 3001
-  host: "0.0.0.0"
-
-ollama:
-  url: "http://localhost:11434"
-  request_timeout_ms: 600000      # 10 minut dla dużych modeli
-```
-
-### Jakie modele wybrać?
-
-To zależy od Twojej karty GPU i ilości VRAM. Ogólna zasada:
-
-| VRAM | Flash | Reasoning | Coding Fast | Coding Hard | Extreme |
-|------|-------|-----------|-------------|-------------|---------|
-| 8GB  | 1–3B  | 7B Q4     | 3–7B        | 7B Q4       | 13B Q4  |
-| 16GB | 3B    | 14B Q4    | 7B          | 14B Q4      | 32B Q4  |
-| 24GB | 3B    | 32B Q4    | 7B          | 32B Q4      | 70B Q4  |
-| 48GB+| 3B    | 32B Q8    | 7B          | 32B Q8      | 70B Q8  |
-
-Q4/Q8 to kwantyzacja — Q4 zużywa ~50% mniej VRAM, Q8 jest bliżej full precision.
-
-Sprawdź dostępne modele: `ollama list` i `ollama search <nazwa>`.
-
----
-
-## Systemd service
-
-### Linux (natywny)
-
-Skopiuj plik jednostki:
+Uruchomienie na próbę:
 
 ```bash
-sudo cp mindgate/agent/mindgate-agent.service /etc/systemd/system/
+npm start
+```
+
+Sprawdzenie (zamień `SEKRET` i adres):
+
+```bash
+curl -H "Authorization: Bearer SEKRET" http://192.168.1.100:3001/health
+# {"status":"ok","node_id":"MOJ-PC","runtime":"ok","in_flight":0,"downloads":0,"models_loaded":[],"uptime":12,...}
+
+curl -H "Authorization: Bearer SEKRET" http://192.168.1.100:3001/node/status
+```
+
+---
+
+## Konfiguracja (`agent/.env`)
+
+Agent sam wczytuje plik `agent/.env` — niezależnie od tego, skąd został uruchomiony (usługa Windows nie startuje w jego folderze). Zmienne środowiskowe mają pierwszeństwo przed plikiem.
+
+| Zmienna | Domyślnie | Znaczenie |
+|---|---|---|
+| `MINDGATE_NODE_SECRET` | — (wymagane) | wspólny sekret: `Authorization: Bearer …` |
+| `MINDGATE_NODE_ID` | nazwa komputera | jak maszyna nazywa się w panelu i w `/node/status` |
+| `MINDGATE_NODE_HOST` / `MINDGATE_NODE_PORT` | `0.0.0.0` / `3001` | gdzie agent słucha |
+| `OLLAMA_URL` | `http://127.0.0.1:11434` | adres Ollamy |
+| `MINDGATE_MANAGE_OLLAMA` | `true` dla adresu lokalnego | czy agent może uruchomić Ollamę, gdy nie działa |
+| `OLLAMA_PATH` | szukane automatycznie | pełna ścieżka do `ollama` / `ollama.exe`, gdy automat nie znajdzie |
+| `MINDGATE_OLLAMA_START_TIMEOUT_MS` | `30000` | ile czekać, aż uruchomiona Ollama zacznie odpowiadać |
+| `MINDGATE_TRAY_URL` | `http://127.0.0.1:3002` | tray na tej maszynie; **puste = brak traya** (serwer bez ekranu) |
+| `MINDGATE_SHUTDOWN_DELAY_SECONDS` | `30` | opóźnienie systemowego `shutdown` (Linux zaokrągla w górę do minut) |
+| `LOG_LEVEL` | `info` | |
+
+Ollama uruchomiona przez agenta dziedziczy jego środowisko (bez zmiennych `MINDGATE_*`), więc jej ustawienia możesz trzymać w tym samym `.env`. Dla karty 4 GB sensowne są:
+
+```
+OLLAMA_CONTEXT_LENGTH=8192      # większy kontekst = więcej pamięci na cache; model sam z siebie często pozwala na 32k+
+OLLAMA_MAX_LOADED_MODELS=1      # jeden model naraz, reszta czeka na zwolnienie pamięci
+OLLAMA_NUM_PARALLEL=1
+OLLAMA_KEEP_ALIVE=5m            # po 5 minutach bez użycia model schodzi z karty
+OLLAMA_MODELS=D:\ollama-models  # gdzie leżą pliki modeli (gdy dysk systemowy jest mały)
+```
+
+Gdy agent zna `OLLAMA_CONTEXT_LENGTH`, **zgłasza hubowi właśnie tyle** jako długość kontekstu modelu (a nie to, co model potrafi teoretycznie). Dzięki temu hub nie obiecuje klientom okna, którego Ollama i tak nie użyje.
+
+### Ollama uruchomiona osobno
+
+Jeśli Ollama działa już jako usługa systemowa (typowo na Linuksie po instalacji skryptem), agent ją po prostu przejmie i nigdy nie zamknie. Jeśli Ollama jest na **innym komputerze**, ustaw `OLLAMA_URL` na jej adres — wtedy agent niczego nie uruchamia (`MINDGATE_MANAGE_OLLAMA` jest wyłączone) i działa jako brama z sekretem. Pamiętaj, że sama Ollama nie ma uwierzytelniania: nie wystawiaj jej poza maszynę, agent jest od tego, żeby była za sekretem.
+
+---
+
+## Uruchamianie jako usługa
+
+### Windows
+
+W PowerShellu **jako administrator**:
+
+```powershell
+cd mindgate\agent
+npm run install-service
+```
+
+Powstaje usługa „MindGate Agent” (start automatyczny). Usunięcie: `npm run uninstall-service`. Po aktualizacji kodu (`git pull`) wystarczy `npm install`, `npm run build` i restart usługi — robi to `Restart-MindGate-Simple.bat` w katalogu głównym repozytorium.
+
+Windows Defender Firewall musi przepuszczać port `3001` z sieci lokalnej (tylko z adresu huba, jeśli możesz).
+
+### Linux (systemd)
+
+```bash
+sudo cp mindgate-agent.service /etc/systemd/system/
+sudo nano /etc/systemd/system/mindgate-agent.service    # User= i WorkingDirectory=
 sudo systemctl daemon-reload
-sudo systemctl enable mindgate-agent
-sudo systemctl start mindgate-agent
-```
-
-Zawartość `mindgate-agent.service`:
-
-```ini
-[Unit]
-Description=MindGate Agent
-After=network.target ollama.service
-Wants=ollama.service
-
-[Service]
-Type=simple
-User=twoj-user
-WorkingDirectory=/home/twoj-user/mindgate/agent
-ExecStart=/usr/bin/node src/index.js
-Restart=always
-RestartSec=5
-Environment=NODE_ENV=production
-Environment=MINDGATE_CONFIG=/home/twoj-user/mindgate/agent/config/models.yml
-
-# Logowanie do journald
-StandardOutput=journal
-StandardError=journal
-SyslogIdentifier=mindgate-agent
-
-[Install]
-WantedBy=multi-user.target
-```
-
-Logi:
-
-```bash
+sudo systemctl enable --now mindgate-agent
 journalctl -u mindgate-agent -f
 ```
 
-### Windows (bez WSL)
+Żeby agent mógł wyłączyć komputer bez hasła, daj mu jedną regułę sudo (`sudo visudo -f /etc/sudoers.d/mindgate`):
 
-Na Windows systemd nie istnieje. Używamy `node-windows` żeby zarejestrować serwis w Windows Services:
+```
+twoj-user ALL=(root) NOPASSWD: /usr/sbin/shutdown
+```
+
+(Jeśli agent działa jako `root`, nic nie trzeba — i tak wywoła `shutdown` bez `sudo`.)
+
+---
+
+## Dodanie maszyny do huba
+
+Najprościej z panelu / API: preset **„A PC with a GPU (MindGate agent)”** (`GET /admin/api/presets`). Ręcznie:
 
 ```bash
-cd mindgate/agent
-npm install node-windows --save-dev
-node install-service.js
+curl -X POST http://localhost:3000/admin/api/providers \
+  -H "Authorization: Bearer $MINDGATE_ADMIN_TOKEN" -H 'Content-Type: application/json' -d '{
+  "id": "pc",
+  "name": "Mój PC",
+  "type": "openai",
+  "base_url": "http://192.168.1.100:3001/v1",
+  "api_key": "<MINDGATE_NODE_SECRET>",
+  "locality": "local",
+  "max_concurrency": 1,
+  "options": { "first_byte_timeout_ms": 600000, "idle_timeout_ms": 300000 },
+  "node": {
+    "mac": "AA:BB:CC:DD:EE:FF",
+    "broadcast": "192.168.1.255",
+    "control_url": "http://192.168.1.100:3001",
+    "idle_shutdown_minutes": 15
+  }
+}'
 ```
 
-Plik `install-service.js`:
+`control_url` to jedyna rzecz, która mówi hubowi „tu jest agent”: od niej hub wyprowadza adres sprawdzania stanu (`/health`) i prośby o wyłączenie (`/node/power/shutdown-request`). Bez niej węzeł nadal działa (budzenie, żądania), ale nie da się zarządzać jego modelami z huba. Budzenie: [06 - Wake on LAN](06-wol.md).
 
-```javascript
-import { Service } from 'node-windows'
-import { fileURLToPath } from 'url'
-import path from 'path'
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
-
-const svc = new Service({
-  name: 'MindGate Agent',
-  description: 'MindGate AI Agent — lokalny serwis modeli',
-  script: path.join(__dirname, 'src', 'index.js'),
-  nodeOptions: [],
-  env: [
-    { name: 'NODE_ENV', value: 'production' },
-    { name: 'MINDGATE_CONFIG', value: path.join(__dirname, 'config', 'models.yml') }
-  ]
-})
-
-svc.on('install', () => {
-  console.log('Serwis zainstalowany, uruchamiam...')
-  svc.start()
-})
-
-svc.install()
-```
-
-Odinstalowanie:
-
-```bash
-node uninstall-service.js
-```
+Dalej wszystko dzieje się w hubie — pobranie modelu (`POST /admin/api/providers/pc/node/pulls {"name":"qwen3:4b"}`), lista, usuwanie, aliasy: [04 - Modele](04-models.md) i [08 - API](08-api.md).
 
 ---
 
-## API agenta
+## Wyłączanie komputera
 
-Agent wystawia wewnętrzne API tylko dla Gate (nie dla klientów zewnętrznych).
+Hub prosi o wyłączenie po `idle_shutdown_minutes` bez żądań. Agent odpowiada `{"allow": …, "reason": …}` i wyłącza komputer tylko wtedy, gdy **wszystkie** warunki są spełnione:
 
-### POST /v1/chat/completions
+1. żadne żądanie nie jest w toku (`requests_in_flight`),
+2. nic się nie pobiera (`download_in_progress`),
+3. tray potwierdza, że nikt nie używa PC (zob. [03 - Tray](03-tray.md)) — jego „nie” jest ostateczne; gdy tray **nie odpowiada**, odpowiedź brzmi `tray_unreachable`, bo komputera, przy którym ktoś może siedzieć, nie wyłącza się na zgadywanie.
 
-Standardowy OpenAI-compatible endpoint. Gate proxy'uje żądania tutaj.
+Bez traya (`MINDGATE_TRAY_URL=` puste, serwer bez ekranu) liczą się tylko warunki 1 i 2.
 
-```json
-{
-  "model": "reasoning",
-  "messages": [
-    {"role": "user", "content": "..."}
-  ],
-  "stream": true
-}
-```
-
-Pipeline:
-
-```json
-{
-  "model": "pipeline:reasoning+flash",
-  "messages": [...]
-}
-```
-
-### GET /health
-
-```json
-{
-  "status": "ok",
-  "models_loaded": ["flash", "reasoning"],
-  "queue_length": 2,
-  "ollama": "ok"
-}
-```
-
-### POST /internal/shutdown-request
-
-Wysyłane przez Gate gdy system jest bezczynny. Agent przekazuje do Tray App. Tray App decyduje czy wykonać shutdown.
-
-```json
-{
-  "idle_minutes": 15
-}
-```
-
-### GET /internal/status
-
-Status dla Gate — czy komputer jest aktywny, czy można go wyłączyć.
-
-```json
-{
-  "user_active": true,
-  "last_input_seconds_ago": 45,
-  "queue_empty": true,
-  "safe_to_shutdown": false
-}
-```
+Po „nie” hub czeka 5 minut, zanim zapyta ponownie. Człowiek może wyłączyć maszynę z huba wprost (`POST …/node/shutdown` z `"force": true`) — to jego decyzja, więc pomija warunki 1–3.
 
 ---
 
-## Pipeline — jak działa
+## Bezpieczeństwo
 
-Gdy model to `pipeline:X+Y`, agent:
-
-1. Wysyła oryginalne `messages` do modelu `X`
-2. Odpowiedź X dodaje do historii jako `assistant`
-3. Dodaje systemowy prompt dla modelu `Y` ("sformułuj odpowiedź na podstawie powyższej analizy")
-4. Wysyła całość do modelu `Y`
-5. Odpowiedź `Y` zwraca klientowi
-
-Dla klienta wygląda to identycznie jak pojedyncze żądanie — jedna odpowiedź, jeden stream.
+- Każde wywołanie agenta (także `/health`) wymaga sekretu; porównanie jest odporne na pomiar czasu, a żądanie bez sekretu nie dociera do Ollamy.
+- Sekret nie jest przekazywany dalej do Ollamy ani do jej procesu potomnego.
+- Agent słucha na `0.0.0.0`, bo hub jest na innym komputerze. Jeśli maszynę widzi tylko LAN, to wystarczy; w przeciwnym razie ogranicz port 3001 zaporą do adresu huba albo ustaw `MINDGATE_NODE_HOST` na jeden interfejs.
+- Ruch między hubem a agentem jest zwykłym HTTP. Dla sieci domowej to zwykle akceptowalne; poza nią — WireGuard / Tailscale pod spodem.
+- Dostęp do `/node/*` oznacza możliwość pobrania dowolnego modelu na dysk i wyłączenia komputera. Dlatego jest tylko jeden sekret i tylko dla huba (i traya).
 
 ---
 
-## Struktura kodu
+## Migracja ze starego agenta
 
-```
-agent/src/
-├── index.js       Express app, routing żądań
-├── queue.js       Lokalna kolejka (gdy równoległe żądania przychodzą)
-├── router.js      Rozwiązywanie profilu modelu → ollama model name
-├── ollama.js      Klient Ollama, streaming, obsługa błędów
-├── pipeline.js    Orchestracja multi-model pipeline
-├── mcp.js         Inicjalizacja i wywołanie MCP servers
-└── shutdown.js    Obsługa /internal/shutdown-request, IPC z tray
-```
+| Było | Jest |
+|---|---|
+| `config/models.yml` (profile, pipelines, `server.secret`) | nie ma; sekret → `MINDGATE_NODE_SECRET` w `agent/.env`, profile → aliasy w hubie |
+| `config/mcp.yml`, narzędzia MCP | usunięte |
+| nagłówek `X-MindGate-Secret` | `Authorization: Bearer …` (stary nagłówek agent jeszcze przyjmuje, ale hub i tray używają nowego) |
+| `/internal/shutdown-request`, `/internal/set-user-active`, `/internal/exit` | `/node/power/shutdown-request`, `/node/user-active`, `/node/exit` |
+| `node src/index.js` | `npm run build`, potem `node dist/index.js` (usługa: `npm run install-service`) |
 
----
-
-## Ollama — przydatne komendy
-
-```bash
-# Pobierz model
-ollama pull qwen2.5:3b
-
-# Lista modeli
-ollama list
-
-# Uruchom model interaktywnie (test)
-ollama run qwen2.5:3b
-
-# Status serwisu Ollama
-systemctl status ollama
-
-# Logi Ollama
-journalctl -u ollama -f
-
-# Usuń model (zwalnia VRAM/dysk)
-ollama rm nazwa-modelu
-```
+Kroki: `git pull`, w `agent/` `npm install && npm run build`, utwórz `.env`, usuń stary `config/`, zainstaluj ponownie usługę (`uninstall-service`, potem `install-service`), zaktualizuj tray (ta sama paczka). W hubie: `import-legacy` przenosi dostawcę i klucze (zob. [01 - Hub](01-gate.md)). Pobrane modele zostają — Ollama je trzyma.
 
 ---
 
-## Troubleshooting
+## Rozwiązywanie problemów
 
-**Agent nie startuje po WoL**
-Sprawdź `systemctl status mindgate-agent`. Najczęściej: Ollama jeszcze się nie uruchomiła — dodaj `After=ollama.service` i `Wants=ollama.service` do unit file, albo zwiększ `RestartSec`.
+**Agent kończy się od razu z „MINDGATE_NODE_SECRET is not set / too weak”** — sekret w `agent/.env` brakuje albo jest placeholderem. `openssl rand -hex 32`.
 
-**Ollama zwraca błąd CUDA out of memory**
-Model jest za duży dla Twojego VRAM. Użyj bardziej skwantyzowanego modelu (Q4 zamiast Q8) lub mniejszego.
+**Hub pokazuje `node_auth_failed`** — sekret w hubie (pole „API key” dostawcy) różni się od `MINDGATE_NODE_SECRET`.
 
-**Pipeline nie działa, timeout**
-Dwa duże modele sekwencyjnie mogą zająć dużo czasu. Zwiększ `ollama.request_timeout_ms` w configu i `proxy_read_timeout` w nginx na RasPi.
+**Hub pokazuje `agent_missing`** — pod `control_url` nie odpowiada agent MindGate (stary agent, zły port, zły prefiks). `curl -H "Authorization: Bearer …" <control_url>/node/status` pokaże, co tam jest.
 
-**Żądania gubią się po restarcie**
-Agent nie persystuje kolejki (in-memory). To celowe — po restarcie klienci powinni ponowić żądania. Jeśli potrzebujesz trwałej kolejki, dodaj Redis (patrz issues w repo).
+**`runtime_unavailable` / „Ollama is not installed here”** — agent nie znalazł `ollama`. Zainstaluj ją albo ustaw `OLLAMA_PATH`.
+
+**Pierwsze żądanie po starcie trwa minutę** — model ładuje się z dysku do karty. Dlatego dostawca z presetu ma `first_byte_timeout_ms` 10 minut. Można załadować go z góry (`…/node/models/load`).
+
+**Model nie mieści się na karcie** — Ollama przeniesie część warstw do RAM i będzie wolniej, nie przestanie działać. Zob. [04 - Modele](04-models.md), jak dobrać rozmiar.

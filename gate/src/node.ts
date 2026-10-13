@@ -24,12 +24,31 @@ interface State {
   inflight: number;
   waking: Promise<void> | null;
   lastError: string | null;
+  /** After the node said "not now" to a shutdown, the hub does not ask again before this moment. */
+  shutdownRetryAt: number;
 }
 
 /** How long a successful probe or request is trusted before the next request probes again. */
 const TRUST_MS = 30_000;
 const MONITOR_MS = 30_000;
 const RESEND_MAGIC_MS = 10_000;
+/** How long to leave a node alone after it refused a shutdown (someone is using it, a download is running...). */
+const SHUTDOWN_RETRY_MS = 5 * 60_000;
+
+/** The URL that answers while the machine is up. */
+export function healthUrlOf(provider: ProviderRecord): string {
+  const cfg = provider.node;
+  if (cfg?.healthUrl) return cfg.healthUrl;
+  if (cfg?.controlUrl) return joinUrl(cfg.controlUrl, '/health');
+  return joinUrl(provider.baseUrl, provider.options.modelsPath ?? '/models');
+}
+
+/** The URL the hub asks "may I switch you off?" at, if any. */
+export function shutdownUrlOf(provider: ProviderRecord): string | undefined {
+  const cfg = provider.node;
+  if (cfg?.shutdownUrl) return cfg.shutdownUrl;
+  return cfg?.controlUrl ? joinUrl(cfg.controlUrl, '/node/power/shutdown-request') : undefined;
+}
 
 export function magicPacket(mac: string): Buffer {
   const bytes = Buffer.from(mac.split(/[:-]/).map(h => parseInt(h, 16)));
@@ -88,7 +107,7 @@ export class NodeManager {
   private state(id: string): State {
     let s = this.states.get(id);
     if (!s) {
-      s = { status: 'unknown', lastProbeAt: 0, lastActivityAt: this.now(), inflight: 0, waking: null, lastError: null };
+      s = { status: 'unknown', lastProbeAt: 0, lastActivityAt: this.now(), inflight: 0, waking: null, lastError: null, shutdownRetryAt: 0 };
       this.states.set(id, s);
     }
     return s;
@@ -137,7 +156,7 @@ export class NodeManager {
     const cfg = provider.node;
     if (!cfg) return true;
     const s = this.state(provider.id);
-    const url = cfg.healthUrl ?? joinUrl(provider.baseUrl, provider.options.modelsPath ?? '/models');
+    const url = healthUrlOf(provider);
     let alive = false;
     try {
       const rt = this.registry.runtime(provider);
@@ -266,16 +285,20 @@ export class NodeManager {
       if (s.waking) continue;
       await this.probe(p);
       const idleMin = p.node.idleShutdownMinutes;
-      if (idleMin && s.status === 'online' && s.inflight === 0 && this.now() - s.lastActivityAt >= idleMin * 60_000) {
+      if (idleMin && s.status === 'online' && s.inflight === 0 && this.now() >= s.shutdownRetryAt && this.now() - s.lastActivityAt >= idleMin * 60_000) {
         await this.requestShutdown(p, Math.floor((this.now() - s.lastActivityAt) / 60_000));
       }
     }
   }
 
-  /** Asks the node's agent to shut the machine down (it may refuse, for instance while someone is using the PC). */
+  /**
+   * Asks the node's agent to shut the machine down. The agent may say no (someone is using the PC, a download is
+   * running): only a "yes" counts as a shutdown, and after a "no" the hub leaves the node alone for a while.
+   */
   async requestShutdown(provider: ProviderRecord, idleMinutes: number): Promise<boolean> {
-    const url = provider.node?.shutdownUrl;
+    const url = shutdownUrlOf(provider);
     if (!url) return false;
+    const s = this.state(provider.id);
     try {
       const rt = this.registry.runtime(provider);
       const res = await send(provider, url, {
@@ -284,18 +307,24 @@ export class NodeManager {
         signal: new AbortController().signal,
         timeoutMs: 10_000,
       });
-      void res.body?.cancel().catch(() => undefined);
-      this.log.info({ provider: provider.id, status: res.status, idleMinutes }, 'asked the node to shut down');
-      if (res.ok) {
-        const s = this.state(provider.id);
-        s.status = 'unknown';
-        s.lastProbeAt = 0;
-      }
-      return res.ok;
+      const verdict = res.ok ? await readVerdict(res) : { allow: false, reason: `answered ${res.status}` };
+      if (!res.ok) void res.body?.cancel().catch(() => undefined);
+      this.log.info({ provider: provider.id, status: res.status, idleMinutes, allow: verdict.allow, reason: verdict.reason }, verdict.allow ? 'the node is shutting down' : 'the node did not shut down');
+      if (verdict.allow) this.wentToSleep(provider.id);
+      else s.shutdownRetryAt = this.now() + SHUTDOWN_RETRY_MS;
+      return verdict.allow;
     } catch (e) {
+      s.shutdownRetryAt = this.now() + SHUTDOWN_RETRY_MS;
       this.log.warn({ provider: provider.id, err: e instanceof Error ? e.message : String(e) }, 'shutdown request failed');
       return false;
     }
+  }
+
+  /** The node agreed to shut down: forget that it was up, so the next request probes (and wakes it) instead of trusting a stale state. */
+  wentToSleep(providerId: string): void {
+    const s = this.state(providerId);
+    s.status = 'unknown';
+    s.lastProbeAt = 0;
   }
 }
 
@@ -316,4 +345,21 @@ function raceAbort(p: Promise<void>, signal: AbortSignal): Promise<void> {
       },
     );
   });
+}
+
+/** The agent answers `{allow, reason}`. An endpoint that just says 200 (a custom script) is taken as "yes". */
+async function readVerdict(res: Awaited<ReturnType<typeof send>>): Promise<{ allow: boolean; reason: string | null }> {
+  let text = '';
+  try {
+    text = await res.text();
+  } catch {
+    /* an unreadable body from a 2xx answer */
+  }
+  try {
+    const j = JSON.parse(text) as { allow?: unknown; reason?: unknown };
+    if (typeof j.allow === 'boolean') return { allow: j.allow, reason: typeof j.reason === 'string' ? j.reason : null };
+  } catch {
+    /* not JSON */
+  }
+  return { allow: true, reason: null };
 }

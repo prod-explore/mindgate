@@ -1,10 +1,11 @@
 # MindGate Tray — konfiguracja
 # Skopiuj do tray.yml i dostosuj
 
-# Agent HTTP — do pollowania statusu
+# Agent HTTP — do pollowania statusu i raportowania, czy ktoś używa PC.
+# secret = ten sam co MINDGATE_NODE_SECRET w agent/.env (można go też podać zmienną MINDGATE_NODE_SECRET).
 agent:
   url: "http://localhost:3001"
-  secret: "mg-internal-secret-zmien-mnie"
+  secret: "wklej-tu-MINDGATE_NODE_SECRET-z-agent-.env"
   poll_interval_ms: 5000              # co ile sprawdzać status agenta
 
 # IPC server — mini serwer HTTP na localhost

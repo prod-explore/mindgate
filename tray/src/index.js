@@ -43,7 +43,7 @@ const icons = {
 function getCurrentIcon() {
   const state = getAgentState()
   switch (state.status) {
-    case 'ok': return state.queue_length > 0 ? icons.yellow : icons.green
+    case 'ok': return state.busy > 0 ? icons.yellow : icons.green
     case 'degraded': return icons.red
     case 'idle': return icons.blue
     default: return icons.gray
@@ -96,26 +96,28 @@ function refreshMenuUI() {
 async function pollAgentStatus() {
   try {
     const res = await fetch(`${config.agent.url}/health`, {
-      headers: { 'X-MindGate-Secret': config.agent.secret },
+      headers: { 'Authorization': `Bearer ${config.agent.secret}` },
       signal: AbortSignal.timeout(3000)
     })
     if (res.ok) {
       const data = await res.json()
+      // zajętość = żądania w toku + pobierane modele
+      const busy = (data.in_flight || 0) + (data.downloads || 0)
       updateAgentState({
         status: data.status || 'ok',
-        queue_length: data.queue_length || 0,
+        busy,
         models: data.models_loaded || [],
-        ollama: data.ollama
+        runtime: data.runtime
       })
 
-      // Blokuj shutdown Windows gdy agent przetwarza żądania
-      updateShutdownBlock(data.queue_length || 0)
+      // Blokuj shutdown Windows gdy agent pracuje
+      updateShutdownBlock(busy)
     } else {
-      updateAgentState({ status: 'error', queue_length: 0 })
+      updateAgentState({ status: 'error', busy: 0 })
       updateShutdownBlock(0)
     }
   } catch {
-    updateAgentState({ status: 'offline', queue_length: 0 })
+    updateAgentState({ status: 'offline', busy: 0 })
     updateShutdownBlock(0)
   }
 
