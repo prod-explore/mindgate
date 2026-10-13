@@ -12,6 +12,7 @@ tray/config/tray.yml
 # Environment
 .env
 .env.*
+!.env.example
 
 # OS
 .DS_Store

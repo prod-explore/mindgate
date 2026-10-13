@@ -1,24 +1,28 @@
-FROM node:20-alpine AS builder
+# syntax=docker/dockerfile:1
+FROM node:22-bookworm-slim AS build
 WORKDIR /app
-COPY package*.json ./
-RUN npm install --omit=dev
+COPY package.json package-lock.json ./
+RUN npm ci
+COPY tsconfig.json ./
+COPY src ./src
+RUN npm run build \
+ && rm -rf dist/__tests__ \
+ && npm prune --omit=dev
 
-FROM node:20-alpine
+FROM node:22-bookworm-slim
+ENV NODE_ENV=production \
+    MINDGATE_HOST=0.0.0.0 \
+    MINDGATE_PORT=3000 \
+    MINDGATE_DB=/data/mindgate.db
 WORKDIR /app
-
-RUN addgroup -g 1001 -S mindgate && \
-    adduser -S mindgate -u 1001
-
-COPY --from=builder /app/node_modules ./node_modules
-COPY src/ ./src/
-
+RUN useradd --system --uid 1001 --home-dir /app --shell /usr/sbin/nologin mindgate \
+ && mkdir /data && chown mindgate /data && chmod 700 /data
+COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/dist ./dist
+COPY package.json ./
 USER mindgate
-
-ENV NODE_ENV=production
-
+VOLUME /data
 EXPOSE 3000
-
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD wget -qO- http://localhost:3000/health || exit 1
-
-CMD ["node", "src/index.js"]
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+  CMD ["node", "-e", "fetch('http://127.0.0.1:'+process.env.MINDGATE_PORT+'/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+CMD ["node", "dist/index.js"]

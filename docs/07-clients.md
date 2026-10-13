@@ -2,6 +2,13 @@
 
 MindGate wystawia OpenAI-compatible API. Konfiguracja w każdym kliencie sprowadza się do trzech rzeczy: URL, klucz API, nazwa modelu.
 
+**Nazwa modelu** to jedno z dwóch:
+
+- **alias** — krótka nazwa, którą ustawiasz w hubie (`smart`, `flash`, `coding-hard`), z jawną listą zapasowych modeli; zmieniasz, co się za nią kryje, bez ruszania klientów,
+- **model dostawcy** — `dostawca/model`, np. `openrouter/deepseek/deepseek-chat`; bez żadnego fallbacku.
+
+Co jest dostępne, pokazuje `GET /v1/models` (klienty pokazują tę listę same). Każdy klient powinien mieć **własny klucz** (`keys create <nazwa>`): osobne limity, priorytet i, jeśli trzeba, `--local-only`. Opisy aliasów, kluczy i limitów: [01 - Hub](01-gate.md), wszystkie endpointy i kody błędów: [08 - API](08-api.md).
+
 ---
 
 ## AntyGraviti (Google)
@@ -25,7 +32,7 @@ Jeśli AntyGraviti wymaga pola `baseURL` w formacie JSON:
 }
 ```
 
-Dla pipeline:
+Dla pipeline (po migracji ze starego gate'a nazwa jest ta sama):
 ```
 model: "pipeline:reasoning+flash"
 ```
@@ -55,11 +62,11 @@ W Open WebUI: **Settings** → **Connections** → **OpenAI API**:
 - URL: `https://raspi.twojadomena.pl/v1`
 - Key: `mg-twoj-klucz`
 
-Modele pojawiają się automatycznie (Gate zwraca listę przez `/v1/models`).
+Modele pojawiają się automatycznie (hub zwraca listę przez `/v1/models`).
 
 ### Priorytet w Open WebUI
 
-Open WebUI nie wysyła niestandardowych nagłówków — żądania będą miały domyślny priorytet Twojego klucza API. Jeśli chcesz wyższy priorytet dla konkretnych rozmów, skonfiguruj osobny klucz z wyższym `default_priority`.
+Open WebUI nie wysyła niestandardowych nagłówków — żądania będą miały domyślny priorytet Twojego klucza API. Jeśli chcesz wyższy priorytet dla konkretnych rozmów, skonfiguruj osobny klucz z wyższym `--priority`. Rozmowy z danymi prywatnymi możesz skierować na osobne połączenie z kluczem `--local-only`: hub nie wyśle ich do chmury, nawet przez pomyłkę w wyborze modelu.
 
 ---
 
@@ -151,9 +158,12 @@ response = client.chat.completions.create(
         {"role": "user", "content": "Wytłumacz mi quicksort"}
     ],
     extra_headers={
-        "X-MindGate-Priority": "3"
+        "X-MindGate-Priority": "3",        # 1-5, w zakresie dozwolonym dla klucza
+        "X-MindGate-Local-Only": "true",   # opcjonalnie: tylko modele lokalne, fallbacki też
     }
 )
+print(response.model)   # kto naprawdę odpowiedział, np. "openrouter/deepseek/deepseek-chat"
+
 
 print(response.choices[0].message.content)
 ```
@@ -193,7 +203,7 @@ Jeśli nie potrzebujesz dostępu spoza domu, możesz używać lokalnego IP RasPi
 - URL: `http://192.168.1.50:3000/v1` (bez HTTPS)
 - Nie potrzebujesz certyfikatu TLS
 
-Konfiguracja nginx jest wtedy opcjonalna — Gate może być wystawiony bezpośrednio.
+Konfiguracja nginx jest wtedy opcjonalna — hub może być wystawiony bezpośrednio.
 
 ### Dostęp z zewnątrz (domowy serwer)
 
@@ -215,7 +225,7 @@ sudo tailscale up
 
 ## Lista modeli — endpoint /v1/models
 
-Gate zwraca listę dostępnych profili przez standardowy endpoint:
+Hub zwraca modele i aliasy dostępne dla danego klucza przez standardowy endpoint:
 
 ```bash
 curl https://raspi.twojadomena.pl/v1/models \
@@ -226,15 +236,30 @@ curl https://raspi.twojadomena.pl/v1/models \
 {
   "object": "list",
   "data": [
-    {"id": "flash", "object": "model"},
-    {"id": "reasoning", "object": "model"},
-    {"id": "coding-fast", "object": "model"},
-    {"id": "coding-hard", "object": "model"},
-    {"id": "extreme", "object": "model"},
-    {"id": "pipeline:reasoning+flash", "object": "model"},
-    {"id": "pipeline:coding-hard+flash", "object": "model"}
+    {
+      "id": "smart", "object": "model", "owned_by": "mindgate",
+      "name": "smart", "description": "", "kind": "chat", "tags": [],
+      "locality": "cloud", "alias_of": ["openrouter/deepseek/deepseek-chat", "openrouter/google/gemini-2.5-flash"],
+      "context_length": 64000, "status": "online"
+    },
+    {
+      "id": "agent/flash", "object": "model", "owned_by": "agent",
+      "kind": "chat", "locality": "local", "status": "asleep"
+    }
   ]
 }
 ```
 
-Klienty które odpytują `/v1/models` (np. Open WebUI) pokażą tę listę automatycznie.
+Poza polami OpenAI są dodatki, które klient może zignorować: `kind` (`chat` / `embedding`), `tags`, `locality` (`local` / `cloud`), `context_length`, `supports` (gdy dostawca podaje możliwości) oraz `status` (`online` / `asleep` / `waking` — dla maszyn z usypianiem). Pola, o których dostawca nic nie mówi, są pominięte — brak pola znaczy „nie wiadomo”, nie „nie obsługuje”.
+
+Klucz z `allowed_models` widzi tylko swoje modele; wywołanie z `local_only` (klucz lub nagłówek) — tylko te, do których może dotrzeć.
+
+---
+
+## Zużycie i limity z poziomu klienta
+
+```bash
+curl https://raspi.twojadomena.pl/v1/usage -H "Authorization: Bearer $MINDGATE_KEY"
+```
+
+Zwraca zużycie dziś i w tym miesiącu, limity klucza oraz moment, w którym doba i miesiąc się zerują. Po przekroczeniu limitu klient dostaje `429` z kodem `rate_limited` (za szybko: odczekaj `Retry-After` sekund) albo `budget_exhausted` (limit dobowy lub miesięczny wyczerpany: `reset_at` mówi, kiedy wróci) — warto je odróżniać.

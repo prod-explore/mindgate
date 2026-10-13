@@ -1,6 +1,6 @@
 # Wake on LAN — konfiguracja
 
-Wake on LAN (WoL) pozwala Gate na Raspberry Pi zdalnie uruchomić maszynę obliczeniową gdy przychodzi żądanie z priorytetem ≥ 3. Wymaga jednorazowej konfiguracji po stronie maszyny i routera.
+Wake on LAN (WoL) pozwala hubowi na Raspberry Pi zdalnie uruchomić maszynę obliczeniową gdy przychodzi żądanie z priorytetem ≥ 3. Wymaga jednorazowej konfiguracji po stronie maszyny i routera.
 
 ---
 
@@ -99,7 +99,7 @@ nmcli connection up "Wired connection 1"
 
 ## 4. Router — stały IP dla maszyny
 
-WoL magic packet wysyłany jest na konkretny MAC adres. Żeby Gate zawsze wiedział gdzie wysłać packet, maszyna obliczeniowa powinna mieć stały (zarezerwowany) adres IP.
+WoL magic packet wysyłany jest na konkretny MAC adres. Żeby hub zawsze wiedział gdzie wysłać packet, maszyna obliczeniowa powinna mieć stały (zarezerwowany) adres IP.
 
 W panelu routera (zwykle 192.168.1.1 lub 192.168.0.1):
 
@@ -129,51 +129,54 @@ MAC wygląda tak: `AA:BB:CC:DD:EE:FF`
 
 ---
 
-## 6. Wpisz dane do Gate config
+## 6. Wpisz dane do huba
 
-W `mindgate/gate/config/config.yml`:
+Maszyna jest dla huba dostawcą z ustawieniem `node`. Przy migracji ze starego `config.yml` robi to `import-legacy` (zob. [01 - Hub](01-gate.md)). Ręcznie, przez API administratora:
 
-```yaml
-wol:
-  mac: "AA:BB:CC:DD:EE:FF"      # MAC maszyny obliczeniowej
-  broadcast: "192.168.1.255"    # adres broadcast Twojej sieci
-  port: 9                       # standardowy port WoL
-  min_priority: 3               # od jakiego priorytetu budzić
-
-agent:
-  url: "http://192.168.1.100:3001"   # stały IP maszyny
+```bash
+curl -X PATCH http://localhost:3000/admin/api/providers/agent \
+  -H "Authorization: Bearer <MINDGATE_ADMIN_TOKEN>" -H 'Content-Type: application/json' -d '{
+  "node": {
+    "mac": "AA:BB:CC:DD:EE:FF",
+    "broadcast": "192.168.1.255",
+    "port": 9,
+    "min_wake_priority": 3,
+    "boot_timeout_ms": 120000,
+    "poll_interval_ms": 2000,
+    "health_url": "http://192.168.1.100:3001/health",
+    "shutdown_url": "http://192.168.1.100:3001/internal/shutdown-request",
+    "idle_shutdown_minutes": 15
+  }
+}'
 ```
 
-Adres broadcast: jeśli Twoja sieć to `192.168.1.x` z maską `/24`, broadcast to `192.168.1.255`. Możesz też użyć `255.255.255.255` (globalny broadcast) jeśli router to obsługuje.
+- `broadcast` — adres broadcast sieci. Dla sieci `192.168.1.x` z maską `/24` to `192.168.1.255`; może być też `255.255.255.255`, jeśli router to przepuszcza.
+- **Hub w Dockerze (mostek):** broadcast zwykle nie przechodzi przez mostek. Wpisz tu **adres IP maszyny** (unicast) — magic packet i tak trafi na jej kartę.
+- `min_wake_priority` — od jakiego priorytetu żądanie budzi maszynę; słabsze dostają `503 node_asleep` (a alias przechodzi na kolejny cel).
+- `health_url` — adres, który odpowiada, gdy maszyna działa (agent: `/health`); hub sprawdza go, gdy żądanie trafia na maszynę, której ostatnia odpowiedź jest starsza niż 30 s, oraz co 30 s w tle.
+- `idle_shutdown_minutes` + `shutdown_url` — po tylu minutach bez żądań hub prosi agenta o wyłączenie; agent może odmówić.
+
+Stały adres IP maszyny jest ważny: `base_url` dostawcy i `health_url` wskazują na nią.
 
 ---
 
 ## 7. Test WoL
 
-Wyłącz maszynę obliczeniową, następnie wyślij magic packet z RasPi:
+Wyłącz maszynę obliczeniową, a potem poproś hub o jej obudzenie (czeka, aż maszyna odpowie, i wypisuje stan):
 
 ```bash
-# Na Raspberry Pi
-npm install -g wakeonlan
+curl -X POST http://localhost:3000/admin/api/providers/agent/wake \
+  -H "Authorization: Bearer <MINDGATE_ADMIN_TOKEN>"
+# {"status":"online"}
+```
 
+Maszyna powinna wstać w ciągu 5–30 sekund (hub czeka do `boot_timeout_ms` i powtarza magic packet co 10 s). Gdy zwróci `node_unavailable`, a maszyna się nie uruchamia — to problem po stronie BIOS / karty sieciowej (zob. niżej), nie huba. Pakiet można też wysłać ręcznie, żeby wykluczyć hub:
+
+```bash
+# na Raspberry Pi
+sudo apt install wakeonlan
 wakeonlan -i 192.168.1.255 AA:BB:CC:DD:EE:FF
 ```
-
-Lub przez Node.js (test kodu Gate):
-
-```javascript
-import wol from 'wake_on_lan'
-
-wol.wake('AA:BB:CC:DD:EE:FF', {
-  address: '192.168.1.255',
-  port: 9
-}, (err) => {
-  if (err) console.error('WoL error:', err)
-  else console.log('Magic packet sent!')
-})
-```
-
-Maszyna powinna się uruchomić w ciągu 5–30 sekund.
 
 ---
 
@@ -194,7 +197,7 @@ Windows może resetować ustawienia WoL po aktualizacjach sterowników. Sprawdź
 
 **WoL działa z sieci lokalnej ale nie z zewnątrz**
 
-To osobny temat (WoL przez internet wymaga przekierowania portów UDP 9 na router lub VPN). W MindGate Gate jest w tej samej sieci co maszyna — WoL lokalny zawsze powinien działać.
+To osobny temat (WoL przez internet wymaga przekierowania portów UDP 9 na router lub VPN). W MindGate hub jest w tej samej sieci co maszyna — WoL lokalny zawsze powinien działać.
 
 **Komputer się włącza sam (niechciane budzenie)**
 
