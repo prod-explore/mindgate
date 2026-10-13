@@ -3,13 +3,16 @@ services:
     build: .
     container_name: mindgate-gate
     restart: unless-stopped
-    # Port is not exposed to the host for security. Nginx routes traffic directly within the Docker network.
+    env_file: .env
     volumes:
-      - ./config:/app/config:ro
-    environment:
-      - NODE_ENV=production
+      - mindgate-data:/data
+    # The port is not published: the reverse proxy (nginx, Caddy) reaches the hub inside the Docker network.
+    # With nothing in front, publish it on the loopback only:  ports: ["127.0.0.1:3000:3000"]
     networks:
       - mindgate_net
+
+volumes:
+  mindgate-data:
 
 networks:
   mindgate_net:

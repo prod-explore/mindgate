@@ -1,0 +1,64 @@
+import type { HubConfig } from './config.js';
+import { SecretBox } from './crypto.js';
+import { openDatabase, type Db } from './db.js';
+import { Limits } from './limits.js';
+import { NodeManager, type NodeDeps } from './node.js';
+import { Registry } from './registry.js';
+import { Router } from './routing.js';
+import { AliasStore } from './store/aliases.js';
+import { KeyStore } from './store/keys.js';
+import { ModelStore } from './store/models.js';
+import { ProviderStore } from './store/providers.js';
+import { UsageStore } from './store/usage.js';
+import { ModelSync } from './sync.js';
+
+export interface Logger {
+  info(o: object, m?: string): void;
+  warn(o: object, m?: string): void;
+  error(o: object, m?: string): void;
+  debug(o: object, m?: string): void;
+}
+
+export const silentLogger: Logger = { info: () => undefined, warn: () => undefined, error: () => undefined, debug: () => undefined };
+
+/** Everything a request handler needs, wired once at startup (and by the tests). */
+export interface Hub {
+  config: HubConfig;
+  db: Db;
+  box: SecretBox;
+  providers: ProviderStore;
+  models: ModelStore;
+  aliases: AliasStore;
+  keys: KeyStore;
+  usage: UsageStore;
+  registry: Registry;
+  router: Router;
+  limits: Limits;
+  nodes: NodeManager;
+  sync: ModelSync;
+  log: Logger;
+  clock: () => Date;
+}
+
+export interface HubOverrides {
+  db?: Db;
+  clock?: () => Date;
+  node?: NodeDeps;
+}
+
+export function createHub(config: HubConfig, log: Logger = silentLogger, overrides: HubOverrides = {}): Hub {
+  const db = overrides.db ?? openDatabase(config.dbPath);
+  const clock = overrides.clock ?? (() => new Date());
+  const box = new SecretBox(config.masterKey);
+  const providers = new ProviderStore(db, box);
+  const models = new ModelStore(db, providers);
+  const aliases = new AliasStore(db, models);
+  const keys = new KeyStore(db);
+  const usage = new UsageStore(db);
+  const registry = new Registry(providers, config);
+  const router = new Router(models, aliases, providers);
+  const limits = new Limits(usage, config.usageTz, clock);
+  const nodes = new NodeManager(providers, registry, { log, ...overrides.node });
+  const sync = new ModelSync(providers, models, registry, nodes, log);
+  return { config, db, box, providers, models, aliases, keys, usage, registry, router, limits, nodes, sync, log, clock };
+}

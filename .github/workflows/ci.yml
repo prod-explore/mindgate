@@ -1,4 +1,4 @@
-name: CI Pipeline
+name: CI
 
 on:
   push:
@@ -6,24 +6,56 @@ on:
   pull_request:
     branches: [ "main", "master" ]
 
+permissions:
+  contents: read
+
 jobs:
-  build:
+  hub:
+    name: hub (build + tests)
     runs-on: ubuntu-latest
-
-    strategy:
-      matrix:
-        node-version: [18.x, 20.x]
-
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Use Node.js ${{ matrix.node-version }}
-      uses: actions/setup-node@v4
-      with:
-        node-version: ${{ matrix.node-version }}
-        
-    - name: Install Dependencies & Build
-      run: |
-        cd gate && npm install
-        cd ../agent && npm install && npm run build --if-present
-        cd ../tray && npm install
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: gate/package-lock.json
+      - name: Install
+        run: npm ci
+        working-directory: gate
+      - name: Build and test
+        run: npm test
+        working-directory: gate
+
+  image:
+    name: hub (docker image)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the image
+        run: docker build -t mindgate-hub gate
+      - name: The image starts and answers /health
+        run: |
+          docker run -d --name hub -p 3000:3000 \
+            -e MINDGATE_MASTER_KEY="$(openssl rand -hex 32)" \
+            -e MINDGATE_ADMIN_TOKEN="$(openssl rand -hex 32)" \
+            mindgate-hub
+          for i in $(seq 1 30); do
+            curl -fsS http://127.0.0.1:3000/health && exit 0
+            sleep 1
+          done
+          docker logs hub
+          exit 1
+
+  node-machine:
+    name: agent and tray (install)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install
+        run: |
+          cd agent && npm install && npm run build --if-present
+          cd ../tray && npm install
