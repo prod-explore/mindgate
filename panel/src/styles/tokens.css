@@ -1,0 +1,107 @@
+/*
+  Colour is information in this panel, so it is spent on only three things:
+  where a model runs (amber = your own hardware, steel blue = someone else's), whether something is healthy,
+  and what needs attention. Everything else is ink on paper.
+*/
+:root {
+  color-scheme: light dark;
+
+  --bg: #eceff3;
+  --surface: #ffffff;
+  --surface-2: #f4f6f8;
+  --surface-3: #e9edf1;
+  --ink: #141b22;
+  --ink-2: #44505c;
+  --ink-3: #5f6b77;
+  --line: #d7dde4;
+  --line-strong: #b6bfc9;
+  --focus: #1f5fd1;
+
+  --local: #9a5a08;
+  --local-bg: #f9e8cc;
+  --local-line: #e2bd84;
+  --cloud: #2b5681;
+  --cloud-bg: #dce8f4;
+  --cloud-line: #a9c2dc;
+  --ok: #1b7a4d;
+  --ok-bg: #d9f0e3;
+  --warn: #8f5a00;
+  --warn-bg: #fbecc8;
+  --bad: #b3261e;
+  --bad-bg: #fbe0dd;
+
+  /* chart fills: the same two hues as the local/cloud badges, stepped for contrast (checked with the palette validator) */
+  --series-local: #c9791a;
+  --series-cloud: #3f78b4;
+
+  --shadow: 0 1px 2px rgb(20 27 34 / 6%), 0 8px 24px rgb(20 27 34 / 10%);
+  --font: 'Hanken Grotesk Variable', 'Hanken Grotesk', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --mono: 'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  --r-s: 3px;
+  --r-m: 6px;
+  --r-l: 10px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --bg: #0f1318;
+    --surface: #171c23;
+    --surface-2: #1c222a;
+    --surface-3: #232a33;
+    --ink: #e6ebf0;
+    --ink-2: #b0bbc6;
+    --ink-3: #8b97a3;
+    --line: #2a323b;
+    --line-strong: #3b4651;
+    --focus: #7aa7ff;
+
+    --local: #eaa94e;
+    --local-bg: #35290f;
+    --local-line: #6a5022;
+    --cloud: #86b6e8;
+    --cloud-bg: #14283b;
+    --cloud-line: #2f5073;
+    --ok: #4fc78b;
+    --ok-bg: #12301f;
+    --warn: #e6a94a;
+    --warn-bg: #33270d;
+    --bad: #ff7f76;
+    --bad-bg: #3a1915;
+
+    --series-local: #c8851f;
+    --series-cloud: #4f8bc8;
+
+    --shadow: 0 1px 2px rgb(0 0 0 / 40%), 0 10px 30px rgb(0 0 0 / 50%);
+  }
+}
+
+:root[data-theme='dark'] {
+  --bg: #0f1318;
+  --surface: #171c23;
+  --surface-2: #1c222a;
+  --surface-3: #232a33;
+  --ink: #e6ebf0;
+  --ink-2: #b0bbc6;
+  --ink-3: #8b97a3;
+  --line: #2a323b;
+  --line-strong: #3b4651;
+  --focus: #7aa7ff;
+
+  --local: #eaa94e;
+  --local-bg: #35290f;
+  --local-line: #6a5022;
+  --cloud: #86b6e8;
+  --cloud-bg: #14283b;
+  --cloud-line: #2f5073;
+  --ok: #4fc78b;
+  --ok-bg: #12301f;
+  --warn: #e6a94a;
+  --warn-bg: #33270d;
+  --bad: #ff7f76;
+  --bad-bg: #3a1915;
+
+  --series-local: #c8851f;
+  --series-cloud: #4f8bc8;
+
+  --shadow: 0 1px 2px rgb(0 0 0 / 40%), 0 10px 30px rgb(0 0 0 / 50%);
+}

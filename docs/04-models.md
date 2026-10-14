@@ -16,7 +16,7 @@ Zmiana modelu = pobranie nowego, przestawienie aliasu. Klienci nie wiedzą o nic
 
 ## Zarządzanie modelami z huba
 
-Wszystko poniżej jest też w API ([08 - API](08-api.md)); panel pokazuje to samo. Zamieniasz `pc` na identyfikator swojego dostawcy.
+Wszystko poniżej jest też w API ([08 - API](08-api.md)); [panel](09-panel.md) pokazuje to samo (ekran „Węzły” dla maszyn, „Modele” i „Aliasy” dla katalogu). Zamieniasz `pc` na identyfikator swojego dostawcy.
 
 ```bash
 H=http://localhost:3000/admin/api ; A="Authorization: Bearer $MINDGATE_ADMIN_TOKEN"

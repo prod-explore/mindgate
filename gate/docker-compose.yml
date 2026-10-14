@@ -1,6 +1,9 @@
 services:
   gate:
-    build: .
+    build:
+      # the image holds the hub and the panel, so it is built from the repository root
+      context: ..
+      dockerfile: gate/Dockerfile
     container_name: mindgate-gate
     restart: unless-stopped
     env_file: .env

@@ -1,4 +1,5 @@
 import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { assertStrongSecret } from './secret-check.js';
 
 /** Everything the process reads from its environment. Runtime state (providers, models, keys) lives in SQLite. */
@@ -26,6 +27,8 @@ export interface HubConfig {
   /** Upstream timeouts used when a provider does not set its own. */
   defaultFirstByteTimeoutMs: number;
   defaultIdleTimeoutMs: number;
+  /** Where the built admin panel is (null = no panel). Served at /admin/. */
+  panelDir: string | null;
 }
 
 function int(env: NodeJS.ProcessEnv, name: string, fallback: number, min = 0): number {
@@ -49,6 +52,9 @@ export function assertTimeZone(tz: string): void {
     throw new Error(`MINDGATE_USAGE_TZ "${tz}" is not a valid IANA time zone (for example Europe/Warsaw or UTC)`);
   }
 }
+
+/** The panel next to the hub in the repository: gate/dist/config.js -> panel/dist. */
+const DEFAULT_PANEL_DIR = fileURLToPath(new URL('../../panel/dist', import.meta.url));
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env, warn: (m: string) => void = m => console.warn(`[config] ${m}`)): HubConfig {
   const masterKey = env['MINDGATE_MASTER_KEY'] ?? '';
@@ -80,5 +86,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, warn: (m: strin
     syncIntervalHours: int(env, 'MINDGATE_SYNC_INTERVAL_HOURS', 24),
     defaultFirstByteTimeoutMs: int(env, 'MINDGATE_FIRST_BYTE_TIMEOUT_MS', 300_000, 1000),
     defaultIdleTimeoutMs: int(env, 'MINDGATE_IDLE_TIMEOUT_MS', 120_000, 1000),
+    // unset = the panel in this repository; empty = no panel at all
+    panelDir: env['MINDGATE_PANEL_DIR'] === undefined ? DEFAULT_PANEL_DIR : env['MINDGATE_PANEL_DIR'] === '' ? null : resolve(env['MINDGATE_PANEL_DIR']),
   };
 }

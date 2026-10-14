@@ -1,10 +1,21 @@
 # syntax=docker/dockerfile:1
+# The build context is the repository root, because the image holds the hub and the admin panel it serves:
+#   docker build -f gate/Dockerfile -t mindgate-hub .
+FROM node:22-bookworm-slim AS panel
+WORKDIR /panel
+COPY panel/package.json panel/package-lock.json ./
+RUN npm ci
+COPY panel/tsconfig.json panel/vite.config.ts panel/index.html ./
+COPY panel/public ./public
+COPY panel/src ./src
+RUN npm run build
+
 FROM node:22-bookworm-slim AS build
 WORKDIR /app
-COPY package.json package-lock.json ./
+COPY gate/package.json gate/package-lock.json ./
 RUN npm ci
-COPY tsconfig.json ./
-COPY src ./src
+COPY gate/tsconfig.json ./
+COPY gate/src ./src
 RUN npm run build \
  && rm -rf dist/__tests__ \
  && npm prune --omit=dev
@@ -13,13 +24,15 @@ FROM node:22-bookworm-slim
 ENV NODE_ENV=production \
     MINDGATE_HOST=0.0.0.0 \
     MINDGATE_PORT=3000 \
-    MINDGATE_DB=/data/mindgate.db
+    MINDGATE_DB=/data/mindgate.db \
+    MINDGATE_PANEL_DIR=/app/panel
 WORKDIR /app
 RUN useradd --system --uid 1001 --home-dir /app --shell /usr/sbin/nologin mindgate \
  && mkdir /data && chown mindgate /data && chmod 700 /data
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
-COPY package.json ./
+COPY --from=panel /panel/dist ./panel
+COPY gate/package.json ./
 USER mindgate
 VOLUME /data
 EXPOSE 3000

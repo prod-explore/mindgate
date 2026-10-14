@@ -175,7 +175,7 @@ export interface TestHubOptions {
 }
 
 export async function startHub(opts: TestHubOptions = {}): Promise<TestHub> {
-  const config: HubConfig = loadConfig({ MINDGATE_MASTER_KEY: MASTER, MINDGATE_ADMIN_TOKEN: ADMIN, MINDGATE_DB: ':memory:', MINDGATE_KEEPALIVE_AFTER_MS: '150', MINDGATE_KEEPALIVE_INTERVAL_MS: '150', ...opts.env }, () => undefined);
+  const config: HubConfig = loadConfig({ MINDGATE_MASTER_KEY: MASTER, MINDGATE_ADMIN_TOKEN: ADMIN, MINDGATE_DB: ':memory:', MINDGATE_PANEL_DIR: '', MINDGATE_KEEPALIVE_AFTER_MS: '150', MINDGATE_KEEPALIVE_INTERVAL_MS: '150', ...opts.env }, () => undefined);
   const hub = createHub(config, silentLogger, opts.hub);
   const { key } = hub.keys.create({ name: 'test' });
   await opts.setup?.(hub);

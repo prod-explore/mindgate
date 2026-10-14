@@ -26,10 +26,13 @@ Hub **nie wystartuje** z placeholderami z `.env.example` ani z krótkim lub powt
 - `MINDGATE_MASTER_KEY` szyfruje klucze API dostawców zapisane w bazie (AES-256-GCM). **Zachowaj kopię osobno od backupów bazy**: bez niego zapisanych kluczy dostawców nie da się odczytać i trzeba je wpisać od nowa.
 - `MINDGATE_ADMIN_TOKEN` chroni `/admin`. Inny niż master key.
 
+Gdy hub działa, **panel** czeka pod `http://localhost:3000/admin/` (logujesz się tym tokenem): dostawcy, modele, aliasy, klucze, zużycie, log i maszyny z GPU — wszystko, co poniżej robisz w `curl`, możesz kliknąć. Szczegóły: [09 - Panel](09-panel.md).
+
 ### Bez Dockera
 
 ```bash
-cd mindgate/gate
+cd mindgate/panel && npm ci && npm run build      # panel (do panel/dist); bez tego /admin/ jest wyłączony, API działa
+cd ../gate
 npm ci
 npm run build
 npm start          # czyta .env z bieżącego katalogu (Node >= 22.9)
@@ -39,7 +42,7 @@ npm start          # czyta .env z bieżącego katalogu (Node >= 22.9)
 
 ## Pierwsze kroki
 
-Wszystko poniżej to wywołania API administratora (`/admin/api`, nagłówek `Authorization: Bearer $MINDGATE_ADMIN_TOKEN`). Pełna lista: [08 - API](08-api.md).
+Wszystko poniżej to wywołania API administratora (`/admin/api`, nagłówek `Authorization: Bearer $MINDGATE_ADMIN_TOKEN`). Pełna lista: [08 - API](08-api.md). To samo zrobisz w [panelu](09-panel.md).
 
 ```bash
 HUB=http://localhost:3000
@@ -217,6 +220,7 @@ server {
 | `MINDGATE_KEEPALIVE_AFTER_MS`, `…_INTERVAL_MS` | `10000` | komentarze SSE przy długim oczekiwaniu |
 | `MINDGATE_FIRST_BYTE_TIMEOUT_MS`, `MINDGATE_IDLE_TIMEOUT_MS` | `300000`, `120000` | domyślne limity czasu dostawcy (nadpisywalne per dostawca) |
 | `MINDGATE_SYNC_INTERVAL_HOURS` | `24` | jak często odświeżać listy modeli |
+| `MINDGATE_PANEL_DIR` | `panel/dist` obok `gate/` (`/app/panel` w Dockerze) | skąd hub podaje panel pod `/admin/`; pusta wartość wyłącza panel |
 | `MINDGATE_ALLOW_WEAK_SECRETS` | `false` | tylko do lokalnych testów: słaby sekret to ostrzeżenie |
 
 ---
@@ -228,6 +232,7 @@ gate/src/
 ├── index.ts, server.ts       start procesu, serwer Fastify, obsługa błędów
 ├── routes-v1.ts              /v1/models, /v1/chat/completions, /v1/embeddings, /v1/usage
 ├── routes-admin.ts           /admin/api/* (dostawcy, modele, aliasy, klucze, zużycie, log)
+├── panel.ts                  pliki panelu pod /admin/ (tylko GET/HEAD, polityka treści, ochrona ścieżek)
 ├── chat.ts                   jedno żądanie od klucza do ostatniego bajtu (fallback, SSE, rozliczenie)
 ├── routing.ts                nazwa → lista celów; local_only, allowed_models
 ├── limits.ts, queue.ts       limity kluczy, kolejka priorytetowa

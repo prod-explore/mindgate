@@ -45,8 +45,9 @@ graph LR
 - **Priority queue** — 5 → 1, first come first served within a level, for providers that can do only one thing at a time (one GPU). Clients that disconnect leave the line.
 - **Wake-on-LAN and idle shutdown** — low-priority requests do not wake the machine (and fall back through an alias); the connection is kept alive with SSE comments while it boots; a machine that vanishes mid-request is noticed and woken again.
 - **Models on your own machines, managed from the hub** — the agent on a GPU machine exposes a small authenticated API: list what is installed (size, quantisation, capabilities, what sits in VRAM), download models (including `hf.co/…` GGUF repositories, with progress), delete, load and unload them, read CPU/RAM/GPU/disk, shut the machine down. Finished downloads appear in the hub's catalog by themselves; uncensored/abliterated models are tagged and stay local. No model list lives in a config file on the node.
+- **Admin panel** — a web UI served by the hub at `/admin/` (React, no CDN or external requests, strict content security policy): providers, models, aliases, client keys, usage charts, the request log, and the models on each machine — download, load, unload, delete, shut down — with the hub never waking a machine just to look at it. English and Polish, light and dark.
 - **Private by construction** — the request log holds who, which model, how long, how many tokens, what failed. Never prompts or answers. Provider keys are encrypted at rest (AES-256-GCM, key from the environment); admin and client credentials are separate; failed logins are throttled.
-- **Operations** — one SQLite file, `backup` and `check` commands, a one-shot `import-legacy` for the previous config format, Docker image, 280+ tests against fake upstreams, a fake Ollama and a hub-to-agent end-to-end chain.
+- **Operations** — one SQLite file, `backup` and `check` commands, a one-shot `import-legacy` for the previous config format, Docker image, 500+ tests: the hub against fake upstreams, the agent against a fake Ollama, the panel's screens, and a hub-to-agent end-to-end chain.
 
 ---
 
@@ -54,7 +55,7 @@ graph LR
 
 - **Why no automatic fallback between models?** A silent substitution changes quality, cost and — worst — *where your data goes*. Fallback is therefore explicit (an alias lists its targets in order), conservative (only for provider failures, never for bad requests, never after the first byte of an answer reached the client) and visible (`X-MindGate-Fallback`, `mindgate.attempts`).
 - **Why does local-only filter fallbacks too?** The guarantee has to hold for the whole path, or it is not a guarantee. A cloud target is not skipped *after* an attempt — it is never attempted.
-- **Why SQLite and not a config file?** Providers, models, aliases and keys change while the hub runs (and will be edited from a panel). A single file with versioned migrations is easy to back up and needs no extra service on a Raspberry Pi.
+- **Why SQLite and not a config file?** Providers, models, aliases and keys change while the hub runs (and are edited from the admin panel). A single file with versioned migrations is easy to back up and needs no extra service on a Raspberry Pi.
 - **Why a hub and a separate agent?** The always-on part (a Pi) must be cheap and small; the GPU machine should be off most of the time. The hub is the first, the agent and tray the second. The agent runs next to Ollama and does what only the machine can: start the runtime, report its hardware and models, download and delete models, and decide whether it is safe to power the PC off. It does no routing and holds no model list of its own — the hub is the one place where models, names and keys are managed.
 - **Why priorities instead of a FIFO queue?** An IDE autocomplete must not wait behind a script summarising fifty documents, and a script should not wake the GPU at 3 a.m.
 
@@ -79,12 +80,14 @@ curl -X POST http://localhost:3000/admin/api/providers \
 docker compose exec gate node dist/cli.js keys create laptop --rpm 30
 ```
 
-Without Docker: Node 22, `npm ci && npm run build && npm start` in `gate/`.
+Then open `http://localhost:3000/admin/` and sign in with `MINDGATE_ADMIN_TOKEN`: everything above can be done there too.
+
+Without Docker: Node 22, `cd panel && npm ci && npm run build`, then `npm ci && npm run build && npm start` in `gate/`.
 
 Coming from the previous gate? `node dist/cli.js import-legacy config.yml` moves the machine, Wake-on-LAN settings and client keys over; add `--agent-models` with the old agent's `models.yml` to keep the old profile names working as aliases. Pipelines and MCP tool injection are gone.
 
 Setup guides (Polish) are in [`docs/`](docs):
-[01 Hub](docs/01-gate.md) · [02 Agent](docs/02-agent.md) · [03 Tray](docs/03-tray.md) · [04 Ollama](docs/04-models.md) · [05 Nodes](docs/05-nodes.md) · [06 Wake-on-LAN](docs/06-wol.md) · [07 Clients](docs/07-clients.md) · [08 API](docs/08-api.md)
+[01 Hub](docs/01-gate.md) · [02 Agent](docs/02-agent.md) · [03 Tray](docs/03-tray.md) · [04 Ollama](docs/04-models.md) · [05 Nodes](docs/05-nodes.md) · [06 Wake-on-LAN](docs/06-wol.md) · [07 Clients](docs/07-clients.md) · [08 API](docs/08-api.md) · [09 Panel](docs/09-panel.md)
 
 ---
 
@@ -118,6 +121,7 @@ npm test            # builds and runs the contract tests against fake OpenAI/Ant
 npm run dev         # rebuild on change, restart on change
 
 cd ../agent && npm ci && npm test      # the node agent against a fake Ollama
+cd ../panel && npm ci && npm test      # the admin panel (Vitest + Testing Library); npm run dev for development
 cd .. && node --test e2e/*.test.mjs    # hub + agent + fake Ollama, after building both packages
 ```
 
@@ -126,6 +130,7 @@ The tests start real servers (the hub and fake upstreams, including a "machine" 
 ## Repository structure
 
 - `/gate` — the hub (TypeScript, Fastify, SQLite): routing, keys, limits, queue, adapters, admin API, CLI
+- `/panel` — the admin panel (Vite, React, TypeScript), built to static files that the hub serves under `/admin/`
 - `/agent` — compute-machine service (TypeScript, Fastify): authenticated node API, Ollama runtime and model management, OpenAI passthrough, power guard
 - `/e2e` — end-to-end tests: hub, agent and a fake Ollama together
 - `/tray` — desktop tray app: idle detection and shutdown guard for the compute machine

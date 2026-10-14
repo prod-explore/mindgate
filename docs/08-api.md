@@ -6,6 +6,8 @@ Wszystkie odpowiedzi błędów mają format OpenAI:
 { "error": { "message": "…", "type": "invalid_request_error", "code": "model_not_found", "param": "model" } }
 ```
 
+To samo API obsługuje [panel](09-panel.md) — nic, co robi panel, nie omija tych endpointów.
+
 `code` jest stały i przeznaczony dla programów; `message` dla ludzi. Każda odpowiedź ma `X-Request-Id` (jeśli klient poda własny `X-Request-Id` o rozsądnym kształcie, hub go zachowa), a ten sam identyfikator jest w logu żądań.
 
 ---
