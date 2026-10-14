@@ -3,6 +3,7 @@ import Fastify, { LogController, type FastifyBaseLogger, type FastifyError, type
 import { AuthThrottle } from './auth.js';
 import type { Hub } from './context.js';
 import { HubError, isHubError } from './errors.js';
+import { registerPanel } from './panel.js';
 import { registerAdmin } from './routes-admin.js';
 import { registerV1 } from './routes-v1.js';
 
@@ -46,6 +47,7 @@ export async function buildServer(hub: Hub, opts: { logger?: FastifyBaseLogger }
 
   registerV1(app, hub, throttle);
   registerAdmin(app, hub, throttle);
+  await registerPanel(app, hub);
   await app.ready();
   return app;
 }

@@ -1,0 +1,16 @@
+# The image is built from the repository root (docker build -f gate/Dockerfile .): send only what it needs.
+.git
+.github
+**/node_modules
+**/dist
+**/data
+**/.env
+**/.env.*
+!**/.env.example
+**/*.log
+agent
+tray
+e2e
+docs
+README.md
+*.bat

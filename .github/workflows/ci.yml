@@ -33,7 +33,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Build the image
-        run: docker build -t mindgate-hub gate
+        run: docker build -f gate/Dockerfile -t mindgate-hub .
       - name: The image starts and answers /health
         run: |
           docker run -d --name hub -p 3000:3000 \
@@ -41,11 +41,36 @@ jobs:
             -e MINDGATE_ADMIN_TOKEN="$(openssl rand -hex 32)" \
             mindgate-hub
           for i in $(seq 1 30); do
-            curl -fsS http://127.0.0.1:3000/health && exit 0
+            curl -fsS http://127.0.0.1:3000/health && break
             sleep 1
           done
-          docker logs hub
-          exit 1
+          curl -fsS http://127.0.0.1:3000/health || { docker logs hub; exit 1; }
+      - name: The image serves the admin panel
+        run: |
+          curl -fsS -D - -o page.html http://127.0.0.1:3000/admin/ | grep -i "content-security-policy"
+          asset=$(grep -o '/admin/assets/[^"]*\.js' page.html | head -n 1)
+          test -n "$asset"
+          curl -fsS -o /dev/null "http://127.0.0.1:3000$asset"
+
+  panel:
+    name: panel (types + build + tests)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: panel/package-lock.json
+      - name: Install
+        run: npm ci
+        working-directory: panel
+      - name: Type check and build
+        run: npm run build
+        working-directory: panel
+      - name: Test
+        run: npm test
+        working-directory: panel
 
   agent:
     name: agent (build + tests)
