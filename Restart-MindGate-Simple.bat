@@ -31,7 +31,7 @@ powershell -Command "Stop-Process -Name 'tray_windows*' -Force -ErrorAction Sile
 echo.
 echo Set WshShell = CreateObject("WScript.Shell") > "%temp%\run_tray.vbs"
 echo WshShell.CurrentDirectory = "%~dp0tray" >> "%temp%\run_tray.vbs"
-echo WshShell.Run "node.exe """"%~dp0tray\src\index.js"""""", 0, False >> "%temp%\run_tray.vbs"
+echo WshShell.Run "node.exe ""%~dp0tray\src\index.js""", 0, False >> "%temp%\run_tray.vbs"
 wscript "%temp%\run_tray.vbs"
 del "%temp%\run_tray.vbs"
 echo.
