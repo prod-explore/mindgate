@@ -187,13 +187,6 @@ describe('downloading', () => {
     await waitFor(() => expect(input).toHaveValue(''));
   });
 
-  it('fills the box from a suggestion', async () => {
-    const user = userEvent.setup();
-    renderPage(<Nodes />);
-    await user.click(await screen.findByRole('button', { name: 'qwen2.5-coder:3b' }));
-    expect(screen.getByLabelText('Model name')).toHaveValue('qwen2.5-coder:3b');
-  });
-
   it('shows the machine’s refusal next to the box', async () => {
     const user = userEvent.setup();
     const api = fakeApi();

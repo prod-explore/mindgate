@@ -242,8 +242,8 @@ function KeyEditor({ existing, suggestions, onClose, onSaved }: { existing: ApiK
           <h3>{t('keys.s.scope')}</h3>
         </div>
         <SwitchField className="span-2" label={t('keys.f.local_only')} hint={t('keys.f.local_only_hint')} checked={localOnly} onChange={setLocalOnly} />
-        <SwitchField className="span-2" label={t('keys.f.restrict')} hint={t('keys.f.restrict_hint')} checked={restrict} onChange={setRestrict} />
-        {restrict ? <TagsField className="span-2" label={t('keys.f.allowed')} hint={t('keys.f.allowed_hint')} value={allowed} onChange={setAllowed} suggestions={suggestions} error={tried ? allowedError : null} /> : null}
+        <SwitchField className="span-2" label={t('keys.f.restrict')} checked={restrict} onChange={setRestrict} />
+        {restrict ? <TagsField className="span-2" label={t('keys.f.allowed')} placeholder={t('keys.f.allowed_placeholder')} value={allowed} onChange={setAllowed} suggestions={suggestions} error={tried ? allowedError : null} /> : null}
 
         <div className="form-sep span-2">
           <h3>{t('keys.s.limits')}</h3>
