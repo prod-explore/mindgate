@@ -17,8 +17,31 @@ export const dash = '–';
 
 export const num = (n: number | null | undefined): string => (n === null || n === undefined || Number.isNaN(n) ? dash : nf({}).format(n));
 
-/** 1 234 567 -> "1.2M" */
-export const compact = (n: number | null | undefined): string => (n === null || n === undefined ? dash : nf({ notation: 'compact', maximumFractionDigits: 1 }).format(n));
+/**
+ * 1 234 567 -> "1.2M". The suffixes are written here, not taken from Intl's compact notation:
+ * their case differs between ICU builds (Node on a CI runner gave "1.2m", a desktop gave "1.2M"),
+ * and a figure that changes with the machine is not worth the saved lines.
+ */
+export function compact(n: number | null | undefined): string {
+  if (n === null || n === undefined || Number.isNaN(n)) return dash;
+  const sign = n < 0 ? -1 : 1;
+  const abs = Math.abs(n);
+  const units: [number, string][] = [
+    [1e9, 'B'],
+    [1e6, 'M'],
+    [1e3, 'K'],
+  ];
+  const one = nf({ maximumFractionDigits: 1 });
+  for (let i = 0; i < units.length; i++) {
+    const [size, suffix] = units[i]!;
+    if (abs < size) continue;
+    // 999 950 rounds to "1000K": that is "1M"
+    const rounded = Math.round((abs / size) * 10) / 10;
+    if (rounded >= 1000 && i > 0) return `${one.format(sign)}${units[i - 1]![1]}`;
+    return `${one.format(sign * rounded)}${suffix}`;
+  }
+  return one.format(sign * abs);
+}
 
 /** Decimal units, like disks and Ollama: 2 600 000 000 -> "2.6 GB". */
 export function bytes(n: number | null | undefined): string {
