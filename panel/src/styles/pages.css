@@ -854,13 +854,6 @@ a.btn-primary:hover {
   margin-top: 21px;
 }
 
-.suggestions {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-top: 12px;
-}
-
 .pulls {
   display: flex;
   flex-direction: column;

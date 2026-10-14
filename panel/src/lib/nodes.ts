@@ -1,16 +1,6 @@
 import type { GpuInfo, NodeModel, PullJob } from '../api/types';
 import type { Key } from '../i18n';
 
-/** Small models that run on a 4 GB graphics card, offered as one-click starting points. */
-export const SUGGESTED_MODELS: ReadonlyArray<{ name: string; note: Key }> = [
-  { name: 'qwen3:4b', note: 'nodes.suggest.qwen3' },
-  { name: 'llama3.2:3b', note: 'nodes.suggest.llama32' },
-  { name: 'phi4-mini', note: 'nodes.suggest.phi4' },
-  { name: 'gemma3:4b', note: 'nodes.suggest.gemma3' },
-  { name: 'qwen2.5-coder:3b', note: 'nodes.suggest.coder' },
-  { name: 'nomic-embed-text', note: 'nodes.suggest.embed' },
-];
-
 export const isActivePull = (job: PullJob): boolean => job.status === 'queued' || job.status === 'running';
 
 /** The pulls that are still going come first, then the newest. */

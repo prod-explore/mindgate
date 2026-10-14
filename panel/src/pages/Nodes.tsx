@@ -6,7 +6,7 @@ import { useT, type Key } from '../i18n';
 import { useAction } from '../lib/action';
 import { describeCode } from '../lib/errors';
 import { bytes, dash, duration, num, percent, relative } from '../lib/format';
-import { fit, isActivePull, SHUTDOWN_REASONS, sortPulls, SUGGESTED_MODELS, validPullName } from '../lib/nodes';
+import { fit, isActivePull, SHUTDOWN_REASONS, sortPulls, validPullName } from '../lib/nodes';
 import { useQuery, type QueryResult } from '../lib/query';
 import { href, useRoute } from '../lib/router';
 import { toast } from '../lib/toast';
@@ -506,16 +506,6 @@ function Downloads({ id, pulls, onChanged }: { id: string; pulls: QueryResult<Pu
           {t('nodes.pull_start')}
         </Button>
       </form>
-      <div className="suggestions">
-        <span className="section-sub">{t('nodes.suggest')}</span>
-        <div className="chips">
-          {SUGGESTED_MODELS.map(s => (
-            <button key={s.name} type="button" className="chip chip-button" title={t(s.note)} onClick={() => { setName(s.name); setTouched(false); start.clearError(); }}>
-              {s.name}
-            </button>
-          ))}
-        </div>
-      </div>
       {busy ? <p className="section-sub">{t('nodes.pull_one_at_a_time')}</p> : null}
 
       {jobs.length > 0 ? (
