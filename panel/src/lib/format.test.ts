@@ -16,6 +16,18 @@ describe('numbers', () => {
     expect(compact(1234567)).toBe('1.2M');
     expect(compact(950)).toBe('950');
     expect(compact(null)).toBe(dash);
+    expect(compact(5000)).toBe('5K');
+    expect(compact(32768)).toBe('32.8K');
+    expect(compact(2_500_000_000)).toBe('2.5B');
+    expect(compact(999_950)).toBe('1M'); // not "1000K"
+    expect(compact(-1500)).toBe('-1.5K');
+    expect(compact(Number.NaN)).toBe(dash);
+  });
+
+  it('writes the same suffixes whatever the ICU build says, and the decimal comma in Polish', () => {
+    setLang('pl');
+    expect(compact(1234567)).toBe('1,2M');
+    expect(compact(50_000)).toBe('50K');
   });
 
   it('follows the language of the panel', () => {
