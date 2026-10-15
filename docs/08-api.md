@@ -70,11 +70,14 @@ It works for a key that has used up its limit as well.
 | Status | `code` | When |
 |---|---|---|
 | 400 | `missing_model`, `invalid_messages`, `invalid_request`, `invalid_json`, `invalid_priority` | a malformed request |
+| 400 | `unsupported_content`, `unsupported_parameter`, `unsupported_endpoint` | the provider cannot do this: a content type or parameter the Anthropic translation does not support (`n > 1`), embeddings on a provider that does not offer them |
+| 400 / 404 / 409 | `invalid_*`, `*_not_found`, `*_exists` | (administrator API only) validation of what you sent — `invalid_provider_id`, `invalid_base_url`, `invalid_targets`, `invalid_key_name`…; an unknown `provider` / `alias` / `key` / `model`; a duplicate. `param` names the field |
 | 400 | `wrong_model_kind` | an embedding model in a chat, or the other way round |
 | 400 | `context_length_exceeded` and other provider codes | the provider rejected the content of the request — passed on unchanged, **with no fallback** |
 | 400 | `upstream_bad_request` | as above, when the provider gave no recognisable code |
 | 400 | `not_a_node`, `no_agent`, `agent_rejected` | (administrator API only) the provider has no `node` settings / no `node.control_url` / the agent rejected the command (for example a wrong model name) |
 | 401 | `missing_auth_header`, `invalid_auth_format`, `invalid_api_key` | authentication |
+| 401 | `invalid_admin_token` | (administrator API) a missing or wrong `MINDGATE_ADMIN_TOKEN` |
 | 403 | `model_not_allowed` | the key does not have this model in its `allowed_models` list |
 | 403 | `local_only_violation` | `local_only`, and the model/alias has no local target |
 | 404 | `model_not_found`, `unknown_endpoint` | an unknown model, alias (or a disabled one) / path |
@@ -83,6 +86,7 @@ It works for a key that has used up its limit as well.
 | 429 | `budget_exhausted` | the daily/monthly limit; the `limit` field (`requests_per_day`, `tokens_per_day`, `tokens_per_month`) and `reset_at` |
 | 429 | `too_many_auth_failures` | the address is blocked after 20 failed sign-ins per minute |
 | 429 | `upstream_rate_limited` | a limit on the provider's side (with its `Retry-After`) |
+| 500 | `internal_error` | a bug in the hub; the details are in its log under the same `X-Request-Id` |
 | 502 | `upstream_error`, `upstream_unreachable`, `upstream_empty_response`, `upstream_invalid_response`, `upstream_auth_failed` | a provider failure / a wrong provider key (the owner's, not the client's) |
 | 502 | `node_connection_lost` | the machine disappeared mid-request, and the retry failed too |
 | 502 | `node_auth_failed`, `agent_missing`, `agent_invalid_response`, `agent_error` | machine management (`/admin/api/providers/{id}/node*`): the agent rejected the secret / there is no MindGate agent at `control_url` / it answered with something that is not JSON / it reported an error on its side |
