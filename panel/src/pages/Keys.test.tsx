@@ -1,11 +1,9 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, describe, expect, it } from 'vitest';
-import { setLang } from '../i18n';
+import { describe, expect, it } from 'vitest';
 import { alias, apiKey, cloud, FULL_KEY, fakeApi, provider, renderPage } from '../test/fixtures';
 import { Keys } from './Keys';
 
-beforeEach(() => setLang('en'));
 
 describe('client keys', () => {
   it('lists the keys with what they have used of their limits', async () => {

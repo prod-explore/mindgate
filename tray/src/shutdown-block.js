@@ -10,20 +10,20 @@ const __dirname = dirname(__filename)
 const log = pino({ name: 'shutdown-block' })
 
 /**
- * Blokuje systemowy shutdown gdy agent przetwarza żądania.
- * Używa C# WinForms EXE do obsługi WM_QUERYENDSESSION.
- * Gdy użytkownik kliknie "Zamknij" w menu Start, Windows pokaże dialog:
- *   "Ta aplikacja blokuje wyłączenie: MindGate przetwarza żądania AI"
+ * Blocks the system shutdown while the agent is processing requests.
+ * Uses a small C# WinForms EXE to handle WM_QUERYENDSESSION.
+ * When the user picks "Shut down" in the Start menu, Windows shows a dialog:
+ *   "This app is preventing shutdown: MindGate is processing AI requests"
  *
- * Na Linux shutdown jest kontrolowany przez systemd/polkit — nie blokujemy.
+ * On Linux, shutdown is controlled by systemd/polkit — nothing is blocked there.
  */
 
 let blockerProcess = null
 let isBlocking = false
 
 /**
- * Aktywuje blokadę shutdown.
- * Kompiluje (jeśli trzeba) i uruchamia ukryty program C# blokujący zamknięcie.
+ * Turns the shutdown block on.
+ * Compiles (if needed) and starts a hidden C# program that holds the shutdown back.
  */
 export function enableShutdownBlock() {
   if (process.platform !== 'win32') return
@@ -34,12 +34,12 @@ export function enableShutdownBlock() {
     const csPath = join(__dirname, 'blocker.cs')
 
     if (!existsSync(exePath) && existsSync(csPath)) {
-      log.info('Kompiluję shutdown-blocker.exe...')
+      log.info('Compiling shutdown-blocker.exe...')
       execSync(`C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\csc.exe /nologo /target:winexe /out:"${exePath}" "${csPath}"`)
     }
 
     if (!existsSync(exePath)) {
-      log.error('Nie znaleziono shutdown-blocker.exe ani kodu źródłowego.')
+      log.error('Neither shutdown-blocker.exe nor its source was found.')
       return
     }
 
@@ -56,30 +56,30 @@ export function enableShutdownBlock() {
     })
 
     blockerProcess.on('exit', (code) => {
-      log.info({ code }, 'Shutdown blocker process zakończony')
+      log.info({ code }, 'Shutdown blocker process exited')
       isBlocking = false
       blockerProcess = null
     })
 
     isBlocking = true
-    log.info('🛑 Shutdown block aktywowany — Windows pokaże ostrzeżenie przy próbie wyłączenia')
+    log.info('Shutdown block on — Windows will show a warning when someone tries to shut down')
   } catch (err) {
-    log.error({ err: err.message }, 'Nie udało się aktywować shutdown block')
+    log.error({ err: err.message }, 'Could not turn the shutdown block on')
   }
 }
 
 /**
- * Dezaktywuje blokadę shutdown.
- * Zamyka ukryte okno PowerShell.
+ * Turns the shutdown block off.
+ * Ends the hidden blocker process.
  */
 export function disableShutdownBlock() {
   if (!isBlocking || !blockerProcess) return
 
   try {
     blockerProcess.kill()
-    log.info('✅ Shutdown block dezaktywowany')
+    log.info('Shutdown block off')
   } catch (err) {
-    log.warn({ err: err.message }, 'Problem przy zamykaniu shutdown blocker')
+    log.warn({ err: err.message }, 'Problem while stopping the shutdown blocker')
   }
 
   isBlocking = false
@@ -87,16 +87,16 @@ export function disableShutdownBlock() {
 }
 
 /**
- * Zwraca czy blokada jest aktywna.
+ * Tells whether the block is active.
  */
 export function isShutdownBlocked() {
   return isBlocking
 }
 
 /**
- * Aktualizuje stan blokady na podstawie zajętości agenta
- * (żądania w toku + pobierane modele).
- * Wywołuj periodycznie z głównej pętli pollingu.
+ * Updates the block from how busy the agent is
+ * (requests in flight + models being downloaded).
+ * Call it periodically from the main polling loop.
  */
 export function updateShutdownBlock(busy) {
   if (busy > 0 && !isBlocking) {

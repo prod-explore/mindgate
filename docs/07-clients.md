@@ -1,141 +1,85 @@
-# Konfiguracja klientów
+# Client configuration
 
-MindGate wystawia OpenAI-compatible API. Konfiguracja w każdym kliencie sprowadza się do trzech rzeczy: URL, klucz API, nazwa modelu.
+MindGate exposes an OpenAI-compatible API. Configuring any client comes down to three things: the URL, the API key, the model name.
 
-**Nazwa modelu** to jedno z dwóch:
+The **model name** is one of two things:
 
-- **alias** — krótka nazwa, którą ustawiasz w hubie (`smart`, `flash`, `coding-hard`), z jawną listą zapasowych modeli; zmieniasz, co się za nią kryje, bez ruszania klientów,
-- **model dostawcy** — `dostawca/model`, np. `openrouter/deepseek/deepseek-chat`; bez żadnego fallbacku.
+- an **alias** — a short name that you set in the hub (`smart`, `flash`, `coding-hard`), with an explicit list of backup models; you change what is behind it without touching the clients,
+- a **provider model** — `provider/model`, for example `openrouter/deepseek/deepseek-chat`; with no fallback at all.
 
-Co jest dostępne, pokazuje `GET /v1/models` (klienty pokazują tę listę same). Każdy klient powinien mieć **własny klucz** (`keys create <nazwa>`): osobne limity, priorytet i, jeśli trzeba, `--local-only`. Opisy aliasów, kluczy i limitów: [01 - Hub](01-gate.md), wszystkie endpointy i kody błędów: [08 - API](08-api.md).
+`GET /v1/models` shows what is available (clients show this list themselves). Every client should have **its own key** (`keys create <name>`): separate limits, priority and, if needed, `--local-only`. Aliases, keys and limits are described in [01 - Hub](01-gate.md); all endpoints and error codes in [08 - API](08-api.md).
 
----
-
-## AntyGraviti (Google)
-
-AntyGraviti obsługuje własne LLM endpoints przez ustawienia projektu.
-
-1. Otwórz projekt w AntyGraviti
-2. Przejdź do **Settings** → **AI Model** lub **Custom AI Provider**
-3. Ustaw:
-   - **API Endpoint**: `https://raspi.twojadomena.pl/v1`
-   - **API Key**: `mg-twoj-klucz`
-   - **Model**: `smart` (lub dowolny inny alias / model z `GET /v1/models`)
-
-Jeśli AntyGraviti wymaga pola `baseURL` w formacie JSON:
-
-```json
-{
-  "baseURL": "https://raspi.twojadomena.pl/v1",
-  "apiKey": "mg-twoj-klucz",
-  "model": "coding-hard"
-}
-```
+Client settings and file formats change from version to version. The values to enter are always the same — base URL `https://hub.example.com/v1`, key `mg-…`, model name — and where they go is in the client's own documentation. The sections below are examples that were current when they were written.
 
 ---
 
 ## Open WebUI
 
-Open WebUI to przeglądarkowy frontend dla LLM — polecany jako główny interfejs do czatowania.
+Open WebUI is a browser front end for LLMs — a good main interface for chatting.
 
-### Instalacja (Docker na dowolnej maszynie)
+### Installation (Docker, on any machine)
 
 ```bash
 docker run -d \
   --name open-webui \
   -p 3000:8080 \
-  -e OPENAI_API_BASE_URL=https://raspi.twojadomena.pl/v1 \
-  -e OPENAI_API_KEY=mg-twoj-klucz \
+  -e OPENAI_API_BASE_URL=https://hub.example.com/v1 \
+  -e OPENAI_API_KEY=mg-your-key \
   ghcr.io/open-webui/open-webui:main
 ```
 
-Otwórz: http://localhost:3000
+Open: http://localhost:3000
 
-### Dodanie modeli
+### Adding the models
 
-W Open WebUI: **Settings** → **Connections** → **OpenAI API**:
-- URL: `https://raspi.twojadomena.pl/v1`
-- Key: `mg-twoj-klucz`
+In Open WebUI: **Settings** → **Connections** → **OpenAI API**:
+- URL: `https://hub.example.com/v1`
+- Key: `mg-your-key`
 
-Modele pojawiają się automatycznie (hub zwraca listę przez `/v1/models`).
+The models appear automatically (the hub returns the list through `/v1/models`).
 
-### Priorytet w Open WebUI
+### Priority in Open WebUI
 
-Open WebUI nie wysyła niestandardowych nagłówków — żądania będą miały domyślny priorytet Twojego klucza API. Jeśli chcesz wyższy priorytet dla konkretnych rozmów, skonfiguruj osobny klucz z wyższym `--priority`. Rozmowy z danymi prywatnymi możesz skierować na osobne połączenie z kluczem `--local-only`: hub nie wyśle ich do chmury, nawet przez pomyłkę w wyborze modelu.
+Open WebUI does not send custom headers — requests will have the default priority of your API key. If you want a higher priority for particular conversations, configure a separate key with a higher `--priority`. Conversations with private data can be sent through a separate connection with a `--local-only` key: the hub will not send them to the cloud, even by a mistake in choosing the model.
 
 ---
 
-## Continue.dev (VS Code / JetBrains)
+## Continue (VS Code / JetBrains)
 
-Continue to rozszerzenie do VS Code i JetBrains dla asystenta kodowania.
+Continue is an extension for VS Code and JetBrains: a coding assistant.
 
-### VS Code
+Install the **Continue** extension, then add the hub to its configuration (`~/.continue/config.yaml`):
 
-Zainstaluj rozszerzenie **Continue** z marketplace.
-
-Edytuj `~/.continue/config.json`:
-
-```json
-{
-  "models": [
-    {
-      "title": "MindGate — Coding Fast",
-      "provider": "openai",
-      "model": "coding-fast",
-      "apiBase": "https://raspi.twojadomena.pl/v1",
-      "apiKey": "mg-twoj-klucz"
-    },
-    {
-      "title": "MindGate — Smart",
-      "provider": "openai",
-      "model": "smart",
-      "apiBase": "https://raspi.twojadomena.pl/v1",
-      "apiKey": "mg-twoj-klucz"
-    },
-    {
-      "title": "MindGate — Extreme",
-      "provider": "openai",
-      "model": "extreme",
-      "apiBase": "https://raspi.twojadomena.pl/v1",
-      "apiKey": "mg-twoj-klucz"
-    }
-  ],
-  "tabAutocompleteModel": {
-    "title": "MindGate — Flash",
-    "provider": "openai",
-    "model": "coding-fast",
-    "apiBase": "https://raspi.twojadomena.pl/v1",
-    "apiKey": "mg-twoj-klucz"
-  }
-}
+```yaml
+name: MindGate
+version: 1.0.0
+schema: v1
+models:
+  - name: MindGate Smart
+    provider: openai
+    model: smart
+    apiBase: https://hub.example.com/v1
+    apiKey: mg-your-key
+    roles: [chat, edit, apply]
+  - name: MindGate Fast
+    provider: openai
+    model: coding-fast
+    apiBase: https://hub.example.com/v1
+    apiKey: mg-your-key
+    roles: [autocomplete]
 ```
 
 ---
 
 ## Cursor
 
-Cursor obsługuje custom OpenAI endpoints.
-
-**Settings** → **Models** → **Add Model**:
-- Model name: `coding-hard` (lub inny)
-- API URL: `https://raspi.twojadomena.pl/v1`
-- API Key: `mg-twoj-klucz`
-
-Lub przez `.cursor/settings.json` w projekcie:
-
-```json
-{
-  "ai.openaiApiBase": "https://raspi.twojadomena.pl/v1",
-  "ai.openaiApiKey": "mg-twoj-klucz",
-  "ai.model": "coding-hard"
-}
-```
+Cursor accepts a custom OpenAI endpoint: in **Settings** → **Models**, enter your key as the OpenAI API key, turn on the base-URL override and set it to `https://hub.example.com/v1`, then add the alias (for example `coding-hard`) as a custom model name.
 
 ---
 
-## Własny skrypt / aplikacja
+## Your own script / application
 
-Każda biblioteka kompatybilna z OpenAI działa od razu.
+Every OpenAI-compatible library works straight away.
 
 ### Python
 
@@ -143,23 +87,21 @@ Każda biblioteka kompatybilna z OpenAI działa od razu.
 from openai import OpenAI
 
 client = OpenAI(
-    base_url="https://raspi.twojadomena.pl/v1",
-    api_key="mg-twoj-klucz"
+    base_url="https://hub.example.com/v1",
+    api_key="mg-your-key"
 )
 
 response = client.chat.completions.create(
     model="smart",
     messages=[
-        {"role": "user", "content": "Wytłumacz mi quicksort"}
+        {"role": "user", "content": "Explain quicksort to me"}
     ],
     extra_headers={
-        "X-MindGate-Priority": "3",        # 1-5, w zakresie dozwolonym dla klucza
-        "X-MindGate-Local-Only": "true",   # opcjonalnie: tylko modele lokalne, fallbacki też
+        "X-MindGate-Priority": "3",        # 1-5, within the range allowed for the key
+        "X-MindGate-Local-Only": "true",   # optional: local models only, fallbacks too
     }
 )
-print(response.model)   # kto naprawdę odpowiedział, np. "openrouter/deepseek/deepseek-chat"
-
-
+print(response.model)   # who really answered, for example "openrouter/deepseek/deepseek-chat"
 print(response.choices[0].message.content)
 ```
 
@@ -169,8 +111,8 @@ print(response.choices[0].message.content)
 import OpenAI from 'openai'
 
 const client = new OpenAI({
-  baseURL: 'https://raspi.twojadomena.pl/v1',
-  apiKey: 'mg-twoj-klucz',
+  baseURL: 'https://hub.example.com/v1',
+  apiKey: 'mg-your-key',
   defaultHeaders: {
     'X-MindGate-Priority': '2'
   }
@@ -178,7 +120,7 @@ const client = new OpenAI({
 
 const response = await client.chat.completions.create({
   model: 'flash',
-  messages: [{ role: 'user', content: 'Cześć!' }],
+  messages: [{ role: 'user', content: 'Hello!' }],
   stream: true
 })
 
@@ -189,42 +131,42 @@ for await (const chunk of response) {
 
 ---
 
-## Sieci lokalna vs zewnętrzna
+## Local network vs outside
 
-### Tylko sieć lokalna (bez domeny)
+### Local network only (no domain)
 
-Jeśli nie potrzebujesz dostępu spoza domu, możesz używać lokalnego IP RasPi:
+If you do not need access from outside your home, you can use the Raspberry Pi's local IP:
 
-- URL: `http://192.168.1.50:3000/v1` (bez HTTPS)
-- Nie potrzebujesz certyfikatu TLS
+- URL: `http://192.168.1.50:3000/v1` (no HTTPS)
+- You do not need a TLS certificate
 
-Konfiguracja nginx jest wtedy opcjonalna — hub może być wystawiony bezpośrednio.
+The nginx configuration is then optional — the hub can be exposed directly.
 
-### Dostęp z zewnątrz (domowy serwer)
+### Access from outside (a home server)
 
-Opcja 1 — **port forwarding**: przekieruj port 443 w routerze na RasPi, użyj Let's Encrypt.
+Option 1 — **port forwarding**: forward port 443 on the router to the Raspberry Pi, use Let's Encrypt.
 
-Opcja 2 — **Tailscale / Cloudflare Tunnel**: VPN mesh albo tunel bez otwierania portów. Polecane dla bezpieczeństwa.
+Option 2 — **Tailscale / Cloudflare Tunnel**: a VPN mesh or a tunnel with no open ports. Recommended for security.
 
-Tailscale jest najprostszy:
+Tailscale is the simplest:
 
 ```bash
-# Na RasPi
+# On the Raspberry Pi
 curl -fsSL https://tailscale.com/install.sh | sh
 sudo tailscale up
 
-# URL w klientach: http://100.x.x.x:3000/v1 (Tailscale IP)
+# URL in the clients: http://100.x.x.x:3000/v1 (the Tailscale IP)
 ```
 
 ---
 
-## Lista modeli — endpoint /v1/models
+## The model list — the /v1/models endpoint
 
-Hub zwraca modele i aliasy dostępne dla danego klucza przez standardowy endpoint:
+The hub returns the models and aliases available to a given key through the standard endpoint:
 
 ```bash
-curl https://raspi.twojadomena.pl/v1/models \
-  -H "Authorization: Bearer mg-twoj-klucz"
+curl https://hub.example.com/v1/models \
+  -H "Authorization: Bearer mg-your-key"
 ```
 
 ```json
@@ -245,16 +187,16 @@ curl https://raspi.twojadomena.pl/v1/models \
 }
 ```
 
-Poza polami OpenAI są dodatki, które klient może zignorować: `kind` (`chat` / `embedding`), `tags`, `locality` (`local` / `cloud`), `context_length`, `supports` (gdy dostawca podaje możliwości) oraz `status` (`online` / `asleep` / `waking` — dla maszyn z usypianiem). Pola, o których dostawca nic nie mówi, są pominięte — brak pola znaczy „nie wiadomo”, nie „nie obsługuje”.
+Besides the OpenAI fields there are extras that a client may ignore: `kind` (`chat` / `embedding`), `tags`, `locality` (`local` / `cloud`), `context_length`, `supports` (when the provider reports capabilities) and `status` (`online` / `asleep` / `waking` — for machines that sleep). Fields the provider says nothing about are left out — a missing field means "unknown", not "not supported".
 
-Klucz z `allowed_models` widzi tylko swoje modele; wywołanie z `local_only` (klucz lub nagłówek) — tylko te, do których może dotrzeć.
+A key with `allowed_models` sees only its own models; a call with `local_only` (key or header) sees only those it can reach.
 
 ---
 
-## Zużycie i limity z poziomu klienta
+## Usage and limits from the client's side
 
 ```bash
-curl https://raspi.twojadomena.pl/v1/usage -H "Authorization: Bearer $MINDGATE_KEY"
+curl https://hub.example.com/v1/usage -H "Authorization: Bearer $MINDGATE_KEY"
 ```
 
-Zwraca zużycie dziś i w tym miesiącu, limity klucza oraz moment, w którym doba i miesiąc się zerują. Po przekroczeniu limitu klient dostaje `429` z kodem `rate_limited` (za szybko: odczekaj `Retry-After` sekund) albo `budget_exhausted` (limit dobowy lub miesięczny wyczerpany: `reset_at` mówi, kiedy wróci) — warto je odróżniać.
+Returns the usage today and this month, the key's limits, and the moment when the day and the month reset. After a limit is exceeded the client gets `429` with the code `rate_limited` (too fast: wait `Retry-After` seconds) or `budget_exhausted` (the daily or monthly limit is used up: `reset_at` says when it comes back) — it is worth telling them apart.

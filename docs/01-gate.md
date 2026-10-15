@@ -1,164 +1,164 @@
 # Hub (gate) — Raspberry Pi
 
-Hub to jedyny punkt wejścia do MindGate: jedno API zgodne z OpenAI, za którym stoją **dostawcy** — lokalna maszyna z GPU (budzona Wake-on-LAN), OpenRouter, Gemini, Anthropic, Ollama, cokolwiek co mówi po HTTP. Klient zna jeden adres i jeden klucz; hub decyduje dokąd to pójdzie, pilnuje limitów i niczego nie zapisuje poza liczbami.
+The hub is the single entry point to MindGate: one OpenAI-compatible API with **providers** behind it — a local GPU machine (woken by Wake-on-LAN), OpenRouter, Gemini, Anthropic, Ollama, anything that speaks HTTP. A client knows one address and one key; the hub decides where each request goes, enforces limits and stores nothing but numbers.
 
-Działa na Raspberry Pi 4+ (ARM64, 2 GB RAM wystarczy) albo na dowolnym Linuxie z Dockerem lub Node 22.
+It runs on a Raspberry Pi 4+ (ARM64, 2 GB of RAM is enough) or on any Linux box with Docker or Node 22.
 
 ---
 
-## Instalacja (Docker)
+## Installation (Docker)
 
 ```bash
 git clone https://github.com/prod-explore/mindgate.git
 cd mindgate/gate
 
 cp .env.example .env
-# wstaw dwa różne sekrety (każdy: openssl rand -hex 32) do MINDGATE_MASTER_KEY i MINDGATE_ADMIN_TOKEN
+# put two different secrets (each: openssl rand -hex 32) into MINDGATE_MASTER_KEY and MINDGATE_ADMIN_TOKEN
 nano .env
 
-docker network create mindgate_net      # wspólna sieć z nginx; pomiń, jeśli usuniesz ją z docker-compose.yml
+docker network create mindgate_net      # shared with nginx; skip it if you remove the network from docker-compose.yml
 docker compose up -d --build
 docker compose logs -f gate
 ```
 
-Hub **nie wystartuje** z placeholderami z `.env.example` ani z krótkim lub powtarzalnym sekretem — to celowe.
+The hub **will not start** with the placeholders from `.env.example`, or with a short or repetitive secret — on purpose.
 
-- `MINDGATE_MASTER_KEY` szyfruje klucze API dostawców zapisane w bazie (AES-256-GCM). **Zachowaj kopię osobno od backupów bazy**: bez niego zapisanych kluczy dostawców nie da się odczytać i trzeba je wpisać od nowa.
-- `MINDGATE_ADMIN_TOKEN` chroni `/admin`. Inny niż master key.
+- `MINDGATE_MASTER_KEY` encrypts the providers' API keys stored in the database (AES-256-GCM). **Keep a copy separate from the database backups**: without it the stored provider keys cannot be read and have to be entered again.
+- `MINDGATE_ADMIN_TOKEN` protects `/admin`. It must differ from the master key.
 
-Gdy hub działa, **panel** czeka pod `http://localhost:3000/admin/` (logujesz się tym tokenem): dostawcy, modele, aliasy, klucze, zużycie, log i maszyny z GPU — wszystko, co poniżej robisz w `curl`, możesz kliknąć. Szczegóły: [09 - Panel](09-panel.md).
+Once the hub is running, the **panel** is waiting at `http://localhost:3000/admin/` (sign in with that token): providers, models, aliases, keys, usage, the log and the GPU machines — everything you do with `curl` below can be clicked there. Details: [09 - Panel](09-panel.md).
 
-### Bez Dockera
+### Without Docker
 
 ```bash
-cd mindgate/panel && npm ci && npm run build      # panel (do panel/dist); bez tego /admin/ jest wyłączony, API działa
+cd mindgate/panel && npm ci && npm run build      # the panel (into panel/dist); without it /admin/ is disabled, the API still works
 cd ../gate
 npm ci
 npm run build
-npm start          # czyta .env z bieżącego katalogu (Node >= 22.9)
+npm start          # reads .env from the current directory (Node >= 22.9)
 ```
 
 ---
 
-## Pierwsze kroki
+## First steps
 
-Wszystko poniżej to wywołania API administratora (`/admin/api`, nagłówek `Authorization: Bearer $MINDGATE_ADMIN_TOKEN`). Pełna lista: [08 - API](08-api.md). To samo zrobisz w [panelu](09-panel.md).
+Everything below is a call to the administrator API (`/admin/api`, header `Authorization: Bearer $MINDGATE_ADMIN_TOKEN`). The full list: [08 - API](08-api.md). You can do the same in the [panel](09-panel.md).
 
 ```bash
 HUB=http://localhost:3000
 ADMIN="Authorization: Bearer <MINDGATE_ADMIN_TOKEN>"
 
-# 1. Dostawca. Gotowe ustawienia: GET /admin/api/presets
+# 1. A provider. Ready-made settings: GET /admin/api/presets
 curl -X POST $HUB/admin/api/providers -H "$ADMIN" -H 'Content-Type: application/json' -d '{
   "id": "openrouter", "type": "openai", "base_url": "https://openrouter.ai/api/v1",
   "api_key": "sk-or-...", "locality": "cloud",
   "options": { "auto_enable_models": false }
 }'
-# hub od razu pobiera listę modeli; OpenRouter ma ich setki, więc są wyłączone dopóki ich nie włączysz:
+# the hub fetches the model list right away; OpenRouter has hundreds, so they stay disabled until you enable them:
 curl -X PATCH $HUB/admin/api/models/openrouter/deepseek/deepseek-chat -H "$ADMIN" -H 'Content-Type: application/json' -d '{"enabled": true}'
 
-# 2. Alias z jawnym fallbackiem: najpierw tańszy model, a gdy zawiedzie — drugi
+# 2. An alias with an explicit fallback: the cheaper model first, and if it fails — the second one
 curl -X PATCH $HUB/admin/api/models/openrouter/google/gemini-2.5-flash -H "$ADMIN" -H 'Content-Type: application/json' -d '{"enabled": true}'
 curl -X POST $HUB/admin/api/aliases -H "$ADMIN" -H 'Content-Type: application/json' -d '{
   "name": "smart", "targets": ["openrouter/deepseek/deepseek-chat", "openrouter/google/gemini-2.5-flash"]
 }'
 
-# 3. Klucz dla klienta (pełny klucz pokazany jest TYLKO TERAZ)
+# 3. A key for a client (the full key is shown ONLY NOW)
 docker compose exec gate node dist/cli.js keys create laptop --rpm 30 --tokens-day 500000
 ```
 
-W kliencie: adres `http://<ip-huba>:3000/v1`, klucz `mg-…`, model `smart` albo `openrouter/deepseek/deepseek-chat`.
+In the client: address `http://<hub-ip>:3000/v1`, key `mg-…`, model `smart` or `openrouter/deepseek/deepseek-chat`.
 
 ---
 
-## Jak hub obsługuje żądanie
+## How the hub handles a request
 
 ```
-klucz → model/alias → limity → [dla każdego celu po kolei:] obudź maszynę → czekaj na wolny slot → dostawca → odpowiedź
+key → model/alias → limits → [for each target in turn:] wake the machine → wait for a free slot → provider → response
 ```
 
-1. **Klucz.** Przechowywany jest tylko skrót (SHA-256); klient pokazuje `mg-…`, hub porównuje skróty.
-2. **Model.** `dostawca/model` (np. `openrouter/deepseek/deepseek-chat`) to model konkretnego dostawcy. Nazwa bez `/` to alias. Nic innego nie jest zgadywane.
-3. **Limity klucza** — zob. niżej. Odrzucone żądanie nie dociera do modelu i nic nie kosztuje.
-4. **Cel.** Jeśli dostawca to maszyna z usypianiem — hub ją budzi i czeka. Jeśli dostawca obsługuje jedno żądanie naraz — żądanie czeka w kolejce według priorytetu.
-5. **Odpowiedź** wraca w formacie OpenAI (także z Anthropic — hub tłumaczy narzędzia, obrazy, myślenie i strumień). Nagłówki `X-MindGate-Model` i `X-MindGate-Provider` mówią, kto odpowiedział; w treści jest też obiekt `mindgate` z listą prób.
+1. **Key.** Only a hash (SHA-256) is stored; the client shows `mg-…` and the hub compares hashes.
+2. **Model.** `provider/model` (for example `openrouter/deepseek/deepseek-chat`) is one provider's model. A name without `/` is an alias. Nothing else is guessed.
+3. **Key limits** — see below. A rejected request never reaches a model and costs nothing.
+4. **Target.** If the provider is a machine that sleeps, the hub wakes it and waits. If the provider handles one request at a time, the request waits in a queue ordered by priority.
+5. **Response** comes back in the OpenAI format (from Anthropic too — the hub translates tools, images, thinking and the stream). The `X-MindGate-Model` and `X-MindGate-Provider` headers say who answered; the body also has a `mindgate` object with the list of attempts.
 
-### Aliasy i fallback — bez cichych podmian
+### Aliases and fallback — no silent substitution
 
-- Model podany wprost (`dostawca/model`) **nigdy** nie przechodzi na inny. Błąd dostawcy to błąd dla klienta.
-- Alias ma uporządkowaną listę celów. Gdy pierwszy zawiedzie *zanim klient zobaczył choć bajt odpowiedzi*, hub bierze następny — i mówi o tym: nagłówek `X-MindGate-Fallback: <model, który zawiódł>`, a w `mindgate.attempts` pełna historia.
-- Fallback dotyczy awarii dostawcy: 5xx, limit u dostawcy, timeout, brak połączenia, uśpiona lub niedostępna maszyna, pełna kolejka. **Nie** dotyczy błędów żądania (np. za długi kontekst): to samo żądanie zawiodłoby wszędzie, a podmiana ukryłaby problem.
-- Gdy odpowiedź już płynie i dostawca się urwie, strumień kończy się zdarzeniem błędu — hub nie dokańcza cudzej wypowiedzi innym modelem.
+- A model given explicitly (`provider/model`) **never** falls over to another one. A provider error is an error for the client.
+- An alias has an ordered list of targets. When the first one fails *before the client has seen a single byte of the answer*, the hub takes the next one — and says so: the header `X-MindGate-Fallback: <the model that failed>`, and the full history in `mindgate.attempts`.
+- Fallback covers provider failures: 5xx, a provider-side rate limit, a timeout, no connection, a sleeping or unreachable machine, a full queue. It does **not** cover request errors (for example a context that is too long): the same request would fail everywhere, and a substitution would hide the problem.
+- When an answer is already streaming and the provider breaks off, the stream ends with an error event — the hub does not finish someone else's sentence with another model.
 
-### Tryb tylko-lokalny
+### Local-only mode
 
-Prywatne dane nie mogą trafić do chmury, więc `local_only` działa na całą ścieżkę, także fallbacki:
+Private data must not reach the cloud, so `local_only` applies to the whole path, fallbacks included:
 
-- na kluczu: `keys create nazwa --local-only` (klient go nie wyłączy),
-- na żądaniu: nagłówek `X-MindGate-Local-Only: true`.
+- on a key: `keys create name --local-only` (the client cannot switch it off),
+- on a request: the header `X-MindGate-Local-Only: true`.
 
-Model jest lokalny, jeśli dostawca jest oznaczony `locality: local` (Ollama, maszyna z GPU) — a właściciel może to nadpisać na pojedynczym modelu. Cel w chmurze jest pomijany *bez wysyłania do niego czegokolwiek*; alias bez żadnego celu lokalnego daje `403 local_only_violation`. `/v1/models` pokazuje takiemu wywołaniu tylko to, co jest dla niego osiągalne.
+A model is local if its provider is marked `locality: local` (Ollama, a GPU machine) — and the owner can override this per model. A cloud target is skipped *without sending it anything*; an alias with no local target at all returns `403 local_only_violation`. `/v1/models` shows such a call only what is reachable for it.
 
-### Klucze klientów i limity
+### Client keys and limits
 
-Każdy klient ma własny klucz z ustawieniami:
+Every client has its own key with settings:
 
-| Ustawienie | Znaczenie |
+| Setting | Meaning |
 |---|---|
-| `rpm` | żądań na minutę → `429 rate_limited` + `Retry-After` |
-| `rpd` | żądań na dobę → `429 budget_exhausted` + `reset_at` |
-| `tokens_per_day`, `tokens_per_month` | budżet tokenów (wejście + wyjście) → `429 budget_exhausted` + `reset_at` |
-| `min_/default_/max_priority` | zakres priorytetu 1–5, jaki klient może zażądać |
-| `local_only` | patrz wyżej |
-| `allowed_models` | lista: `smart`, `home/*`, `openrouter/deepseek/deepseek-chat`; `null` = wszystko |
+| `rpm` | requests per minute → `429 rate_limited` + `Retry-After` |
+| `rpd` | requests per day → `429 budget_exhausted` + `reset_at` |
+| `tokens_per_day`, `tokens_per_month` | token budget (input + output) → `429 budget_exhausted` + `reset_at` |
+| `min_/default_/max_priority` | the 1–5 priority range a client may ask for |
+| `local_only` | see above |
+| `allowed_models` | a list: `smart`, `home/*`, `openrouter/deepseek/deepseek-chat`; `null` = everything |
 
-„Doba” i „miesiąc” zaczynają się o północy w strefie `MINDGATE_USAGE_TZ` (np. `Europe/Warsaw`), także w dniach zmiany czasu. Klient sprawdza swoje zużycie pod `GET /v1/usage`.
+A "day" and a "month" start at midnight in the `MINDGATE_USAGE_TZ` time zone (for example `Europe/Warsaw`), including on daylight-saving days. A client checks its own usage at `GET /v1/usage`.
 
-Budżet tokenów liczy zakończone żądania; żądania, które jeszcze trwają, mogą go lekko przekroczyć — odmowa następuje przy kolejnym. `rpm` jest trzymane w pamięci (restart hubu wypuszcza najwyżej jeden zryw).
+The token budget counts finished requests; requests that are still running may go slightly over it — the refusal comes with the next one. `rpm` is kept in memory (a hub restart lets through at most one burst).
 
-### Priorytety i kolejka
+### Priorities and the queue
 
-`X-MindGate-Priority: 1–5` (domyślnie z klucza, obcięte do zakresu klucza). Dostawca z `max_concurrency` (np. 1 dla jednego GPU) ma kolejkę: 5 przed 1, w obrębie priorytetu kto pierwszy. Kolejka ma limit (`MINDGATE_QUEUE_MAX`) i opcjonalny czas oczekiwania (`MINDGATE_QUEUE_TIMEOUT_MS`); klient, który się rozłączy, wypada z kolejki i nie zajmuje miejsca.
+`X-MindGate-Priority: 1–5` (by default from the key, clamped to the key's range). A provider with `max_concurrency` (for example 1 for a single GPU) has a queue: 5 before 1, and first come first served within a priority. The queue has a size limit (`MINDGATE_QUEUE_MAX`) and an optional wait limit (`MINDGATE_QUEUE_TIMEOUT_MS`); a client that disconnects drops out of the queue and does not hold a place.
 
-### Maszyna, która śpi (Wake-on-LAN)
+### A machine that sleeps (Wake-on-LAN)
 
-Dostawca z ustawionym `node` to komputer, który hub budzi:
+A provider with `node` set is a computer the hub wakes:
 
-- żądanie z priorytetem `>= min_wake_priority` (domyślnie 3) wysyła magic packet i czeka (do `boot_timeout_ms`), a przy streamingu, gdy robi się cicho, wysyła komentarze SSE (`MINDGATE_KEEPALIVE_*`), żeby nginx i klient nie zerwali połączenia;
-- żądanie z niższym priorytetem **nie budzi** maszyny: dostaje `503 node_asleep` — a jeśli to alias, hub od razu bierze następny cel (np. chmurę);
-- wiele żądań czekających na tę samą maszynę to jedno budzenie;
-- po `idle_shutdown_minutes` bez żądań hub prosi agenta o wyłączenie (`POST <control_url>/node/power/shutdown-request`, albo własny `shutdown_url`); agent decyduje, czy faktycznie (trwa żądanie lub pobieranie, ktoś pracuje przy komputerze). Odmowa lub błąd to 5 minut przerwy, zanim hub zapyta ponownie;
-- gdy maszyna zniknie w trakcie (zasilanie), hub sprawdza ją na nowo, w razie potrzeby budzi i ponawia **raz**; potem `502 node_connection_lost`.
+- a request with priority `>= min_wake_priority` (3 by default) sends a magic packet and waits (up to `boot_timeout_ms`), and while streaming, when it gets quiet, sends SSE comments (`MINDGATE_KEEPALIVE_*`) so that nginx and the client do not drop the connection;
+- a request with a lower priority **does not wake** the machine: it gets `503 node_asleep` — and if it is an alias, the hub moves on to the next target at once (for example the cloud);
+- many requests waiting for the same machine are one wake-up;
+- after `idle_shutdown_minutes` without requests the hub asks the agent to shut down (`POST <control_url>/node/power/shutdown-request`, or your own `shutdown_url`); the agent decides whether to actually do it (a request or download is running, someone is working at the computer). A refusal or an error means a 5-minute pause before the hub asks again;
+- when the machine disappears mid-request (power), the hub checks it again, wakes it if needed and retries **once**; after that, `502 node_connection_lost`.
 
-Z `node.control_url` (adres agenta MindGate, np. `http://pc.lan:3001`) hub zarządza też **modelami na maszynie**: pobiera je, usuwa, ładuje do karty i pokazuje stan sprzętu — [05 - Węzły](05-nodes.md), [04 - Modele](04-models.md). Hub **nie budzi** maszyny, żeby coś takiego zrobić; jeśli śpi, dostajesz jasny błąd.
+With `node.control_url` (the address of the MindGate agent, for example `http://pc.lan:3001`) the hub also manages the **models on the machine**: it downloads them, deletes them, loads them into the card and shows the state of the hardware — [05 - Nodes](05-nodes.md), [04 - Models](04-models.md). The hub does **not** wake the machine for something like that; if it is asleep, you get a clear error.
 
-Konfiguracja WoL po stronie komputera i routera: [06 - Wake on LAN](06-wol.md).
+Wake-on-LAN setup on the computer and the router: [06 - Wake-on-LAN](06-wol.md).
 
-### Co hub zapisuje
+### What the hub stores
 
-W logu żądań: kiedy, który klucz, jaki model i dostawca, kod odpowiedzi, czasy (kolejka, pierwszy bajt, całość), liczba tokenów, kolejne próby fallbacku. **Nigdy treści rozmowy** — ani pytania, ani odpowiedzi. Log jest czyszczony po `MINDGATE_LOG_RETENTION_DAYS` (30). Dzienne sumy do limitów zostają.
+In the request log: when, which key, which model and provider, the response code, timings (queue, first byte, total), the token counts, the successive fallback attempts. **Never the content of a conversation** — neither the question nor the answer. The log is purged after `MINDGATE_LOG_RETENTION_DAYS` (30). The daily totals used for limits stay.
 
 ---
 
-## Migracja ze starego gate'a
+## Migrating from the old gate
 
-Stary `config.yml` (agent, WoL, klucze) przenosi jedno polecenie:
+The old `config.yml` (agent, WoL, keys) is moved by one command:
 
 ```bash
 docker compose exec -T gate sh -c 'cat > /tmp/config.yml' < config/config.yml
-docker compose exec gate node dist/cli.js import-legacy /tmp/config.yml --dry-run   # co by się stało
+docker compose exec gate node dist/cli.js import-legacy /tmp/config.yml --dry-run   # what would happen
 docker compose exec gate node dist/cli.js import-legacy /tmp/config.yml
 ```
 
-Powstaje:
+This creates:
 
-- dostawca `agent` — lokalny, jedno żądanie naraz, z budzeniem WoL, wyłączaniem po bezczynności i `control_url` wskazującym na nowego agenta. Dawny sekret z `config.yml` staje się jego kluczem, więc **wpisz go w `agent/.env` jako `MINDGATE_NODE_SECRET`** (co najmniej 24 znaki, bez słów w rodzaju „change-me”; ze słabszym agent nie wystartuje — wtedy wymyśl nowy i wpisz go też w hubie: `PATCH /admin/api/providers/agent` z `api_key`);
-- **modele nie są kopiowane** — hub pozna je z maszyny po uruchomieniu nowego agenta (`POST /admin/api/providers/agent/sync` albo samo po starcie). Dawne nazwy profili (`flash`, `reasoning`…) nie są przenoszone. Chcesz, żeby klienci dalej ich używali: podaj `--agent-models <ścieżka>` do swojego starego `models.yml` agenta (na komputerze z GPU, w `agent/config/`; zrób jego kopię przed aktualizacją, nowy agent już go nie czyta), a każdy profil stanie się **aliasem** na prawdziwy model Ollamy, który oznaczał. Albo utwórz aliasy sam w panelu;
-- klucze klientów z tymi samymi wartościami i priorytetami (placeholdery z przykładu są pomijane). Teraz są skrótami: plik `config.yml` możesz usunąć.
+- the provider `agent` — local, one request at a time, with WoL wake-up, shutdown on idle and a `control_url` pointing to the new agent. The old secret from `config.yml` becomes its key, so **put it into `agent/.env` as `MINDGATE_NODE_SECRET`** (at least 24 characters, no words like "change-me"; the agent will not start with a weaker one — then invent a new one and enter it in the hub too: `PATCH /admin/api/providers/agent` with `api_key`);
+- **the models are not copied** — the hub learns them from the machine once the new agent is running (`POST /admin/api/providers/agent/sync`, or by itself after the start). The old profile names (`flash`, `reasoning`…) are not carried over. If you want clients to keep using them: pass `--agent-models <path>` pointing to your old `models.yml` of the agent (on the GPU computer, in `agent/config/`; make a copy before upgrading, the new agent no longer reads it), and each profile becomes an **alias** for the real Ollama model it stood for. Or create the aliases yourself in the panel;
+- client keys with the same values and priorities (placeholders from the example are skipped). They are hashes now: you can delete the `config.yml` file.
 
-Czego już nie ma: **pipeline'ów** i **narzędzi MCP** wstrzykiwanych przez agenta — hub zwraca to, co mówi model, a łączenie modeli w ciąg to sprawa klienta. Alias z kilkoma celami to lista fallbacku, nie sekwencja. Import wypisze, które pipeline'y miałeś.
+What is gone: **pipelines** and **MCP tools** injected by the agent — the hub returns what the model says, and chaining models is the client's business. An alias with several targets is a fallback list, not a sequence. The import prints which pipelines you had.
 
-Zmienia się też: kolejka i port to teraz zmienne środowiskowe (import wypisze które), a pojedyncze żądanie czeka najwyżej godzinę (stary gate nie miał limitu). Agent wymaga aktualizacji do wersji 2 — [02 - Agent](02-agent.md).
+Other changes: the queue and the port are environment variables now (the import prints which), and a single request waits at most an hour (the old gate had no limit). The agent needs an upgrade to version 2 — [02 - Agent](02-agent.md).
 
 ---
 
@@ -168,21 +168,21 @@ Zmienia się też: kolejka i port to teraz zmienne środowiskowe (import wypisze
 docker compose exec gate node dist/cli.js backup --keep 7
 ```
 
-Spójna kopia (także przy działającym hubie) trafia do `/data/backups`, zweryfikowana. Klucze dostawców w niej są zaszyfrowane `MINDGATE_MASTER_KEY` — kopię bazy i master key trzymaj osobno. `node dist/cli.js check [--online]` sprawdza konfigurację, bazę i (opcjonalnie) łączność z dostawcami.
+A consistent copy (even while the hub is running) goes to `/data/backups`, verified. The provider keys in it are encrypted with `MINDGATE_MASTER_KEY` — keep the database copy and the master key apart. `node dist/cli.js check [--online]` checks the configuration, the database and (optionally) connectivity to the providers.
 
 ---
 
 ## Reverse proxy (nginx)
 
-Hub słucha na 3000 w sieci Dockera. Przy proxy ustaw `MINDGATE_TRUST_PROXY=true`, żeby limit prób logowania liczył prawdziwy adres klienta.
+The hub listens on 3000 in the Docker network. Behind a proxy set `MINDGATE_TRUST_PROXY=true`, so that the sign-in attempt limit counts the real client address.
 
 ```nginx
 server {
     listen 443 ssl;
-    server_name raspi.twojadomena.pl;
+    server_name hub.example.com;
 
-    ssl_certificate     /etc/letsencrypt/live/raspi.twojadomena.pl/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/raspi.twojadomena.pl/privkey.pem;
+    ssl_certificate     /etc/letsencrypt/live/hub.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/hub.example.com/privkey.pem;
 
     client_max_body_size 25m;
 
@@ -192,54 +192,54 @@ server {
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_buffering off;          # strumień SSE ma płynąć na bieżąco
-        proxy_read_timeout 3600s;     # długie odpowiedzi dużych modeli
+        proxy_buffering off;          # the SSE stream has to flow as it is produced
+        proxy_read_timeout 3600s;     # long answers of big models
         proxy_send_timeout 3600s;
     }
 }
 ```
 
-`/admin` ma własny token, ale nie ma powodu wystawiać go do internetu: w nginx możesz je ograniczyć do sieci lokalnej (`location /admin { allow 192.168.0.0/16; deny all; … }`).
+`/admin` has its own token, but there is no reason to expose it to the internet: in nginx you can restrict it to the local network (`location /admin { allow 192.168.0.0/16; deny all; … }`).
 
 ---
 
-## Zmienne środowiskowe
+## Environment variables
 
-| Zmienna | Domyślnie | Opis |
+| Variable | Default | Description |
 |---|---|---|
-| `MINDGATE_MASTER_KEY` | — (wymagana) | szyfruje klucze dostawców w bazie |
-| `MINDGATE_ADMIN_TOKEN` | — (wymagana) | token `/admin`, inny niż master key |
-| `MINDGATE_DB` | `./data/mindgate.db` (`/data/mindgate.db` w Dockerze) | plik SQLite (tryb 600) |
-| `MINDGATE_HOST`, `MINDGATE_PORT` | `0.0.0.0`, `3000` | gdzie słucha |
-| `MINDGATE_USAGE_TZ` | `UTC` | strefa, w której zaczyna się doba/miesiąc dla limitów |
-| `MINDGATE_TRUST_PROXY` | `false` | ufaj `X-Forwarded-For` |
-| `MINDGATE_BODY_LIMIT_MB` | `20` | maks. rozmiar żądania |
-| `MINDGATE_QUEUE_MAX`, `MINDGATE_QUEUE_TIMEOUT_MS` | `100`, `0` | kolejka dostawcy z `max_concurrency` (0 = bez limitu czasu) |
-| `MINDGATE_LOG_RETENTION_DAYS` | `30` | jak długo trzymać log żądań |
-| `MINDGATE_LOG_LEVEL` | `info` | poziom logów procesu |
-| `MINDGATE_KEEPALIVE_AFTER_MS`, `…_INTERVAL_MS` | `10000` | komentarze SSE przy długim oczekiwaniu |
-| `MINDGATE_FIRST_BYTE_TIMEOUT_MS`, `MINDGATE_IDLE_TIMEOUT_MS` | `300000`, `120000` | domyślne limity czasu dostawcy (nadpisywalne per dostawca) |
-| `MINDGATE_SYNC_INTERVAL_HOURS` | `24` | jak często odświeżać listy modeli |
-| `MINDGATE_PANEL_DIR` | `panel/dist` obok `gate/` (`/app/panel` w Dockerze) | skąd hub podaje panel pod `/admin/`; pusta wartość wyłącza panel |
-| `MINDGATE_ALLOW_WEAK_SECRETS` | `false` | tylko do lokalnych testów: słaby sekret to ostrzeżenie |
+| `MINDGATE_MASTER_KEY` | — (required) | encrypts the providers' keys in the database |
+| `MINDGATE_ADMIN_TOKEN` | — (required) | the `/admin` token, different from the master key |
+| `MINDGATE_DB` | `./data/mindgate.db` (`/data/mindgate.db` in Docker) | the SQLite file (mode 600) |
+| `MINDGATE_HOST`, `MINDGATE_PORT` | `0.0.0.0`, `3000` | where it listens |
+| `MINDGATE_USAGE_TZ` | `UTC` | the time zone in which a day/month for limits starts |
+| `MINDGATE_TRUST_PROXY` | `false` | trust `X-Forwarded-For` |
+| `MINDGATE_BODY_LIMIT_MB` | `20` | maximum request size |
+| `MINDGATE_QUEUE_MAX`, `MINDGATE_QUEUE_TIMEOUT_MS` | `100`, `0` | the queue of a provider with `max_concurrency` (0 = no time limit) |
+| `MINDGATE_LOG_RETENTION_DAYS` | `30` | how long the request log is kept |
+| `MINDGATE_LOG_LEVEL` | `info` | the process log level |
+| `MINDGATE_KEEPALIVE_AFTER_MS`, `…_INTERVAL_MS` | `10000` | SSE comments during a long wait |
+| `MINDGATE_FIRST_BYTE_TIMEOUT_MS`, `MINDGATE_IDLE_TIMEOUT_MS` | `300000`, `120000` | the default provider time limits (overridable per provider) |
+| `MINDGATE_SYNC_INTERVAL_HOURS` | `24` | how often the model lists are refreshed |
+| `MINDGATE_PANEL_DIR` | `panel/dist` next to `gate/` (`/app/panel` in Docker) | where the hub serves the panel from at `/admin/`; an empty value disables the panel |
+| `MINDGATE_ALLOW_WEAK_SECRETS` | `false` | for local tests only: a weak secret becomes a warning |
 
 ---
 
-## Struktura kodu
+## Code layout
 
 ```
 gate/src/
-├── index.ts, server.ts       start procesu, serwer Fastify, obsługa błędów
+├── index.ts, server.ts       process start, the Fastify server, error handling
 ├── routes-v1.ts              /v1/models, /v1/chat/completions, /v1/embeddings, /v1/usage
-├── routes-admin.ts           /admin/api/* (dostawcy, modele, aliasy, klucze, zużycie, log)
-├── panel.ts                  pliki panelu pod /admin/ (tylko GET/HEAD, polityka treści, ochrona ścieżek)
-├── chat.ts                   jedno żądanie od klucza do ostatniego bajtu (fallback, SSE, rozliczenie)
-├── routing.ts                nazwa → lista celów; local_only, allowed_models
-├── limits.ts, queue.ts       limity kluczy, kolejka priorytetowa
-├── node.ts                   Wake-on-LAN, stan maszyny, wyłączanie po bezczynności
-├── adapters/                 openai (przezroczysty), anthropic (tłumaczenie tam i z powrotem)
-├── store/                    dostawcy, modele, aliasy, klucze, zużycie (SQLite)
-├── crypto.ts, db.ts, …       szyfrowanie sekretów, migracje bazy
+├── routes-admin.ts           /admin/api/* (providers, models, aliases, keys, usage, log)
+├── panel.ts                  the panel files under /admin/ (GET/HEAD only, content policy, path protection)
+├── chat.ts                   one request from the key to the last byte (fallback, SSE, accounting)
+├── routing.ts                name → list of targets; local_only, allowed_models
+├── limits.ts, queue.ts       key limits, the priority queue
+├── node.ts                   Wake-on-LAN, machine state, shutdown on idle
+├── adapters/                 openai (transparent), anthropic (translation both ways)
+├── store/                    providers, models, aliases, keys, usage (SQLite)
+├── crypto.ts, db.ts, …       secret encryption, database migrations
 └── cli.ts                    keys, import-legacy, backup, check
 ```
 
@@ -247,14 +247,14 @@ gate/src/
 
 ## Troubleshooting
 
-**Hub nie startuje: „MINDGATE_MASTER_KEY is too weak”** — wstaw prawdziwy sekret (`openssl rand -hex 32`); placeholder z `.env.example` jest odrzucany.
+**The hub does not start: "MINDGATE_MASTER_KEY is too weak"** — put in a real secret (`openssl rand -hex 32`); the placeholder from `.env.example` is rejected.
 
-**`provider_secret_unreadable`** — zmieniono `MINDGATE_MASTER_KEY`. Przywróć stary albo wpisz klucz dostawcy od nowa (`PATCH /admin/api/providers/<id>` z `api_key`). `node dist/cli.js check` pokazuje, których dostawców to dotyczy.
+**`provider_secret_unreadable`** — `MINDGATE_MASTER_KEY` was changed. Restore the old one or enter the provider's key again (`PATCH /admin/api/providers/<id>` with `api_key`). `node dist/cli.js check` shows which providers are affected.
 
-**`node_asleep` mimo że chcę obudzić maszynę** — priorytet żądania jest niższy niż `min_wake_priority`. Wyślij `X-MindGate-Priority: 3` lub więcej, albo obudź ją ręcznie: `POST /admin/api/providers/<id>/wake`.
+**`node_asleep` although I want to wake the machine** — the request's priority is lower than `min_wake_priority`. Send `X-MindGate-Priority: 3` or more, or wake it by hand: `POST /admin/api/providers/<id>/wake`.
 
-**WoL nie działa** — [06 - Wake on LAN](06-wol.md). Najczęściej: WoL wyłączony w BIOS albo Fast Startup w Windows. Gdy hub działa w mostku Dockera, wpisz w `broadcast` adres IP maszyny (unicast) zamiast adresu broadcast sieci.
+**WoL does not work** — [06 - Wake-on-LAN](06-wol.md). Most often: WoL is off in the BIOS, or Fast Startup is on in Windows. When the hub runs on a Docker bridge, put the machine's IP address (unicast) into `broadcast` instead of the network's broadcast address.
 
-**`429 budget_exhausted`** — klient wyczerpał limit swojego klucza; `GET /v1/usage` mówi, ile zużył i kiedy wraca (`reset_at`).
+**`429 budget_exhausted`** — the client has used up its key's limit; `GET /v1/usage` says how much it used and when it comes back (`reset_at`).
 
-**401** — nagłówek to `Authorization: Bearer mg-…` (ze spacją po „Bearer”); po 20 błędnych próbach adres jest blokowany na minutę.
+**401** — the header is `Authorization: Bearer mg-…` (with a space after "Bearer"); after 20 wrong attempts the address is blocked for a minute.

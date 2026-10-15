@@ -12,11 +12,11 @@ describe('/v1 goes through to the runtime untouched', () => {
   const chat = (extra: object = {}) => ({ model: 'tiny:1b', messages: [{ role: 'user', content: 'hello' }], ...extra });
 
   it('forwards the request body byte for byte and returns the answer', async () => {
-    const body = '{"model":"tiny:1b",  "messages":[{"role":"user","content":"zażółć gęślą jaźń 🙂"}],"temperature":0.2}';
+    const body = '{"model":"tiny:1b",  "messages":[{"role":"user","content":"naïve café 日本語 🙂"}],"temperature":0.2}';
     const res = await fetch(`${t.base}/v1/chat/completions`, { method: 'POST', headers: { Authorization: `Bearer ${SECRET}`, 'Content-Type': 'application/json' }, body });
     assert.equal(res.status, 200);
     const j = (await res.json()) as any;
-    assert.equal(j.choices[0].message.content, 'echo:zażółć gęślą jaźń 🙂');
+    assert.equal(j.choices[0].message.content, 'echo:naïve café 日本語 🙂');
     const seen = t.ollama.requests.filter(r => r.path === '/v1/chat/completions').at(-1)!;
     assert.equal(seen.raw, body, 'not re-serialised, not rewritten');
   });

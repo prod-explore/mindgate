@@ -1,7 +1,6 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { setLang } from '../i18n';
 import { getToken, signOut } from '../lib/session';
 import { hubStatus } from '../test/fixtures';
 import { Login } from './Login';
@@ -9,7 +8,6 @@ import { Login } from './Login';
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 
 beforeEach(() => {
-  setLang('en');
   signOut();
   sessionStorage.clear();
   localStorage.clear();
@@ -82,10 +80,4 @@ describe('signing in', () => {
     expect(screen.getByText('The hub did not accept the token. Sign in again.')).toBeInTheDocument();
   });
 
-  it('speaks Polish when asked to', async () => {
-    setLang('pl');
-    render(<Login expired={false} />);
-    expect(screen.getByRole('button', { name: 'Zaloguj' }).textContent).toBeTruthy();
-    setLang('en');
-  });
 });

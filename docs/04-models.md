@@ -1,160 +1,160 @@
-# Modele — Ollama i zarządzanie z huba
+# Models — Ollama and managing it from the hub
 
-Modelami na maszynie z GPU zarządza się **z huba**. Nie ma pliku z listą modeli ani „profili” zaszytych w agencie: to, co jest zainstalowane, pokazuje maszyna, a nazwy, pod którymi modele widzą klienci, to **aliasy** w hubie. Ta strona mówi, jak pobierać i usuwać modele, ile ich się zmieści i jak postępować z modelami bez cenzury.
-
----
-
-## Jak to działa
-
-- **Model** to rzecz zainstalowana w Ollamie (`qwen3:4b`). W hubie ma identyfikator `dostawca/model`, np. `pc/qwen3:4b`.
-- **Alias** to nazwa dla klientów (`flash`, `smart`) z listą modeli w kolejności fallbacku. Zmieniasz, co się za nią kryje, bez ruszania klientów.
-- **Maszyna** zgłasza hubowi, co potrafi każdy model (narzędzia, obrazy, „myślenie”, realny kontekst, czy to embedding), a hub to zapamiętuje. Ręczne poprawki (nazwa, tagi, kontekst) mają pierwszeństwo i przeżywają synchronizację.
-
-Zmiana modelu = pobranie nowego, przestawienie aliasu. Klienci nie wiedzą o niczym.
+The models on the GPU machine are managed **from the hub**. There is no file with a list of models and no "profiles" baked into the agent: what is installed is shown by the machine, and the names under which clients see the models are **aliases** in the hub. This page says how to download and delete models, how many fit, and how to treat uncensored models.
 
 ---
 
-## Zarządzanie modelami z huba
+## How it works
 
-Wszystko poniżej jest też w API ([08 - API](08-api.md)); [panel](09-panel.md) pokazuje to samo (ekran „Węzły” dla maszyn, „Modele” i „Aliasy” dla katalogu). Zamieniasz `pc` na identyfikator swojego dostawcy.
+- A **model** is something installed in Ollama (`qwen3:4b`). In the hub it has the identifier `provider/model`, for example `pc/qwen3:4b`.
+- An **alias** is a name for clients (`flash`, `smart`) with a list of models in fallback order. You change what is behind it without touching the clients.
+- The **machine** reports to the hub what each model can do (tools, images, "thinking", the real context length, whether it is an embedding model), and the hub remembers it. Manual corrections (name, tags, context) take precedence and survive a sync.
+
+Changing a model = downloading a new one and repointing the alias. Clients know nothing about it.
+
+---
+
+## Managing models from the hub
+
+Everything below is in the API too ([08 - API](08-api.md)); the [panel](09-panel.md) shows the same (the "Nodes" screen for machines, "Models" and "Aliases" for the catalogue). Replace `pc` with the identifier of your provider.
 
 ```bash
 H=http://localhost:3000/admin/api ; A="Authorization: Bearer $MINDGATE_ADMIN_TOKEN"
 
-# co jest na maszynie (z rozmiarem, kwantyzacją, możliwościami, czy jest w pamięci karty)
+# what is on the machine (with size, quantisation, capabilities, whether it is in the card's memory)
 curl -H "$A" $H/providers/pc/node/models
 
-# pobierz model (w tle; odpowiedź to zadanie z id)
+# download a model (in the background; the answer is a job with an id)
 curl -X POST -H "$A" -H 'Content-Type: application/json' -d '{"name":"qwen3:4b"}' $H/providers/pc/node/pulls
 
-# postęp
+# progress
 curl -H "$A" $H/providers/pc/node/pulls
 
-# przerwij
+# cancel
 curl -X DELETE -H "$A" $H/providers/pc/node/pulls/<id>
 
-# usuń z dysku (i z katalogu huba)
+# delete from the disk (and from the hub's catalogue)
 curl -X DELETE -H "$A" $H/providers/pc/node/models/qwen3:4b
 
-# załaduj do karty z góry (żeby pierwsze żądanie nie czekało) / zwolnij kartę
+# load into the card in advance (so that the first request does not wait) / free the card
 curl -X POST -H "$A" -H 'Content-Type: application/json' -d '{"name":"qwen3:4b","keep_alive":"30m"}' $H/providers/pc/node/models/load
 curl -X POST -H "$A" -H 'Content-Type: application/json' -d '{"name":"qwen3:4b"}' $H/providers/pc/node/models/unload
 ```
 
-Gdy pobieranie się skończy, **model sam pojawia się w katalogu huba** (włączony i oznaczony jako lokalny) — nie trzeba niczego synchronizować. Maszyna musi być włączona; hub **nie budzi** jej przy zarządzaniu modelami (`POST …/wake`, gdy chcesz ją obudzić).
+When a download finishes, **the model appears in the hub's catalogue by itself** (enabled and marked as local) — there is nothing to sync. The machine has to be on; the hub does **not** wake it for model management (`POST …/wake` when you want to wake it).
 
-Nazwa modelu może być też wszystkim, co rozumie Ollama: `hf.co/użytkownik/repo:Q4_K_M` (model z Hugging Face w formacie GGUF), zobacz niżej.
+A model name can be anything Ollama understands: `hf.co/user/repo:Q4_K_M` (a Hugging Face model in GGUF format), see below.
 
-Aliasy:
+Aliases:
 
 ```bash
 curl -X POST -H "$A" -H 'Content-Type: application/json' $H/aliases -d '{
   "name": "flash",
-  "description": "szybkie odpowiedzi",
+  "description": "fast answers",
   "targets": ["pc/qwen3:4b", "openrouter/google/gemini-2.0-flash-001"]
 }'
 ```
 
-Pierwszy cel jest lokalny, drugi to jawny fallback w chmurze (klucz z `local_only` go pominie). Model zainstalowany ręcznie na maszynie (`ollama pull` w terminalu, `ollama create`) pojawi się w hubie przy następnej synchronizacji (`POST …/providers/pc/sync`, albo automatycznie po starcie i raz na dobę).
+The first target is local, the second is an explicit cloud fallback (a key with `local_only` skips it). A model installed by hand on the machine (`ollama pull` in a terminal, `ollama create`) shows up in the hub at the next sync (`POST …/providers/pc/sync`, or automatically after a start and once a day).
 
 ---
 
-## Co się zmieści
+## What fits
 
-Reguła kciuka dla kwantyzacji Q4_K_M: **około 0,6 GB na miliard parametrów**, do tego pamięć kontekstu (kilkaset MB przy 8k tokenów) i narzut ~0,5 GB. To rzędy wielkości, nie obietnice — `ollama ps` pokazuje, jak model naprawdę się ułożył (kolumna `PROCESSOR`: ile na GPU, ile na CPU).
+A rule of thumb for Q4_K_M quantisation: **about 0.6 GB per billion parameters**, plus memory for the context (a few hundred MB at 8k tokens) and an overhead of ~0.5 GB. These are orders of magnitude, not promises — `ollama ps` shows how the model really settled (the `PROCESSOR` column: how much on the GPU, how much on the CPU).
 
-Gdy model nie mieści się na karcie, Ollama przenosi część warstw do RAM-u. Działa, ale wolniej: im większa część poza kartą, tym bliżej prędkości samego procesora.
+When a model does not fit on the card, Ollama moves part of the layers to RAM. It works, but slower: the larger the part outside the card, the closer to the speed of the processor alone.
 
-Przykład sprzętu: **4 GB VRAM + 16 GB RAM**
+An example machine: **4 GB VRAM + 16 GB RAM**
 
-| Rozmiar (Q4_K_M) | Gdzie liczy się model | Czego się spodziewać |
+| Size (Q4_K_M) | Where the model runs | What to expect |
 |---|---|---|
-| 1–4B (≈ 1–2,8 GB) | cały na karcie | szybko; to jest codzienny model |
-| 7–8B (≈ 4,5–5 GB) | większość na karcie, reszta w RAM | zauważalnie wolniej, ale używalnie |
-| 12–14B (≈ 8–9 GB) | głównie w RAM | wolno (kilka tokenów/s); do zadań, w których można poczekać |
-| 20–32B (≈ 12–19 GB) | nie mieści się sensownie w 16 GB RAM | nie warto |
-| 70B+ | nie | — |
+| 1–4B (≈ 1–2.8 GB) | entirely on the card | fast; this is the everyday model |
+| 7–8B (≈ 4.5–5 GB) | mostly on the card, the rest in RAM | noticeably slower, but usable |
+| 12–14B (≈ 8–9 GB) | mostly in RAM | slow (a few tokens/s); for tasks where you can wait |
+| 20–32B (≈ 12–19 GB) | does not fit sensibly in 16 GB of RAM | not worth it |
+| 70B+ | no | — |
 
-Duże modele (32B, 70B) wymagają karty z 24 GB VRAM i więcej albo kilku kart; na słabszym sprzęcie lepiej wziąć mniejszy model albo skierować te zapytania do chmury aliasem z fallbackiem.
+Big models (32B, 70B) need a card with 24 GB of VRAM or more, or several cards; on weaker hardware it is better to take a smaller model or send those queries to the cloud through an alias with a fallback.
 
-### Ustawienia Ollamy, które pomagają na małej karcie
+### Ollama settings that help on a small card
 
-W `agent/.env` (agent przekaże je Ollamie, którą sam uruchamia):
+In `agent/.env` (the agent hands them to the Ollama it starts):
 
 ```
-OLLAMA_CONTEXT_LENGTH=8192     # mniejszy kontekst = mniej pamięci na cache; agent zgłosi hubowi tę wartość
-OLLAMA_MAX_LOADED_MODELS=1     # jeden model naraz
-OLLAMA_NUM_PARALLEL=1          # jedno żądanie naraz; kolejkę i tak prowadzi hub (max_concurrency)
-OLLAMA_KEEP_ALIVE=5m           # model schodzi z karty po 5 minutach bez użycia
+OLLAMA_CONTEXT_LENGTH=8192     # a smaller context = less memory for the cache; the agent reports this value to the hub
+OLLAMA_MAX_LOADED_MODELS=1     # one model at a time
+OLLAMA_NUM_PARALLEL=1          # one request at a time; the hub runs the queue anyway (max_concurrency)
+OLLAMA_KEEP_ALIVE=5m           # the model leaves the card after 5 minutes without use
 ```
 
 ---
 
-## Propozycje na start
+## Suggestions to start with
 
-Biblioteka Ollamy (`ollama.com/library`) zmienia się szybko; to są nazwy, które działają w chwili pisania, jako punkt wyjścia.
+Ollama's library (`ollama.com/library`) changes quickly; these are names that work at the time of writing, as a starting point.
 
-| Do czego | Przykład | Uwagi |
+| For | Example | Notes |
 |---|---|---|
-| ogólny, szybki | `qwen3:4b`, `llama3.2:3b`, `phi4-mini` | mieszczą się na 4 GB; `qwen3` ma tryb „myślenia” i narzędzia |
-| obrazy | `gemma3:4b` | rozumie obrazy; hub zobaczy `vision` |
-| kod | `qwen2.5-coder:3b`, `qwen2.5-coder:7b` | 7B będzie częściowo w RAM na 4 GB |
-| embeddingi | `nomic-embed-text` | hub rozpozna typ `embedding` |
-| więcej miejsca (8–12 GB VRAM) | `qwen3:8b`, `qwen3:14b` | |
+| general, fast | `qwen3:4b`, `llama3.2:3b`, `phi4-mini` | fit in 4 GB; `qwen3` has a "thinking" mode and tools |
+| images | `gemma3:4b` | understands images; the hub will see `vision` |
+| code | `qwen2.5-coder:3b`, `qwen2.5-coder:7b` | the 7B will be partly in RAM on 4 GB |
+| embeddings | `nomic-embed-text` | the hub recognises the `embedding` type |
+| more room (8–12 GB VRAM) | `qwen3:8b`, `qwen3:14b` | |
 
-Po pobraniu sprawdź prędkość: `ollama run <model> --verbose "Napisz Hello World w 5 językach"` i spójrz na `eval rate` (tokeny na sekundę). Dla rozsądnego UX: > 30 t/s do prostych rzeczy, > 10 t/s do kodu i analizy, > 3 t/s do zadań, w których można poczekać.
+After a download check the speed: `ollama run <model> --verbose "Write Hello World in 5 languages"` and look at `eval rate` (tokens per second). For a reasonable experience: > 30 t/s for simple things, > 10 t/s for code and analysis, > 3 t/s for tasks where you can wait.
 
 ---
 
-## Kwantyzacja — co oznaczają Q4, Q8
+## Quantisation — what Q4, Q8 mean
 
-Model skompresowany do mniejszej liczby bitów zajmuje mniej pamięci kosztem niewielkiej utraty jakości.
+A model compressed to fewer bits takes less memory at the cost of a small loss of quality.
 
-| Kwantyzacja | Rozmiar względem pełnego | Jakość | Kiedy |
+| Quantisation | Size relative to full | Quality | When |
 |---|---|---|---|
-| `q2_K` | ~25% | wyraźnie słabsza | tylko gdy nic innego się nie mieści |
-| `q4_K_M` | ~45% | dobra | **domyślny wybór** |
-| `q5_K_M` | ~55% | lepsza | gdy masz zapas pamięci |
-| `q8_0` | ~80% | bardzo dobra | blisko pełnej precyzji |
+| `q2_K` | ~25% | clearly weaker | only when nothing else fits |
+| `q4_K_M` | ~45% | good | **the default choice** |
+| `q5_K_M` | ~55% | better | when you have memory to spare |
+| `q8_0` | ~80% | very good | close to full precision |
 
-Tag w nazwie to wybiera: `qwen3:4b-q8_0`.
+The tag in the name chooses it: `qwen3:4b-q8_0`.
 
 ---
 
-## Modele bez cenzury (uncensored / abliterated)
+## Uncensored models (uncensored / abliterated)
 
-Chodzi o modele z usuniętymi lub osłabionymi zabezpieczeniami odmawiania odpowiedzi. MindGate traktuje je tak, jak powinno się je traktować — **tylko lokalnie**:
+These are models whose refusal safeguards were removed or weakened. MindGate treats them the way they should be treated — **locally only**:
 
-1. Model pobiera się z Hugging Face przez Ollamę — to samo polecenie pobierania, tylko nazwa ma postać `hf.co/<użytkownik>/<repozytorium>:<kwantyzacja>`:
+1. The model is downloaded from Hugging Face through Ollama — the same download command, only the name has the form `hf.co/<user>/<repository>:<quantisation>`:
 
    ```bash
    curl -X POST -H "$A" -H 'Content-Type: application/json' $H/providers/pc/node/pulls \
      -d '{"name":"hf.co/bartowski/gemma-2-2b-it-abliterated-GGUF:Q4_K_M"}'
    ```
 
-   (Repozytorium musi mieć pliki GGUF; dostępne kwantyzacje zobaczysz na jego stronie. Wybieraj autorów, którym ufasz — to wykonywalna wiedza, ale plik pochodzi z internetu.)
+   (The repository must have GGUF files; you can see the available quantisations on its page. Choose authors you trust — a model is just weights, but the file comes from the internet.)
 
-2. Agent oznacza taki model tagiem **`uncensored`**, jeśli nazwa zawiera „abliterated” lub „uncensored”. Dla innych nazw dodaj tag ręcznie: `PATCH /admin/api/models/pc/<nazwa> {"tags":["uncensored"]}`.
-3. Model leży na Twojej maszynie, więc jego `locality` to `local`: żądanie do niego nie wychodzi do chmury, a klucz z `local_only` może go użyć bez ograniczeń.
-4. **Nie podłączaj takiego modelu do aliasu z celem w chmurze**, jeśli nie chcesz, żeby te same pytania trafiały do dostawcy chmurowego po awarii maszyny. Alias tylko z lokalnymi celami (`"targets": ["pc/…-abliterated"]`) przy awarii po prostu zwróci błąd, nie wyśle pytania nigdzie indziej.
-5. Takie modele bywają mniej spójne niż oryginały (usunięcie odmów nie jest darmowe). Sprawdź na swoich zadaniach.
+2. The agent marks such a model with the tag **`uncensored`** if its name contains "abliterated" or "uncensored". For other names add the tag by hand: `PATCH /admin/api/models/pc/<name> {"tags":["uncensored"]}`.
+3. The model sits on your machine, so its `locality` is `local`: a request to it does not leave for the cloud, and a key with `local_only` can use it without restrictions.
+4. **Do not attach such a model to an alias that has a cloud target**, unless you want the same questions to go to a cloud provider after the machine fails. An alias with local targets only (`"targets": ["pc/…-abliterated"]`) will simply return an error on a failure, and will not send the question anywhere else.
+5. Such models are sometimes less coherent than the originals (removing refusals is not free). Check them on your own tasks.
 
-Odpowiedzialność za to, co taki model wygeneruje i do czego go użyjesz, jest po Twojej stronie.
+Responsibility for what such a model generates and for what you use it for is yours.
 
 ---
 
-## Własny Modelfile (zaawansowane)
+## Your own Modelfile (advanced)
 
-Możesz stworzyć wariant modelu z własnym promptem systemowym lub parametrami — na maszynie:
+You can create a variant of a model with your own system prompt or parameters — on the machine:
 
 ```
 FROM qwen3:4b
 
 SYSTEM """
-Jesteś precyzyjnym asystentem analitycznym. Zawsze:
-- Analizujesz problem zanim odpiszesz
-- Podajesz konkretne, weryfikowalne informacje
-- Zaznaczasz gdy czegoś nie jesteś pewien
+You are a precise analytical assistant. Always:
+- Analyse the problem before you answer
+- Give concrete, verifiable information
+- Say when you are not sure of something
 """
 
 PARAMETER temperature 0.3
@@ -162,7 +162,7 @@ PARAMETER top_p 0.9
 ```
 
 ```bash
-ollama create analityk -f Modelfile
+ollama create analyst -f Modelfile
 ```
 
-Po synchronizacji huba (`POST /admin/api/providers/pc/sync`) pojawi się jako `pc/analityk:latest` i możesz wskazać go z aliasu.
+After the hub syncs (`POST /admin/api/providers/pc/sync`) it appears as `pc/analyst:latest` and you can point an alias at it.

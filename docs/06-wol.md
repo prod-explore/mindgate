@@ -1,67 +1,67 @@
-# Wake on LAN — konfiguracja
+# Wake-on-LAN — setup
 
-Wake on LAN (WoL) pozwala hubowi na Raspberry Pi zdalnie uruchomić maszynę obliczeniową gdy przychodzi żądanie z priorytetem ≥ 3. Wymaga jednorazowej konfiguracji po stronie maszyny i routera.
+Wake-on-LAN (WoL) lets the hub on the Raspberry Pi start the compute machine remotely when a request with priority ≥ 3 arrives. It needs a one-time setup on the machine and on the router.
 
 ---
 
-## 1. BIOS/UEFI maszyny obliczeniowej
+## 1. The compute machine's BIOS/UEFI
 
-Wejdź do BIOS (Del / F2 / F12 przy starcie) i znajdź opcję Wake on LAN. Lokalizacja zależy od producenta płyty:
+Enter the BIOS (Del / F2 / F12 at startup) and find the Wake-on-LAN option. Its location depends on the board's manufacturer:
 
 - **ASUS**: Advanced → APM Configuration → Power On By PCI-E → **Enabled**
 - **Gigabyte**: Settings → IO Ports → Wake on LAN → **Enabled**
 - **MSI**: Settings → Advanced → Wake Up Event Setup → Resume By PCI-E Device → **Enabled**
 - **ASRock**: Configuration → ACPI Configuration → PCIE Devices Power On → **Enabled**
 
-Zapisz i wyjdź (F10).
+Save and exit (F10).
 
 ---
 
-## 2. Karta sieciowa — Windows
+## 2. Network card — Windows
 
-### Włącz WoL w sterowniku
+### Turn on WoL in the driver
 
 1. `Win + X` → Device Manager → Network Adapters
-2. Kliknij prawym na kartę sieciową → Properties
-3. Zakładka **Power Management**:
+2. Right-click the network card → Properties
+3. The **Power Management** tab:
    - ✅ Allow this device to wake the computer
    - ✅ Only allow a magic packet to wake the computer
-4. Zakładka **Advanced** → znajdź **Wake on Magic Packet** → ustaw **Enabled**
+4. The **Advanced** tab → find **Wake on Magic Packet** → set it to **Enabled**
 
-### Wyłącz Fast Startup (ważne!)
+### Turn off Fast Startup (important!)
 
-Fast Startup (szybkie uruchamianie) w Windows może blokować WoL po shutdown:
+Fast Startup in Windows can block WoL after a shutdown:
 
-`Panel sterowania → System i zabezpieczenia → Opcje zasilania → Wybierz działanie przycisków zasilania → Wyłącz szybkie uruchamianie`
+`Control Panel → System and Security → Power Options → Choose what the power buttons do → Turn off fast startup`
 
-Lub przez PowerShell (jako administrator):
+Or through PowerShell (as administrator):
 
 ```powershell
 powercfg /hibernate off
 ```
 
-### Sprawdź że WoL przeżywa shutdown
+### Check that WoL survives a shutdown
 
-Po wyłączeniu komputera, dioda aktywności karty sieciowej powinna nadal świecić (słabo). Jeśli gaśnie całkowicie — WoL w BIOS nie jest włączony.
+After the computer is shut down, the network card's activity light should still glow (faintly). If it goes out completely, WoL is not enabled in the BIOS.
 
 ---
 
-## 3. Karta sieciowa — Linux
+## 3. Network card — Linux
 
 ```bash
-# Sprawdź aktualny stan WoL
+# Check the current WoL state
 sudo ethtool eth0 | grep -i wake
 
-# Włącz WoL (tymczasowo, do restartu)
+# Turn WoL on (temporarily, until a restart)
 sudo ethtool -s eth0 wol g
 
-# Sprawdź nazwę interfejsu
+# Check the interface name
 ip link show
 ```
 
-### Trwałe włączenie WoL — systemd
+### Making it permanent — systemd
 
-Utwórz `/etc/systemd/system/wol.service`:
+Create `/etc/systemd/system/wol.service`:
 
 ```ini
 [Unit]
@@ -82,56 +82,56 @@ sudo systemctl enable wol
 sudo systemctl start wol
 ```
 
-### Trwałe włączenie — NetworkManager
+### Making it permanent — NetworkManager
 
 ```bash
-# Znajdź nazwę połączenia
+# Find the connection name
 nmcli connection show
 
-# Włącz WoL
+# Turn WoL on
 nmcli connection modify "Wired connection 1" 802-3-ethernet.wake-on-lan magic
 
-# Zastosuj
+# Apply
 nmcli connection up "Wired connection 1"
 ```
 
 ---
 
-## 4. Router — stały IP dla maszyny
+## 4. Router — a fixed IP for the machine
 
-WoL magic packet wysyłany jest na konkretny MAC adres. Żeby hub zawsze wiedział gdzie wysłać packet, maszyna obliczeniowa powinna mieć stały (zarezerwowany) adres IP.
+The WoL magic packet is sent to a specific MAC address. For the hub to always know where to send it, the compute machine should have a fixed (reserved) IP address.
 
-W panelu routera (zwykle 192.168.1.1 lub 192.168.0.1):
+In the router's panel (usually 192.168.1.1 or 192.168.0.1):
 
-1. Znajdź sekcję **DHCP** → **DHCP Reservations** (lub Static Leases, Address Reservation)
-2. Znajdź maszynę obliczeniową na liście urządzeń
-3. Przypisz jej stały IP, np. `192.168.1.100`
-4. Zapisz i zrestartuj router
+1. Find the **DHCP** section → **DHCP Reservations** (or Static Leases, Address Reservation)
+2. Find the compute machine in the list of devices
+3. Give it a fixed IP, for example `192.168.1.100`
+4. Save and restart the router
 
 ---
 
-## 5. Znajdź MAC adres maszyny
+## 5. Find the machine's MAC address
 
 **Windows:**
 ```cmd
 ipconfig /all
 ```
-Szukaj "Physical Address" przy karcie Ethernet.
+Look for "Physical Address" next to the Ethernet card.
 
 **Linux:**
 ```bash
 ip link show eth0
-# lub
+# or
 cat /sys/class/net/eth0/address
 ```
 
-MAC wygląda tak: `AA:BB:CC:DD:EE:FF`
+A MAC looks like this: `AA:BB:CC:DD:EE:FF`
 
 ---
 
-## 6. Wpisz dane do huba
+## 6. Enter the data in the hub
 
-Maszyna jest dla huba dostawcą z ustawieniem `node`. Przy migracji ze starego `config.yml` robi to `import-legacy` (zob. [01 - Hub](01-gate.md)). Ręcznie, przez API administratora:
+To the hub, the machine is a provider with the `node` setting. When migrating from the old `config.yml`, `import-legacy` does this (see [01 - Hub](01-gate.md)). By hand, through the administrator API:
 
 ```bash
 curl -X PATCH http://localhost:3000/admin/api/providers/agent \
@@ -149,20 +149,20 @@ curl -X PATCH http://localhost:3000/admin/api/providers/agent \
 }'
 ```
 
-- `broadcast` — adres broadcast sieci. Dla sieci `192.168.1.x` z maską `/24` to `192.168.1.255`; może być też `255.255.255.255`, jeśli router to przepuszcza.
-- **Hub w Dockerze (mostek):** broadcast zwykle nie przechodzi przez mostek. Wpisz tu **adres IP maszyny** (unicast) — magic packet i tak trafi na jej kartę.
-- `min_wake_priority` — od jakiego priorytetu żądanie budzi maszynę; słabsze dostają `503 node_asleep` (a alias przechodzi na kolejny cel).
-- `control_url` — adres agenta MindGate ([02 - Agent](02-agent.md)). Z niego hub wyprowadza dwa pozostałe adresy, więc zwykle nic więcej nie wpisujesz. Daje też zarządzanie modelami na maszynie ([05 - Węzły](05-nodes.md)).
-- `health_url` (domyślnie `<control_url>/health`) — adres, który odpowiada, gdy maszyna działa; hub sprawdza go, gdy żądanie trafia na maszynę, której ostatnia odpowiedź jest starsza niż 30 s, oraz co 30 s w tle. Ustaw ręcznie tylko dla maszyny bez agenta (np. czysta Ollama: `http://192.168.1.100:11434/api/version`).
-- `idle_shutdown_minutes` — po tylu minutach bez żądań hub prosi agenta o wyłączenie (domyślnie `<control_url>/node/power/shutdown-request`; własny `shutdown_url` zastępuje to, gdy wyłączasz maszynę skryptem). Agent może odmówić (pracuje, ktoś siedzi przy komputerze) — wtedy hub pyta ponownie dopiero za 5 minut.
+- `broadcast` — the network's broadcast address. For a `192.168.1.x` network with a `/24` mask it is `192.168.1.255`; it can also be `255.255.255.255` if the router lets it through.
+- **Hub in Docker (bridge):** broadcast usually does not cross the bridge. Put **the machine's IP address** (unicast) here — the magic packet will reach its card anyway.
+- `min_wake_priority` — from which priority a request wakes the machine; weaker ones get `503 node_asleep` (and an alias moves on to the next target).
+- `control_url` — the address of the MindGate agent ([02 - Agent](02-agent.md)). The hub derives the other two addresses from it, so you usually enter nothing more. It also gives management of the models on the machine ([05 - Node protocol](05-nodes.md)).
+- `health_url` (by default `<control_url>/health`) — an address that answers when the machine is up; the hub checks it when a request hits a machine whose last answer is older than 30 s, and every 30 s in the background. Set it by hand only for a machine without an agent (for example a bare Ollama: `http://192.168.1.100:11434/api/version`).
+- `idle_shutdown_minutes` — after this many minutes without requests the hub asks the agent to shut down (by default `<control_url>/node/power/shutdown-request`; your own `shutdown_url` replaces that when you shut the machine down with a script). The agent may refuse (it is working, someone is sitting at the computer) — then the hub asks again only after 5 minutes.
 
-Stały adres IP maszyny jest ważny: `base_url` dostawcy i `control_url` wskazują na nią.
+The machine's fixed IP address matters: the provider's `base_url` and `control_url` point to it.
 
 ---
 
-## 7. Test WoL
+## 7. Testing WoL
 
-Wyłącz maszynę obliczeniową, a potem poproś hub o jej obudzenie (czeka, aż maszyna odpowie, i wypisuje stan):
+Shut the compute machine down, then ask the hub to wake it (it waits until the machine answers, and prints the state):
 
 ```bash
 curl -X POST http://localhost:3000/admin/api/providers/agent/wake \
@@ -170,10 +170,10 @@ curl -X POST http://localhost:3000/admin/api/providers/agent/wake \
 # {"status":"online"}
 ```
 
-Maszyna powinna wstać w ciągu 5–30 sekund (hub czeka do `boot_timeout_ms` i powtarza magic packet co 10 s). Gdy zwróci `node_unavailable`, a maszyna się nie uruchamia — to problem po stronie BIOS / karty sieciowej (zob. niżej), nie huba. Pakiet można też wysłać ręcznie, żeby wykluczyć hub:
+The machine should come up within 5–30 seconds (the hub waits up to `boot_timeout_ms` and repeats the magic packet every 10 s). When it returns `node_unavailable` and the machine does not start, the problem is on the BIOS / network card side (see below), not in the hub. You can also send the packet by hand to rule the hub out:
 
 ```bash
-# na Raspberry Pi
+# on the Raspberry Pi
 sudo apt install wakeonlan
 wakeonlan -i 192.168.1.255 AA:BB:CC:DD:EE:FF
 ```
@@ -182,23 +182,23 @@ wakeonlan -i 192.168.1.255 AA:BB:CC:DD:EE:FF
 
 ## 8. Troubleshooting
 
-**Maszyna nie reaguje na magic packet**
+**The machine does not react to the magic packet**
 
-Sprawdź w kolejności:
-1. BIOS — czy WoL jest włączony?
-2. Windows Fast Startup — czy wyłączony?
-3. Sterownik karty — czy WoL w sterowniku włączony?
-4. Czy dioda karty sieciowej świeci po wyłączeniu? (zasilanie standby)
-5. Czy wysyłasz na właściwy MAC i broadcast?
+Check in order:
+1. BIOS — is WoL enabled?
+2. Windows Fast Startup — is it off?
+3. The card's driver — is WoL enabled in the driver?
+4. Does the network card's light stay on after the shutdown? (standby power)
+5. Are you sending to the right MAC and broadcast?
 
-**WoL działa raz, potem przestaje**
+**WoL works once, then stops**
 
-Windows może resetować ustawienia WoL po aktualizacjach sterowników. Sprawdź Device Manager po każdej większej aktualizacji.
+Windows may reset the WoL settings after driver updates. Check Device Manager after every larger update.
 
-**WoL działa z sieci lokalnej ale nie z zewnątrz**
+**WoL works from the local network but not from outside**
 
-To osobny temat (WoL przez internet wymaga przekierowania portów UDP 9 na router lub VPN). W MindGate hub jest w tej samej sieci co maszyna — WoL lokalny zawsze powinien działać.
+That is a separate topic (WoL over the internet needs UDP port 9 forwarded on the router, or a VPN). In MindGate the hub is on the same network as the machine — local WoL should always work.
 
-**Komputer się włącza sam (niechciane budzenie)**
+**The computer turns on by itself (unwanted wake-ups)**
 
-Wyłącz "Wake on LAN" tylko dla magic packet (nie dla "any packet") w sterowniku karty. Sprawdź też BIOS — wyłącz "Power On by PCI-E" jeśli jest zbyt czuły.
+Set "Wake on LAN" to magic packet only (not "any packet") in the card's driver. Also check the BIOS — turn off "Power On by PCI-E" if it is too sensitive.

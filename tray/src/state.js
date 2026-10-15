@@ -1,11 +1,8 @@
-// Zamienia stan agenta na to, co widzi człowiek. Bez zależności, żeby dało się to przetestować bez trayu i bez Windowsa.
+// Turns the agent's state into what a person sees. No dependencies, so it can be tested without the tray or Windows.
 
-/** 1 zadanie, 2 zadania, 5 zadań */
-export function zadania(n) {
-  if (n === 1) return '1 zadanie'
-  const last = n % 10
-  const teens = n % 100 >= 12 && n % 100 <= 14
-  return last >= 2 && last <= 4 && !teens ? `${n} zadania` : `${n} zadań`
+/** 1 task, 2 tasks */
+export function tasks(n) {
+  return n === 1 ? '1 task' : `${n} tasks`
 }
 
 function modelNames(models) {
@@ -15,29 +12,29 @@ function modelNames(models) {
 }
 
 /**
- * @param {{status?: string, busy?: number, models?: unknown[], httpStatus?: number}} state stan z pollingu agenta
+ * @param {{status?: string, busy?: number, models?: unknown[], httpStatus?: number}} state the state from polling the agent
  * @returns {{icon: 'green'|'yellow'|'blue'|'red'|'gray', title: string, detail: string}}
  */
 export function describeState(state) {
   const busy = state.busy || 0
   switch (state.status) {
     case 'offline':
-      return { icon: 'gray', title: 'agent nie odpowiada', detail: 'Usługa MindGate Agent nie działa albo ma inny port' }
+      return { icon: 'gray', title: 'agent is not answering', detail: 'The MindGate Agent service is not running or uses another port' }
     case 'error':
       return state.httpStatus === 401
-        ? { icon: 'red', title: 'agent odrzucił sekret', detail: 'Sekret w tray.yml jest inny niż w agent/.env' }
-        : { icon: 'red', title: 'agent zwrócił błąd', detail: state.httpStatus ? `Odpowiedź HTTP ${state.httpStatus}` : '' }
+        ? { icon: 'red', title: 'agent rejected the secret', detail: 'The secret in tray.yml differs from the one in agent/.env' }
+        : { icon: 'red', title: 'agent returned an error', detail: state.httpStatus ? `HTTP response ${state.httpStatus}` : '' }
     case 'degraded':
-      return { icon: 'red', title: 'agent działa z problemami', detail: 'Szczegóły są w panelu huba' }
+      return { icon: 'red', title: 'agent has problems', detail: 'Details are in the hub panel' }
     case 'unknown':
     case undefined:
-      return { icon: 'gray', title: 'łączę z agentem…', detail: '' }
+      return { icon: 'gray', title: 'connecting to the agent…', detail: '' }
     default: {
       const names = modelNames(state.models)
-      const loaded = names.length ? `W pamięci: ${names.join(', ')}` : 'Nic nie jest załadowane do pamięci'
+      const loaded = names.length ? `In memory: ${names.join(', ')}` : 'Nothing is loaded into memory'
       return busy > 0
-        ? { icon: 'yellow', title: `pracuje (${zadania(busy)})`, detail: loaded }
-        : { icon: 'green', title: 'gotowy', detail: loaded }
+        ? { icon: 'yellow', title: `working (${tasks(busy)})`, detail: loaded }
+        : { icon: 'green', title: 'ready', detail: loaded }
     }
   }
 }

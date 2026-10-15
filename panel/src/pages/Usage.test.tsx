@@ -2,12 +2,10 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { UsageRow } from '../api/types';
-import { setLang } from '../i18n';
 import { apiKey, cloud, fakeApi, provider, renderPage, usage } from '../test/fixtures';
 import { Usage } from './Usage';
 
 beforeEach(() => {
-  setLang('en');
   window.location.hash = '#/usage';
   // only the clock: timers must keep running for the test helpers
   vi.useFakeTimers({ toFake: ['Date'] });

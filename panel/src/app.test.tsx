@@ -3,12 +3,10 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { ApiProvider } from './api/context';
 import { App } from './app';
-import { setLang } from './i18n';
 import { signIn, signOut } from './lib/session';
 import { fakeApi } from './test/fixtures';
 
 beforeEach(() => {
-  setLang('en');
   signOut();
   sessionStorage.clear();
   localStorage.clear();
@@ -110,15 +108,4 @@ describe('the app', () => {
     expect(await screen.findByText('The hub did not accept the token. Sign in again.')).toBeInTheDocument();
   });
 
-  it('speaks Polish when switched, in the menu and on the page', async () => {
-    const user = userEvent.setup();
-    window.location.hash = '#/keys';
-    act(() => signIn('tok', false));
-    mount();
-    await screen.findByRole('heading', { level: 1, name: 'Client keys' });
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Language' }), 'pl');
-    expect(await screen.findByRole('heading', { level: 1, name: 'Klucze klientów' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /^Dostawcy/ })).toBeInTheDocument();
-    expect(document.documentElement.lang).toBe('pl');
-  });
 });

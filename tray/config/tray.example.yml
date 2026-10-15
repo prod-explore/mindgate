@@ -1,25 +1,21 @@
-# MindGate Tray — konfiguracja
-# Skopiuj do tray.yml i dostosuj
+# MindGate Tray — configuration
+# Copy to tray.yml and adjust
 
-# Agent HTTP — do pollowania statusu i raportowania, czy ktoś używa PC.
-# secret = ten sam co MINDGATE_NODE_SECRET w agent/.env (można go też podać zmienną MINDGATE_NODE_SECRET).
+# Agent HTTP — used to poll the status and to report whether someone is using the PC.
+# secret = the same as MINDGATE_NODE_SECRET in agent/.env (it can also be given as the MINDGATE_NODE_SECRET variable).
 agent:
   url: "http://localhost:3001"
-  secret: "wklej-tu-MINDGATE_NODE_SECRET-z-agent-.env"
-  poll_interval_ms: 5000              # co ile sprawdzać status agenta
+  secret: "paste-the-MINDGATE_NODE_SECRET-from-agent-.env-here"
+  poll_interval_ms: 5000              # how often to check the agent's status
 
-# Hub — adres, pod którym otwierasz panel w przeglądarce. Z nim w menu trayu jest „Otwórz panel MindGate”.
+# Hub — the address where you open the panel in a browser. With it, the tray menu gets "Open the MindGate panel".
 hub:
-  url: "http://adres-huba"
+  url: "http://hub-address"
 
-# IPC server — mini serwer HTTP na localhost
+# IPC server — a small HTTP server on localhost
 ipc:
   port: 3002
 
-# Shutdown guard — warunki blokujące wyłączenie
+# Shutdown guard — conditions that hold a shutdown back
 shutdown_guard:
-  idle_threshold_seconds: 120         # 2 minuty braku inputu = "nieaktywny"
-
-  # Czy komputer uruchomiony ręcznie (nie przez WoL) powinien być chroniony?
-  # true = nie wyłączaj bez wyraźnej zgody użytkownika
-  respect_manual_boot: true
+  idle_threshold_seconds: 120         # 2 minutes without input = "idle"

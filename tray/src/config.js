@@ -13,29 +13,29 @@ function loadConfig() {
   try {
     raw = readFileSync(configPath, 'utf8')
   } catch {
-    console.error(`[config] Nie mogę wczytać ${configPath}`)
-    console.error(`[config] Skopiuj tray.example.yml → tray.yml`)
+    console.error(`[config] Cannot read ${configPath}`)
+    console.error(`[config] Copy tray.example.yml to tray.yml`)
     process.exit(1)
   }
 
   const cfg = yaml.load(raw)
 
-  // Domyślne wartości
+  // Defaults
   cfg.agent = {
     url: 'http://localhost:3001',
     poll_interval_ms: 5000,
     ...cfg.agent
   }
-  // ten sam sekret co MINDGATE_NODE_SECRET w agent/.env
+  // the same secret as MINDGATE_NODE_SECRET in agent/.env
   const envSecret = process.env.MINDGATE_NODE_SECRET || process.env.MINDGATE_AGENT_SECRET
   if (envSecret) {
     cfg.agent.secret = envSecret
   }
   if (!cfg.agent.secret) {
-    console.error('[config] Brak agent.secret w konfiguracji tray')
+    console.error('[config] agent.secret is missing from the tray configuration')
     process.exit(1)
   }
-  // adres huba (do przycisku „Otwórz panel”); bez niego przycisku nie ma
+  // the hub address (for the "Open the MindGate panel" item); without it there is no such item
   cfg.hub = { url: '', ...cfg.hub }
   cfg.ipc = {
     port: 3002,
@@ -43,7 +43,6 @@ function loadConfig() {
   }
   cfg.shutdown_guard = {
     idle_threshold_seconds: 120,
-    respect_manual_boot: true,
     ...cfg.shutdown_guard
   }
 

@@ -1,9 +1,7 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
-import { beforeEach, describe, expect, it } from 'vitest';
-import { setLang } from '../i18n';
+import { describe, expect, it } from 'vitest';
 import { DailyColumns } from './charts';
 
-beforeEach(() => setLang('en'));
 
 const series = [
   { key: 'local' as const, label: 'local', color: 'var(--series-local)' },
