@@ -140,28 +140,6 @@ In the request log: when, which key, which model and provider, the response code
 
 ---
 
-## Migrating from the old gate
-
-The old `config.yml` (agent, WoL, keys) is moved by one command:
-
-```bash
-docker compose exec -T gate sh -c 'cat > /tmp/config.yml' < config/config.yml
-docker compose exec gate node dist/cli.js import-legacy /tmp/config.yml --dry-run   # what would happen
-docker compose exec gate node dist/cli.js import-legacy /tmp/config.yml
-```
-
-This creates:
-
-- the provider `agent` — local, one request at a time, with WoL wake-up, shutdown on idle and a `control_url` pointing to the new agent. The old secret from `config.yml` becomes its key, so **put it into `agent/.env` as `MINDGATE_NODE_SECRET`** (at least 24 characters, no words like "change-me"; the agent will not start with a weaker one — then invent a new one and enter it in the hub too: `PATCH /admin/api/providers/agent` with `api_key`);
-- **the models are not copied** — the hub learns them from the machine once the new agent is running (`POST /admin/api/providers/agent/sync`, or by itself after the start). The old profile names (`flash`, `reasoning`…) are not carried over. If you want clients to keep using them: pass `--agent-models <path>` pointing to your old `models.yml` of the agent (on the GPU computer, in `agent/config/`; make a copy before upgrading, the new agent no longer reads it), and each profile becomes an **alias** for the real Ollama model it stood for. Or create the aliases yourself in the panel;
-- client keys with the same values and priorities (placeholders from the example are skipped). They are hashes now: you can delete the `config.yml` file.
-
-What is gone: **pipelines** and **MCP tools** injected by the agent — the hub returns what the model says, and chaining models is the client's business. An alias with several targets is a fallback list, not a sequence. The import prints which pipelines you had.
-
-Other changes: the queue and the port are environment variables now (the import prints which), and a single request waits at most an hour (the old gate had no limit). The agent needs an upgrade to version 2 — [02 - Agent](02-agent.md).
-
----
-
 ## Backup
 
 ```bash
@@ -240,7 +218,7 @@ gate/src/
 ├── adapters/                 openai (transparent), anthropic (translation both ways)
 ├── store/                    providers, models, aliases, keys, usage (SQLite)
 ├── crypto.ts, db.ts, …       secret encryption, database migrations
-└── cli.ts                    keys, import-legacy, backup, check
+└── cli.ts                    keys, backup, check
 ```
 
 ---

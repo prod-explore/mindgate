@@ -27,7 +27,7 @@ function loadConfig() {
     ...cfg.agent
   }
   // the same secret as MINDGATE_NODE_SECRET in agent/.env
-  const envSecret = process.env.MINDGATE_NODE_SECRET || process.env.MINDGATE_AGENT_SECRET
+  const envSecret = process.env.MINDGATE_NODE_SECRET
   if (envSecret) {
     cfg.agent.secret = envSecret
   }

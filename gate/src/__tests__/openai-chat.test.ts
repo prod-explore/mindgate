@@ -264,7 +264,7 @@ describe('OpenAI-compatible upstream through the hub', () => {
 
   it('stops the upstream call and counts what was produced when the client walks away', async () => {
     mode = 'echo';
-    const slow = await startUpstream(async (req, res) => {
+    const slow = await startUpstream(async (_req, res) => {
       res.writeHead(200, { 'Content-Type': 'text/event-stream' });
       res.write(`data: ${JSON.stringify(chunk({ role: 'assistant', content: 'start' }))}\n\n`);
       await new Promise<void>(resolve => {

@@ -29,14 +29,12 @@ describe('who may talk to the agent', () => {
     assert.equal(t.ollama.requests.length, 0, 'a refused request never reaches the model runtime');
   });
 
-  it('a wrong secret is refused, the right one is let in (Bearer or the old header)', async () => {
+  it('a wrong secret is refused, the right one is let in (Bearer only)', async () => {
     assert.equal((await t.api('GET', '/health', undefined, { auth: SECRET + 'x' })).status, 401);
     assert.equal((await t.api('GET', '/health', undefined, { auth: SECRET.slice(0, -1) })).status, 401);
     assert.equal((await t.api('GET', '/health')).status, 200);
-    const legacy = await fetch(`${t.base}/health`, { headers: { 'X-MindGate-Secret': SECRET } });
-    assert.equal(legacy.status, 200);
-    const wrongLegacy = await fetch(`${t.base}/health`, { headers: { 'X-MindGate-Secret': 'nope' } });
-    assert.equal(wrongLegacy.status, 401);
+    const oldHeader = await fetch(`${t.base}/health`, { headers: { 'X-MindGate-Secret': SECRET } });
+    assert.equal(oldHeader.status, 401, 'the secret is accepted only as a Bearer token');
   });
 
   it('unknown endpoints answer 404 in the usual error shape (once authenticated)', async () => {

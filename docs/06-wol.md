@@ -131,7 +131,7 @@ A MAC looks like this: `AA:BB:CC:DD:EE:FF`
 
 ## 6. Enter the data in the hub
 
-To the hub, the machine is a provider with the `node` setting. When migrating from the old `config.yml`, `import-legacy` does this (see [01 - Hub](01-gate.md)). By hand, through the administrator API:
+To the hub, the machine is a provider with the `node` setting. Set it in the panel (Providers → the machine) or through the administrator API:
 
 ```bash
 curl -X PATCH http://localhost:3000/admin/api/providers/agent \
