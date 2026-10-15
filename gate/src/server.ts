@@ -24,8 +24,16 @@ export async function buildServer(hub: Hub, opts: { logger?: FastifyBaseLogger }
     logController: new LogController({ disableRequestLogging: true }),
   });
 
+  let warnedProxy = false;
   app.addHook('onRequest', async (req, reply) => {
     reply.header('X-Request-Id', req.id);
+    reply.header('X-Content-Type-Options', 'nosniff');
+    // Behind a reverse proxy without MINDGATE_TRUST_PROXY every client shares the proxy's address, so one
+    // stranger guessing keys can lock the owner out of the login throttle. Say so once, loudly.
+    if (!warnedProxy && !hub.config.trustProxy && req.headers['x-forwarded-for']) {
+      warnedProxy = true;
+      hub.log.warn({ trustProxy: false }, 'requests arrive with X-Forwarded-For but MINDGATE_TRUST_PROXY is not true: all clients share one login-throttle bucket (set MINDGATE_TRUST_PROXY=true when a reverse proxy is in front)');
+    }
   });
 
   app.setNotFoundHandler((req, reply) => {

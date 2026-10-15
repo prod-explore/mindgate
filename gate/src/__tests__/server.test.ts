@@ -31,6 +31,20 @@ describe('HTTP basics', () => {
     assert.deepEqual(r.json, { status: 'ok' });
   });
 
+  it('marks responses nosniff and warns once about X-Forwarded-For without MINDGATE_TRUST_PROXY', async () => {
+    const warnings: string[] = [];
+    const orig = h.hub.log.warn.bind(h.hub.log);
+    (h.hub.log as { warn: unknown }).warn = (...a: unknown[]) => { warnings.push(String(a[a.length - 1])); };
+    try {
+      const r1 = await h.api('GET', '/health', undefined, { 'X-Forwarded-For': '203.0.113.9' }, null);
+      await h.api('GET', '/health', undefined, { 'X-Forwarded-For': '203.0.113.9' }, null);
+      assert.equal(r1.headers.get('x-content-type-options'), 'nosniff');
+      assert.equal(warnings.filter(w => w.includes('MINDGATE_TRUST_PROXY')).length, 1);
+    } finally {
+      (h.hub.log as { warn: unknown }).warn = orig;
+    }
+  });
+
   it('authentication errors are explicit and in the OpenAI error format', async () => {
     const none = await h.api('POST', '/v1/chat/completions', chatBody, {}, null);
     assert.equal(none.status, 401);
