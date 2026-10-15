@@ -119,7 +119,7 @@ A richer list than `/v1/models` — for the panel.
 
 ### Downloads (in the background)
 
-Downloading a model takes minutes, so it is a job: you start it, then watch the progress. One runs at a time; the others wait (`queued`). Asking again for a model that is already downloading returns the same job.
+Downloading a model takes minutes, so it is a job: you start it, then watch the progress. One runs at a time; the others wait (`queued`). Asking again for a model that is already downloading returns the same job. A download that reports no progress for 10 minutes is given up (`failed`, with the reason) — otherwise a dead connection would keep the machine "busy" and block the idle shutdown; start it again and Ollama resumes where it stopped.
 
 | Call | Effect |
 |---|---|
