@@ -36,4 +36,5 @@ wscript "%temp%\run_tray.vbs"
 del "%temp%\run_tray.vbs"
 echo.
 echo Done! Both apps have been restarted.
-pause
+timeout /t 10
+exit
