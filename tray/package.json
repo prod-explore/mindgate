@@ -1,11 +1,12 @@
 {
   "name": "mindgate-tray",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "MindGate Tray — system tray app for shutdown guard",
   "type": "module",
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
+    "test": "node --test \"test/*.test.mjs\"",
     "install-autostart": "node scripts/install-autostart-windows.js"
   },
   "dependencies": {

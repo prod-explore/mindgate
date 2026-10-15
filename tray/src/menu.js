@@ -1,15 +1,21 @@
-import { getUserToggle, setUserToggle } from './ipc.js'
+/**
+ * Buduje menu systray. Liczba pozycji jest stała (systray2 aktualizuje je w miejscu), a pozycje, których
+ * teraz nie ma, są ukryte.
+ */
+import { execFile } from 'child_process'
 import { readFileSync } from 'fs'
 import { resolve, dirname } from 'path'
 import { fileURLToPath } from 'url'
 import pino from 'pino'
 import { config } from './config.js'
+import { getUserToggle, setUserToggle } from './ipc.js'
+import { describeState } from './state.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
 const log = pino({ name: 'menu' })
 
-// Odczytaj wersję z package.json
+// Wersja z tray/package.json (src/..)
 let TRAY_VERSION = '?'
 try {
   const pkg = JSON.parse(readFileSync(resolve(__dirname, '..', 'package.json'), 'utf8'))
@@ -18,9 +24,7 @@ try {
   // fallback — package.json nie istnieje lub błąd parsowania
 }
 
-/**
- * Buduje konfigurację menu dla systray.
- */
+export const SEPARATOR = '<SEPARATOR>'
 
 // Stan aktualny
 let agentState = {
@@ -29,44 +33,54 @@ let agentState = {
   lastCheck: null
 }
 
+/** Adres panelu huba, o ile jest w tray.yml i jest adresem http(s). */
+export function panelUrl() {
+  const base = String(config.hub?.url || '').trim().replace(/\/+$/, '')
+  return /^https?:\/\//i.test(base) ? `${base}/admin/` : ''
+}
+
+function openInBrowser(url) {
+  // rundll32 nie przepuszcza niczego przez powłokę, więc znaki w adresie nic nie psują
+  execFile('rundll32', ['url.dll,FileProtocolHandler', url], { windowsHide: true }, err => {
+    if (err) log.warn({ err: err.message }, 'Nie udało się otworzyć przeglądarki')
+  })
+}
+
+/** Podpowiedź przy ikonie. */
+export function buildTooltip() {
+  return `MindGate v${TRAY_VERSION} — ${describeState(agentState).title}`
+}
+
 /**
- * Generuje items menu kontekstowego.
+ * Generuje pozycje menu kontekstowego.
  */
 export function buildMenuItems() {
   const toggle = getUserToggle()
-
-  let dot = '⚪'
-  switch (agentState.status) {
-    case 'ok': dot = agentState.busy > 0 ? '🟡' : '🟢'; break;
-    case 'degraded': dot = '🔴'; break;
-    case 'idle': dot = '🔵'; break;
-    default: dot = '⚪'; break;
-  }
+  const state = describeState(agentState)
+  const url = panelUrl()
 
   return [
+    { title: `MindGate — ${state.title}`, enabled: false },
+    { title: state.detail || ' ', enabled: false, hidden: !state.detail },
+    { title: SEPARATOR },
     {
-      title: `MindGate v${TRAY_VERSION}`,
-      enabled: false
-    },
-    { title: '─────────────────────' , enabled: false },
-    {
-      title: `${dot} Agent: ${agentState.status}  |  Zadania: ${agentState.busy}`,
-      enabled: true
-    },
-    { title: '─────────────────────', enabled: false },
-    {
-      title: toggle
-        ? '🛡️  Używam PC — NIE wyłączaj  ✓'
-        : '🛡️  Używam PC — NIE wyłączaj',
+      title: 'Nie wyłączaj tego komputera',
       checked: toggle,
       click: () => {
         setUserToggle(!toggle)
         log.info({ newState: !toggle }, 'Toggle zmieniony przez menu')
       }
     },
-    { title: '─────────────────────', enabled: false },
     {
-      title: '✕  Zamknij tray',
+      title: 'Otwórz panel MindGate',
+      hidden: !url,
+      click: () => {
+        if (url) openInBrowser(url)
+      }
+    },
+    { title: SEPARATOR },
+    {
+      title: 'Zamknij MindGate (agent i tray)',
       click: async () => {
         log.info('Zamykanie tray app i agenta...')
         try {

@@ -6,7 +6,8 @@ import { resolve, dirname } from 'path'
 import { fileURLToPath } from 'url'
 import { config } from './config.js'
 import { startIpcServer, startAgentReporting, checkUserActivity } from './ipc.js'
-import { buildMenuItems, updateAgentState, getAgentState } from './menu.js'
+import { buildMenuItems, buildTooltip, updateAgentState, getAgentState, SEPARATOR } from './menu.js'
+import { describeState } from './state.js'
 import pino from 'pino'
 import { updateShutdownBlock } from './shutdown-block.js'
 
@@ -41,13 +42,7 @@ const icons = {
  * Wybiera ikonę na podstawie stanu agenta.
  */
 function getCurrentIcon() {
-  const state = getAgentState()
-  switch (state.status) {
-    case 'ok': return state.busy > 0 ? icons.yellow : icons.green
-    case 'degraded': return icons.red
-    case 'idle': return icons.blue
-    default: return icons.gray
-  }
+  return icons[describeState(getAgentState()).icon] ?? icons.gray
 }
 
 /**
@@ -62,11 +57,13 @@ function refreshMenuUI() {
 
     // Mutate existing items to preserve __id added by systray2 and send update-item
     newItems.forEach((newItem, i) => {
-      if (confItems[i]) {
+      // separator się nie zmienia, więc nie ma czego wysyłać
+      if (confItems[i] && newItem.title !== SEPARATOR) {
         confItems[i].title = newItem.title
         confItems[i].tooltip = newItem.title
         confItems[i].checked = newItem.checked || false
         confItems[i].enabled = newItem.enabled !== false
+        confItems[i].hidden = newItem.hidden === true
 
         systrayInstance.sendAction({
           type: 'update-item',
@@ -81,7 +78,7 @@ function refreshMenuUI() {
       menu: {
         icon: getCurrentIcon(),
         title: 'MindGate',
-        tooltip: `MindGate — ${getAgentState().status}`,
+        tooltip: buildTooltip(),
         items: confItems
       }
     })
@@ -113,7 +110,7 @@ async function pollAgentStatus() {
       // Blokuj shutdown Windows gdy agent pracuje
       updateShutdownBlock(busy)
     } else {
-      updateAgentState({ status: 'error', busy: 0 })
+      updateAgentState({ status: 'error', busy: 0, httpStatus: res.status })
       updateShutdownBlock(0)
     }
   } catch {
@@ -143,13 +140,13 @@ function initTray() {
     menu: {
       icon: getCurrentIcon(),
       title: 'MindGate',
-      tooltip: 'MindGate — AI Gateway',
+      tooltip: buildTooltip(),
       items: menuItems.map((item, index) => ({
         title: item.title,
         tooltip: item.title,
         checked: item.checked || false,
         enabled: item.enabled !== false,
-        hidden: false
+        hidden: item.hidden === true
       }))
     },
     debug: false,
