@@ -20,6 +20,8 @@ export interface PullJob {
 }
 
 const KEEP_FINISHED = 50;
+/** A download that reports no progress for this long is given up on (a dead connection would otherwise keep the machine "busy" forever). */
+export const DEFAULT_STALL_MS = 10 * 60_000;
 
 /**
  * Model downloads run in the background: the hub starts one, then watches it. A download is a job with an id, so a
@@ -35,6 +37,7 @@ export class PullManager {
     private readonly runtime: Runtime,
     private readonly activity: Activity,
     private readonly log: { info: (o: object, m?: string) => void; warn: (o: object, m?: string) => void } = { info: () => undefined, warn: () => undefined },
+    private readonly stallMs: number = DEFAULT_STALL_MS,
   ) {}
 
   /** Downloads in progress or waiting. */
@@ -119,22 +122,38 @@ export class PullManager {
     job.phase = 'starting';
     this.activity.touch();
     this.log.info({ model: job.name }, 'download started');
+    // No progress for stallMs: abort, and report why (a user's cancel is told apart by `stalled`).
+    let stalled = false;
+    let timer: NodeJS.Timeout | undefined;
+    const arm = (): void => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        stalled = true;
+        abort.abort();
+      }, this.stallMs);
+    };
+    arm();
     try {
       await this.runtime.ensureRunning();
-      await this.runtime.pull(job.name, p => this.progress(job, p), abort.signal);
+      await this.runtime.pull(job.name, p => { arm(); this.progress(job, p); }, abort.signal);
       job.phase = 'success';
       if (job.total) job.completed = job.total;
       job.percent = 100;
       this.finish(job, 'succeeded', null);
       this.log.info({ model: job.name }, 'download finished');
     } catch (e) {
-      if (abort.signal.aborted) this.finish(job, 'cancelled', null);
+      if (stalled) {
+        const message = `no progress for ${Math.round(this.stallMs / 60_000)} min; the download was given up (start it again to resume)`;
+        this.log.warn({ model: job.name }, 'download stalled');
+        this.finish(job, 'failed', message);
+      } else if (abort.signal.aborted) this.finish(job, 'cancelled', null);
       else {
         const message = isAgentError(e) ? e.message : e instanceof Error ? e.message : String(e);
         this.log.warn({ model: job.name, err: message }, 'download failed');
         this.finish(job, 'failed', message);
       }
     } finally {
+      clearTimeout(timer);
       this.activity.touch();
     }
   }

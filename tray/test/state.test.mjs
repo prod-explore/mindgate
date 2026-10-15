@@ -39,3 +39,20 @@ test('before the first answer the tray guesses nothing', () => {
   assert.equal(describeState({ status: 'unknown' }).title, 'connecting to the agent…')
   assert.equal(describeState({}).icon, 'gray')
 })
+
+test('idle readings within the TTL are shared, and a failed reading means "active"', async () => {
+  const { memoizeIdle } = await import('../src/idle.js')
+  let t = 0
+  let calls = 0
+  let fail = false
+  const idle = memoizeIdle(() => { calls++; if (fail) throw new Error('no display'); return 42 }, 1000, () => t)
+  assert.equal(idle(), 42)
+  assert.equal(idle(), 42)
+  t = 999
+  assert.equal(idle(), 42)
+  assert.equal(calls, 1, 'one process for three callers')
+  t = 1000
+  fail = true
+  assert.equal(idle(), 0, 'cannot tell → assume the user is there')
+  assert.equal(calls, 2)
+})

@@ -106,7 +106,7 @@ While the agent is busy (a request in flight or a download), the tray also block
 
 ### Checking for user activity
 
-- **Windows** — `GetLastInputInfo`, through `ffi-napi` when it installed, otherwise through a small C# program (`get-idle-time.exe`) compiled from `src/get-idle-time.cs` the first time it is needed.
+- **Windows** — `GetLastInputInfo`, through a small C# program (`get-idle-time.exe`) compiled from `src/get-idle-time.cs` the first time it is needed. Readings are shared for one second, so a status poll never starts more than one process.
 - **Linux** — `xprintidle`.
 
 If the idle time cannot be read, the tray assumes the user is active (0 seconds idle), which holds the shutdown back.
