@@ -8,6 +8,10 @@ agent:
   secret: "wklej-tu-MINDGATE_NODE_SECRET-z-agent-.env"
   poll_interval_ms: 5000              # co ile sprawdzać status agenta
 
+# Hub — adres, pod którym otwierasz panel w przeglądarce. Z nim w menu trayu jest „Otwórz panel MindGate”.
+hub:
+  url: "http://adres-huba"
+
 # IPC server — mini serwer HTTP na localhost
 ipc:
   port: 3002

@@ -35,6 +35,8 @@ function loadConfig() {
     console.error('[config] Brak agent.secret w konfiguracji tray')
     process.exit(1)
   }
+  // adres huba (do przycisku „Otwórz panel”); bez niego przycisku nie ma
+  cfg.hub = { url: '', ...cfg.hub }
   cfg.ipc = {
     port: 3002,
     ...cfg.ipc
