@@ -36,20 +36,6 @@ export interface FetchOptions {
   timeoutMs: number;
 }
 
-const CONNECTION_CODES = new Set([
-  'ECONNREFUSED',
-  'ECONNRESET',
-  'ENOTFOUND',
-  'EAI_AGAIN',
-  'EHOSTUNREACH',
-  'ENETUNREACH',
-  'EPIPE',
-  'ETIMEDOUT',
-  'UND_ERR_SOCKET',
-  'UND_ERR_CONNECT_TIMEOUT',
-  'UND_ERR_CLOSED',
-]);
-
 function causeCode(e: unknown): string {
   const err = e as { code?: string; cause?: { code?: string; errors?: Array<{ code?: string }> } } | undefined;
   return err?.cause?.code ?? err?.cause?.errors?.[0]?.code ?? err?.code ?? '';

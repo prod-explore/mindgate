@@ -1,7 +1,7 @@
 {
   "name": "mindgate-hub",
   "version": "2.0.0",
-  "description": "MindGate hub \u2014 one OpenAI-compatible API in front of local nodes, OpenRouter, Gemini, Anthropic and anything else that speaks HTTP",
+  "description": "MindGate hub — one OpenAI-compatible API in front of local nodes, OpenRouter, Gemini, Anthropic and anything else that speaks HTTP",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
@@ -20,13 +20,11 @@
   "dependencies": {
     "better-sqlite3": "^11.10.0",
     "fastify": "^5.3.3",
-    "js-yaml": "^4.1.0",
     "pino": "^9.14.0",
     "undici": "^7.8.0"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",
-    "@types/js-yaml": "^4.0.9",
     "@types/node": "^22.15.0",
     "typescript": "^5.8.3"
   }

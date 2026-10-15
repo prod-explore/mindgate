@@ -9,7 +9,7 @@ The agent does four things:
 3. **Gives the hub a management API** (`/node/*`): machine status, model list, background downloads, deletion, loading into and unloading from memory. Full description: [05 - Node protocol](05-nodes.md).
 4. **Shuts the computer down** at the hub's request after a period of inactivity — but only when nothing is in progress and nobody is using the PC (see [03 - Tray](03-tray.md)).
 
-What the agent does **not** do (and the old agent did): there are no profiles (`flash`, `reasoning`…), no pipelines, no MCP tools and no queue of its own. The names for clients are **aliases in the hub**, the hub runs the queue (the provider's `max_concurrency`), and you pick a model simply by its Ollama name. That keeps the agent so simple that there is hardly anything in it that can break.
+What the agent does **not** do: there are no profiles (`flash`, `reasoning`…), no pipelines, no MCP tools and no queue of its own. The names for clients are **aliases in the hub**, the hub runs the queue (the provider's `max_concurrency`), and you pick a model simply by its Ollama name. That keeps the agent so simple that there is hardly anything in it that can break.
 
 ---
 
@@ -177,27 +177,13 @@ After a "no" the hub waits 5 minutes before asking again. A person can shut the 
 
 ---
 
-## Migrating from the old agent
-
-| Before | Now |
-|---|---|
-| `config/models.yml` (profiles, pipelines, `server.secret`) | gone; the secret → `MINDGATE_NODE_SECRET` in `agent/.env`, profiles → aliases in the hub |
-| `config/mcp.yml`, MCP tools | removed |
-| the `X-MindGate-Secret` header | `Authorization: Bearer …` (the agent still accepts the old header, but the hub and the tray use the new one) |
-| `/internal/shutdown-request`, `/internal/set-user-active`, `/internal/exit` | `/node/power/shutdown-request`, `/node/user-active`, `/node/exit` |
-| `node src/index.js` | `npm run build`, then `node dist/index.js` (as a service: `npm run install-service`) |
-
-Steps: `git pull`, in `agent/` run `npm install && npm run build`, create `.env`, delete the old `config/`, install the service again (`uninstall-service`, then `install-service`), update the tray (the same package). In the hub: `import-legacy` moves the provider and the keys (see [01 - Hub](01-gate.md)). The downloaded models stay — Ollama keeps them.
-
----
-
 ## Troubleshooting
 
 **The agent exits at once with "MINDGATE_NODE_SECRET is not set / too weak"** — the secret in `agent/.env` is missing or is a placeholder. `openssl rand -hex 32`.
 
 **The hub shows `node_auth_failed`** — the secret in the hub (the provider's "API key" field) differs from `MINDGATE_NODE_SECRET`.
 
-**The hub shows `agent_missing`** — no MindGate agent answers at `control_url` (an old agent, a wrong port, a wrong prefix). `curl -H "Authorization: Bearer …" <control_url>/node/status` shows what is there.
+**The hub shows `agent_missing`** — no MindGate agent answers at `control_url` (a wrong port, a wrong prefix, another service). `curl -H "Authorization: Bearer …" <control_url>/node/status` shows what is there.
 
 **`runtime_unavailable` / "Ollama is not installed here"** — the agent did not find `ollama`. Install it or set `OLLAMA_PATH`.
 

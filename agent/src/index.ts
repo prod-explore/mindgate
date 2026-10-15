@@ -19,7 +19,7 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const log = pino({ level: config.logLevel, redact: ['req.headers.authorization', 'req.headers["x-mindgate-secret"]'] });
+  const log = pino({ level: config.logLevel, redact: ['req.headers.authorization'] });
   let closing = false;
   let agent: Awaited<ReturnType<typeof buildAgent>>;
 

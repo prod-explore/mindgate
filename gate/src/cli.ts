@@ -1,16 +1,14 @@
 #!/usr/bin/env node
-import { chmodSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, readdirSync, rmSync, statSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import Database from 'better-sqlite3';
-import yaml from 'js-yaml';
 import { adapterFor } from './adapters/index.js';
 import { loadConfig } from './config.js';
 import { createHub, silentLogger, type Hub } from './context.js';
 import { isHubError } from './errors.js';
 import { withDeadline } from './upstream.js';
 import type { ApiKeyRecord } from './types.js';
-import { isPlainObject } from './util.js';
 
 export interface CliIo {
   out(line: string): void;
@@ -27,12 +25,6 @@ const HELP = `MindGate command line (run it where the hub runs, with the same en
   keys revoke <name|id>
   keys delete <name|id>
 
-  import-legacy <config.yml> [--provider agent] [--agent-models models.yml] [--dry-run]
-      Moves the old gate's config.yml (agent, Wake-on-LAN, API keys) into the database.
-      Existing client keys keep working: they are stored as hashes, the config file is not needed afterwards.
-      Models are discovered from the machine; --agent-models (the old agent's models.yml) keeps the old
-      profile names (flash, reasoning...) working as aliases for the Ollama models they meant.
-
   backup [file] [--keep N]      Consistent copy of the database (safe while the hub runs).
                                 Provider API keys inside are encrypted: keep MINDGATE_MASTER_KEY with the backup.
   check [--online]              Looks at the configuration and the database; --online also calls every provider.
@@ -43,7 +35,7 @@ interface Parsed {
   flags: Map<string, string | true>;
 }
 
-const BOOLEAN_FLAGS = new Set(['local-only', 'dry-run', 'online', 'help']);
+const BOOLEAN_FLAGS = new Set(['local-only', 'online', 'help']);
 
 function parseArgs(args: string[]): Parsed {
   const positional: string[] = [];
@@ -148,207 +140,6 @@ function keysCommand(hub: Hub, p: Parsed, io: CliIo): number {
   }
 }
 
-// ─── import-legacy ───────────────────────────────────────────────────────────
-
-const PLACEHOLDER_KEY = /^mg-(x+|y+|z+)$/i;
-const SLUG = /^[a-z0-9][a-z0-9-]{0,39}$/;
-const MAX_TIMEOUT_MS = 3_600_000;
-
-type Y = Record<string, unknown>;
-const obj = (v: unknown): Y => (isPlainObject(v) ? v : {});
-const num = (v: unknown): number | undefined => (typeof v === 'number' && Number.isFinite(v) ? v : undefined);
-const text = (v: unknown): string | undefined => (typeof v === 'string' && v.trim() ? v.trim() : undefined);
-
-export interface LegacyImportResult {
-  provider: string;
-  models: string[];
-  aliases: string[];
-  keysImported: string[];
-  keysSkipped: Array<{ name: string; reason: string }>;
-  notes: string[];
-}
-
-/** What the old agent's models.yml said: profile name -> the model tag in Ollama. */
-function readAgentProfiles(path: string): Array<{ profile: string; tag: string; description?: string }> {
-  let doc: unknown;
-  try {
-    doc = yaml.load(readFileSync(path, 'utf8'));
-  } catch (e) {
-    throw new UsageError(`Cannot read ${path}: ${e instanceof Error ? e.message : String(e)}`);
-  }
-  const out: Array<{ profile: string; tag: string; description?: string }> = [];
-  for (const [profile, raw] of Object.entries(obj(obj(doc)['models']))) {
-    const tag = text(obj(raw)['ollama']);
-    if (tag) out.push({ profile, tag, ...(text(obj(raw)['description']) ? { description: text(obj(raw)['description'])! } : {}) });
-  }
-  return out;
-}
-
-/**
- * The old gate had one machine (the agent) behind it, a list of profile names, and plain-text client keys.
- * That becomes: one provider that is a node (Wake-on-LAN, idle shutdown, managed through its agent) and the client
- * keys, now stored as hashes.
- *
- * The models are not copied: they live on the node now and the hub learns them from it. A profile name that clients
- * still use (flash, reasoning...) can be kept as an alias for a real model with `agentModelsPath` (the old agent's
- * models.yml says which Ollama model each profile meant). Pipelines and MCP tools no longer exist; they are reported.
- */
-export function importLegacy(hub: Hub, configPath: string, providerId: string, dryRun: boolean, agentModelsPath?: string): LegacyImportResult {
-  let doc: unknown;
-  try {
-    doc = yaml.load(readFileSync(configPath, 'utf8'));
-  } catch (e) {
-    throw new UsageError(`Cannot read ${configPath}: ${e instanceof Error ? e.message : String(e)}`);
-  }
-  const cfg = obj(doc);
-  const agent = obj(cfg['agent']);
-  const wol = obj(cfg['wol']);
-  const shutdown = obj(cfg['shutdown']);
-  const queue = obj(cfg['queue']);
-  const server = obj(cfg['server']);
-  const notes: string[] = [];
-
-  if (!SLUG.test(providerId)) throw new UsageError(`--provider must be lowercase letters, digits and dashes (got "${providerId}")`);
-  const agentUrl = text(agent['url']);
-  if (!agentUrl) throw new UsageError('The config has no agent.url: nothing to import');
-  const base = agentUrl.replace(/\/+$/, '');
-  if (hub.providers.get(providerId)) throw new UsageError(`A provider "${providerId}" already exists. Pick another with --provider, or delete it first.`);
-
-  const secret = text(agent['secret']);
-  const timeout = num(agent['timeout_ms']) ?? 0;
-  // the old gate waited without limit; the hub caps a single wait at one hour
-  const waitMs = timeout > 0 ? Math.min(timeout, MAX_TIMEOUT_MS) : MAX_TIMEOUT_MS;
-  const mac = text(wol['mac']);
-  const idleMinutes = num(shutdown['idle_minutes']);
-
-  // health and shutdown addresses come from control_url: the agent knows them
-  const node = mac
-    ? {
-        mac,
-        broadcast: text(wol['broadcast']) ?? '255.255.255.255',
-        port: num(wol['port']) ?? 9,
-        minWakePriority: num(wol['min_priority']) ?? 3,
-        bootTimeoutMs: num(wol['boot_timeout_ms']) ?? 120_000,
-        pollIntervalMs: num(wol['poll_interval_ms']) ?? 2000,
-        controlUrl: base,
-        ...(idleMinutes && idleMinutes > 0 ? { idleShutdownMinutes: Math.floor(idleMinutes) } : {}),
-      }
-    : null;
-  if (!node) notes.push('The config has no wol.mac, so the machine is not woken automatically and its models cannot be managed from the hub until node settings are added (control_url).');
-
-  const names = (v: unknown): string[] => (Array.isArray(v) ? v : []).filter((m): m is string => typeof m === 'string' && m.trim() !== '').map(m => m.trim());
-  const oldProfiles = names(cfg['models']);
-  const profiles = agentModelsPath ? readAgentProfiles(agentModelsPath) : [];
-  const pipelines = [...names(cfg['pipelines'])];
-  if (agentModelsPath) {
-    try {
-      pipelines.push(...Object.keys(obj(obj(yaml.load(readFileSync(agentModelsPath, 'utf8')))['pipelines'])));
-    } catch {
-      /* already reported by readAgentProfiles */
-    }
-  }
-
-  const keysCfg = Array.isArray(obj(cfg['auth'])['keys']) ? (obj(cfg['auth'])['keys'] as unknown[]) : [];
-  const result: LegacyImportResult = { provider: providerId, models: [], aliases: [], keysImported: [], keysSkipped: [], notes };
-
-  const run = () => {
-    hub.providers.create({
-      id: providerId,
-      name: 'Compute machine (imported)',
-      type: 'openai',
-      baseUrl: `${base}/v1`,
-      locality: 'local',
-      // the new agent takes the same shared secret as a bearer token
-      authScheme: secret ? 'bearer' : 'none',
-      ...(secret ? { apiKey: secret } : {}),
-      // a cold start of a big model and a long answer are normal on a local machine
-      options: { firstByteTimeoutMs: waitMs, idleTimeoutMs: waitMs },
-      maxConcurrency: 1,
-      node,
-    });
-    for (const { profile, tag, description } of profiles) {
-      const id = `${providerId}/${tag}`;
-      const model = hub.models.getRecord(id) ? hub.models.require(id) : hub.models.addManual(providerId, tag, { name: tag, kind: 'chat' });
-      if (!result.models.includes(model.id)) result.models.push(model.id);
-      if (!hub.aliases.get(profile)) {
-        hub.aliases.create({ name: profile, description: description ?? `Imported profile "${profile}"`, tags: ['legacy'], targets: [model.id] });
-        result.aliases.push(profile);
-      } else {
-        notes.push(`An alias "${profile}" already exists; it was left alone.`);
-      }
-    }
-    for (const raw of keysCfg) {
-      const k = obj(raw);
-      const name = text(k['name']);
-      const key = text(k['key']);
-      if (!name || !key) {
-        result.keysSkipped.push({ name: name ?? '(no name)', reason: 'name or key missing' });
-        continue;
-      }
-      if (PLACEHOLDER_KEY.test(key)) {
-        result.keysSkipped.push({ name, reason: 'still the placeholder from config.example.yml' });
-        continue;
-      }
-      try {
-        const min = num(k['min_priority']);
-        const max = num(k['max_priority']);
-        const def = num(k['default_priority']);
-        hub.keys.create({ name, key, ...(min !== undefined ? { minPriority: min } : {}), ...(max !== undefined ? { maxPriority: max } : {}), ...(def !== undefined ? { defaultPriority: def } : {}) });
-        result.keysImported.push(name);
-      } catch (e) {
-        result.keysSkipped.push({ name, reason: isHubError(e) ? e.message : String(e) });
-      }
-    }
-  };
-
-  if (dryRun) {
-    // run it for real inside a transaction that is thrown away, so the dry run reports exactly what would happen
-    const rollback = new Error('dry run');
-    try {
-      hub.db.transaction(() => {
-        run();
-        throw rollback;
-      })();
-    } catch (e) {
-      if (e !== rollback) throw e;
-    }
-  } else {
-    hub.db.transaction(run)();
-  }
-
-  if (!agentModelsPath && oldProfiles.length) {
-    notes.push(`The old profile names (${oldProfiles.join(', ')}) are not carried over: models are discovered from the machine now. To keep a name working for clients, pass the old agent's models.yml with --agent-models, or create an alias in the admin API.`);
-  }
-  if (pipelines.length) notes.push(`Pipelines (${[...new Set(pipelines)].join(', ')}) no longer exist; chain models in the client. An alias with several targets is a fallback list, not a sequence.`);
-  notes.push('Start the new agent on the machine (same secret as MINDGATE_NODE_SECRET), then sync the provider to see its models.');
-  const q = num(queue['max_size']);
-  if (q !== undefined) notes.push(`queue.max_size (${q}) is now the environment variable MINDGATE_QUEUE_MAX.`);
-  const qt = num(queue['request_timeout_ms']);
-  if (qt) notes.push(`queue.request_timeout_ms (${qt}) is now MINDGATE_QUEUE_TIMEOUT_MS.`);
-  const port = num(server['port']);
-  if (port !== undefined && port !== 3000) notes.push(`server.port (${port}) is now MINDGATE_PORT.`);
-  notes.push(`Waits for the machine are capped at ${Math.round(waitMs / 60000)} minutes per request (the old gate had no limit).`);
-  return result;
-}
-
-function importCommand(hub: Hub, p: Parsed, io: CliIo): number {
-  const file = p.positional[1];
-  if (!file) throw new UsageError('import-legacy needs the path of the old config.yml');
-  const providerId = typeof p.flags.get('provider') === 'string' ? (p.flags.get('provider') as string) : 'agent';
-  const dry = p.flags.get('dry-run') === true;
-  const agentModels = p.flags.get('agent-models');
-  if (agentModels === true) throw new UsageError('--agent-models needs the path of the old agent\'s models.yml');
-  const r = importLegacy(hub, resolve(file), providerId, dry, typeof agentModels === 'string' ? resolve(agentModels) : undefined);
-  io.out(dry ? 'Dry run — nothing was written. This is what would happen:' : 'Imported.');
-  io.out(`  provider  ${r.provider}  (a node: Wake-on-LAN, one request at a time, local, managed through its agent)`);
-  io.out(`  aliases   ${r.aliases.length ? r.aliases.map(a => `${a}`).join(', ') : 'none'}${r.aliases.length ? '   (old profile names, now pointing at real models)' : ''}`);
-  io.out(`  keys      ${r.keysImported.length ? r.keysImported.join(', ') : 'none'}`);
-  for (const s of r.keysSkipped) io.out(`  skipped key "${s.name}": ${s.reason}`);
-  for (const n of r.notes) io.out(`  note: ${n}`);
-  if (!dry && r.keysImported.length) io.out('The keys are stored as hashes now: you can delete config.yml, which holds them in plain text.');
-  return 0;
-}
-
 // ─── backup ──────────────────────────────────────────────────────────────────
 
 const stamp = (d = new Date()): string => d.toISOString().replace(/[-:]/g, '').replace('T', '-').slice(0, 15);
@@ -411,7 +202,7 @@ async function checkCommand(hub: Hub, p: Parsed, io: CliIo): Promise<number> {
   io.out(`database   ${hub.config.dbPath}  (${(size / 1024).toFixed(0)} KiB, schema ${hub.db.pragma('user_version', { simple: true })})`);
   io.out(`time zone  ${hub.config.usageTz} (daily and monthly budgets reset at midnight there)`);
   const providers = hub.providers.list();
-  if (!providers.length) io.out('providers  none yet — add one in the admin API or with import-legacy');
+  if (!providers.length) io.out('providers  none yet — add one in the admin panel or through the admin API');
   for (const pr of providers) {
     const broken = pr.hasSecret && hub.providers.secretBroken(pr.id);
     const models = hub.models.list(pr.id);
@@ -451,14 +242,12 @@ export async function runCli(argv: string[], env: NodeJS.ProcessEnv = process.en
       io.out(HELP);
       return command || p.flags.has('help') ? 0 : 2;
     }
-    if (!['keys', 'import-legacy', 'backup', 'check'].includes(command)) throw new UsageError(`Unknown command "${command}"`);
+    if (!['keys', 'backup', 'check'].includes(command)) throw new UsageError(`Unknown command "${command}"`);
     const config = loadConfig(env, m => io.err(`warning: ${m}`));
     hub = createHub(config, silentLogger);
     switch (command) {
       case 'keys':
         return keysCommand(hub, p, io);
-      case 'import-legacy':
-        return importCommand(hub, p, io);
       case 'backup':
         return await backupCommand(hub, p, io);
       default:

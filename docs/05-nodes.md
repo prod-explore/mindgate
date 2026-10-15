@@ -14,7 +14,7 @@ Each further level is optional. A plain "provider" is, for example, a bare Ollam
 
 ## Authentication
 
-Everything — `/health` too — needs `Authorization: Bearer <secret>`. The secret is the provider's "API key" in the hub. The agent also accepts the old `X-MindGate-Secret` header. A missing or wrong secret gives `401`:
+Everything — `/health` too — needs `Authorization: Bearer <secret>`. The secret is the provider's "API key" in the hub. A missing or wrong secret gives `401`:
 
 ```json
 { "error": { "message": "Unauthorized: …", "type": "authentication_error", "code": "invalid_node_secret" } }

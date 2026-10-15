@@ -30,15 +30,12 @@ export interface Agent {
 
 const digest = (s: string): Buffer => createHash('sha256').update(s).digest();
 
-/** The secret may come as `Authorization: Bearer …` or, as the first MindGate agent expected it, `X-MindGate-Secret`. */
+/** The node secret, presented as `Authorization: Bearer <secret>`. */
 export function presentedSecret(headers: Record<string, string | string[] | undefined>): string | null {
   const auth = headers['authorization'];
-  if (typeof auth === 'string') {
-    const m = /^Bearer\s+(.+)$/i.exec(auth.trim());
-    if (m) return m[1]!.trim();
-  }
-  const legacy = headers['x-mindgate-secret'];
-  return typeof legacy === 'string' ? legacy.trim() : null;
+  if (typeof auth !== 'string') return null;
+  const m = /^Bearer\s+(.+)$/i.exec(auth.trim());
+  return m ? m[1]!.trim() : null;
 }
 
 /** Builds the agent around its configuration. Nothing is listening and no runtime is started until the caller says so. */
