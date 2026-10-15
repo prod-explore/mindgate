@@ -1,6 +1,6 @@
 /**
- * Buduje menu systray. Liczba pozycji jest stała (systray2 aktualizuje je w miejscu), a pozycje, których
- * teraz nie ma, są ukryte.
+ * Builds the system tray menu. The number of items is fixed (systray2 updates them in place); items that do not
+ * apply right now are hidden.
  */
 import { execFile } from 'child_process'
 import { readFileSync } from 'fs'
@@ -15,44 +15,44 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 
 const log = pino({ name: 'menu' })
 
-// Wersja z tray/package.json (src/..)
+// Version from tray/package.json (one level above src/)
 let TRAY_VERSION = '?'
 try {
   const pkg = JSON.parse(readFileSync(resolve(__dirname, '..', 'package.json'), 'utf8'))
   TRAY_VERSION = pkg.version || '?'
 } catch {
-  // fallback — package.json nie istnieje lub błąd parsowania
+  // fallback — package.json is missing or cannot be parsed
 }
 
 export const SEPARATOR = '<SEPARATOR>'
 
-// Stan aktualny
+// Current state
 let agentState = {
   status: 'unknown',
   busy: 0,
   lastCheck: null
 }
 
-/** Adres panelu huba, o ile jest w tray.yml i jest adresem http(s). */
+/** The hub panel address, if tray.yml has one and it is an http(s) URL. */
 export function panelUrl() {
   const base = String(config.hub?.url || '').trim().replace(/\/+$/, '')
   return /^https?:\/\//i.test(base) ? `${base}/admin/` : ''
 }
 
 function openInBrowser(url) {
-  // rundll32 nie przepuszcza niczego przez powłokę, więc znaki w adresie nic nie psują
+  // rundll32 passes nothing through a shell, so characters in the address cannot break anything
   execFile('rundll32', ['url.dll,FileProtocolHandler', url], { windowsHide: true }, err => {
-    if (err) log.warn({ err: err.message }, 'Nie udało się otworzyć przeglądarki')
+    if (err) log.warn({ err: err.message }, 'Could not open the browser')
   })
 }
 
-/** Podpowiedź przy ikonie. */
+/** The tooltip on the icon. */
 export function buildTooltip() {
   return `MindGate v${TRAY_VERSION} — ${describeState(agentState).title}`
 }
 
 /**
- * Generuje pozycje menu kontekstowego.
+ * Builds the items of the context menu.
  */
 export function buildMenuItems() {
   const toggle = getUserToggle()
@@ -64,15 +64,15 @@ export function buildMenuItems() {
     { title: state.detail || ' ', enabled: false, hidden: !state.detail },
     { title: SEPARATOR },
     {
-      title: 'Nie wyłączaj tego komputera',
+      title: "Don't shut down this computer",
       checked: toggle,
       click: () => {
         setUserToggle(!toggle)
-        log.info({ newState: !toggle }, 'Toggle zmieniony przez menu')
+        log.info({ newState: !toggle }, 'Toggle changed from the menu')
       }
     },
     {
-      title: 'Otwórz panel MindGate',
+      title: 'Open the MindGate panel',
       hidden: !url,
       click: () => {
         if (url) openInBrowser(url)
@@ -80,9 +80,9 @@ export function buildMenuItems() {
     },
     { title: SEPARATOR },
     {
-      title: 'Zamknij MindGate (agent i tray)',
+      title: 'Quit MindGate (agent and tray)',
       click: async () => {
-        log.info('Zamykanie tray app i agenta...')
+        log.info('Shutting down the tray app and the agent...')
         try {
           await fetch(`${config.agent.url}/node/exit`, {
             method: 'POST',
@@ -94,7 +94,7 @@ export function buildMenuItems() {
             signal: AbortSignal.timeout(3000)
           })
         } catch (err) {
-          log.warn({ err: err.message }, 'Nie udalo sie poinformowac agenta o zamknieciu')
+          log.warn({ err: err.message }, 'Could not tell the agent about the shutdown')
         }
         process.exit(0)
       }
@@ -103,7 +103,7 @@ export function buildMenuItems() {
 }
 
 /**
- * Aktualizuje stan agenta (wywoływane z pollingu).
+ * Updates the agent state (called from the polling loop).
  */
 export function updateAgentState(state) {
   agentState = {
@@ -113,7 +113,7 @@ export function updateAgentState(state) {
 }
 
 /**
- * Zwraca aktualny stan do wyboru ikony.
+ * Returns the current state, used to pick the icon.
  */
 export function getAgentState() {
   return agentState

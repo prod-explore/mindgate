@@ -1,47 +1,47 @@
-# Tray App — mindgate-tray
+# Tray app — mindgate-tray
 
-Aplikacja działająca w zasobniku systemowym (system tray) na maszynie obliczeniowej. Pokazuje status systemu, pozwala ręcznie zarządzać shutdown guard i daje szybki dostęp do logów i kolejki.
+A small app in the system tray of the compute machine. It shows what the agent is doing, lets you say "I'm using this PC, don't shut it down", and keeps Windows from shutting down while the agent is busy.
 
-Zbudowana w Node.js z biblioteką `node-systray`. Działa na Windows i Linux.
-
----
-
-## Wymagania
-
-- Node.js 20+
-- Windows 10+ lub Linux z DE (GNOME, KDE, XFCE)
-- Na Linux: `libappindicator` (większość DE ma domyślnie)
+Built with Node.js and the `systray2` library. It is written for Windows (the idle check and the shutdown block use Windows APIs). Linux is supported on a best-effort basis: the icon and the idle check (`xprintidle`) are there, the shutdown block is not (shutdown there is controlled by systemd/polkit).
 
 ---
 
-## Instalacja
+## Requirements
+
+- Node.js 22+
+- Windows 10+ — or Linux with a desktop environment (GNOME, KDE, XFCE) and `xprintidle`
+- On Linux: `libappindicator` (most desktop environments have it)
+- On Windows, the .NET Framework compiler (`csc.exe`, part of Windows) — the tray compiles two tiny helper programs the first time it needs them: one reads the idle time, one holds the shutdown back
+
+---
+
+## Installation
 
 ```bash
 cd mindgate/tray
 npm install
+cp config/tray.example.yml config/tray.yml
+# set agent.secret to the MINDGATE_NODE_SECRET from agent/.env, and hub.url to the address of your hub
+npm start
 ```
 
 ### Autostart — Windows
 
 ```bash
-node scripts/install-autostart-windows.js
+npm run install-autostart
 ```
 
-Skrypt dodaje wpis do `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`.
+The script generates `start-tray.vbs` with absolute paths for this machine and adds an entry to `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`. To remove it: `reg delete "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v MindGateTray /f`.
 
 ### Autostart — Linux
 
-```bash
-cp mindgate-tray.desktop ~/.config/autostart/
-```
-
-Plik `mindgate-tray.desktop`:
+Create `~/.config/autostart/mindgate-tray.desktop`:
 
 ```ini
 [Desktop Entry]
 Type=Application
 Name=MindGate Tray
-Exec=/usr/bin/node /home/twoj-user/mindgate/tray/src/index.js
+Exec=/usr/bin/node /home/your-user/mindgate/tray/src/index.js
 Hidden=false
 NoDisplay=false
 X-GNOME-Autostart-enabled=true
@@ -49,173 +49,126 @@ X-GNOME-Autostart-enabled=true
 
 ---
 
-## Funkcje
+## What it shows
 
-### Ikona i status
+### The icon
 
-Ikona w trayu zmienia kolor według stanu systemu:
+The icon changes colour with the state of the agent, which the tray polls every 5 seconds (`GET /health`):
 
-| Kolor | Stan |
-|-------|------|
-| 🟢 Zielony | Agent działa, modele gotowe |
-| 🟡 Żółty | Przetwarza żądania (kolejka > 0) |
-| 🔵 Niebieski | Idle, czeka na żądania |
-| 🔴 Czerwony | Błąd — agent nie odpowiada |
-| ⚪ Szary | Wyłączony / nie podłączony |
+| Colour | State |
+|--------|-------|
+| Green | The agent is ready and idle |
+| Yellow | The agent is working: a request is in flight or a model is being downloaded |
+| Red | The agent rejected the secret, returned an error, or reports problems |
+| Grey | The agent does not answer, or the tray has not heard from it yet |
 
-### Menu kontekstowe (prawy klik)
+The first line of the menu says the same in words ("MindGate — ready"), and the second one lists the models that are loaded into memory.
+
+### The menu (right click)
 
 ```
-MindGate                     ← nazwa + wersja
+MindGate — ready
+In memory: qwen3:4b
 ─────────────────────────────
-● Agent: OK  |  Kolejka: 0
-  Ostatnie żądanie: 3 min temu
+[x] Don't shut down this computer
+    Open the MindGate panel          (only when hub.url is set)
 ─────────────────────────────
-🛡️  Używam PC — NIE wyłączaj  ← toggle
-─────────────────────────────
-📋  Pokaż kolejkę
-📊  Statystyki
-📜  Logi
-─────────────────────────────
-⚙️  Ustawienia
-🔄  Restart agenta
-⏹️  Zatrzymaj agenta
-─────────────────────────────
-✕  Zamknij tray
+    Quit MindGate (agent and tray)
 ```
 
-### "Używam PC — nie wyłączaj"
+- **Don't shut down this computer** — the toggle described below.
+- **Open the MindGate panel** opens `<hub.url>/admin/` in the browser.
+- **Quit MindGate (agent and tray)** tells the agent to exit (`POST /node/exit`) and closes the tray.
 
-Najważniejsza funkcja. Gdy ją włączysz (toggle), system **nigdy** nie wyśle sygnału shutdown, nawet jeśli nie ma żądań przez długi czas.
+### The toggle
 
-Włącz gdy:
-- Instalujesz coś dużego i nie chcesz żeby system się wyłączył w środku
-- Słuchasz muzyki (Spotify, inne)
-- Pracujesz lokalnie i nie chcesz przerw
+While it is on, the machine is **never** shut down, however long it has been idle. It switches on **by itself** when the tray sees mouse or keyboard input (input within the last `idle_threshold_seconds`), and it stays on until you switch it off in the menu. Switch it on by hand when you are going to leave something running that produces no input — a long installation, music, a download.
 
-Toggle jest widoczny w menu jako pierwsza opcja — jeden klik.
+The toggle is not remembered: after the tray restarts it starts off, and turns on again as soon as it sees you at the keyboard.
 
 ---
 
-## Logika shutdown guard
+## The shutdown guard
 
-Wyłączenie zaczyna się w hubie: po `idle_shutdown_minutes` bez żądań prosi agenta (`POST /node/power/shutdown-request`). Agent sprawdza po swojej stronie, a potem pyta tray (`POST /shutdown-check`):
+A shutdown starts in the hub: after `idle_shutdown_minutes` without requests it asks the agent (`POST /node/power/shutdown-request`). The agent checks its own side and then asks the tray (`POST /shutdown-check`):
 
 ```
-Agent (sam):
-  1. Trwa żądanie /v1 albo pobieranie modelu?  → NIE (requests_in_flight / download_in_progress)
-Tray (na prośbę agenta):
-  2. Czy toggle "Używam PC" jest włączony?     → NIE (user_toggle_active)
-  3. Czy minęło X sekund od ostatniego inputu? → jeśli nie → NIE (user_recently_active)
-  4. (planowane) czy działają procesy z whitelisty?
+Agent (itself):
+  1. Is a /v1 request or a model download in progress?  → NO (requests_in_flight / download_in_progress)
+Tray (when the agent asks):
+  2. Is the "don't shut down" toggle on?                → NO (user_toggle_active)
+  3. Has input happened in the last N seconds?          → NO (user_recently_active)
 ```
 
-Werdykt traya jest ostateczny. Jeśli tray nie odpowiada (nie działa, zawieszony), agent odmawia (`tray_unreachable`): komputera, przy którym może siedzieć człowiek, nie wyłącza się „na zgadywanie”. Na serwerze bez traya (`MINDGATE_TRAY_URL=` puste w `agent/.env`) agent decyduje sam. Tylko gdy wszystkie warunki są spełnione, agent uruchamia `shutdown` z opóźnieniem (`MINDGATE_SHUTDOWN_DELAY_SECONDS`, domyślnie 30 s). Gdy agent pracuje (żądanie w toku albo pobieranie), tray dodatkowo blokuje na Windows ręczne wyłączenie systemu z menu Start — Windows pokaże, że MindGate przetwarza żądania.
+The tray's verdict is final. If the tray does not answer (not running, hung), the agent refuses (`tray_unreachable`): a computer someone may be sitting at is not shut down on a guess. On a server without a tray (`MINDGATE_TRAY_URL=` empty in `agent/.env`) the agent decides alone. Only when every condition is met does the agent run `shutdown`, with a delay (`MINDGATE_SHUTDOWN_DELAY_SECONDS`, 30 s by default).
 
-### Sprawdzanie aktywności użytkownika
+While the agent is busy (a request in flight or a download), the tray also blocks a manual shutdown from the Windows Start menu — Windows shows that MindGate is processing AI requests.
 
-**Windows** — WinAPI `GetLastInputInfo`:
+### Checking for user activity
 
-```javascript
-// Użycie node-ffi-napi lub node-addon-api
-import { getLastInputTime } from './idle-windows.js'
+- **Windows** — `GetLastInputInfo`, through `ffi-napi` when it installed, otherwise through a small C# program (`get-idle-time.exe`) compiled from `src/get-idle-time.cs` the first time it is needed.
+- **Linux** — `xprintidle`.
 
-const secondsIdle = getLastInputTime()  // sekundy od ostatniego ruchu myszy/klawiatury
-```
+If the idle time cannot be read, the tray assumes the user is active (0 seconds idle), which holds the shutdown back.
 
-**Linux** — `xprintidle` lub `/proc/interrupts`:
-
-```javascript
-import { execSync } from 'child_process'
-
-function getIdleSeconds() {
-  try {
-    const ms = parseInt(execSync('xprintidle').toString().trim())
-    return Math.floor(ms / 1000)
-  } catch {
-    return 0  // jeśli nie można sprawdzić, zakładaj aktywność
-  }
-}
-```
-
-### Whitelist procesów (planowane)
-
-Blokowanie wyłączenia, gdy działa wskazany program (odtwarzacz, instalator, przeglądarka), nie jest jeszcze zaimplementowane. Dziś o wyłączeniu decydują: toggle „Używam PC”, czas od ostatniego inputu i to, czy agent pracuje.
+Configuration (`tray/config/tray.yml`):
 
 ```yaml
-# tray/config/tray.yml
 shutdown_guard:
-  idle_threshold_seconds: 120     # 2 minuty braku inputu = "nieaktywny"
-  respect_manual_boot: true
+  idle_threshold_seconds: 120     # 2 minutes without input = "idle"
 ```
 
 ---
 
-## IPC z agentem
+## IPC with the agent
 
-Tray i agent rozmawiają przez HTTP na localhost. Ścieżki agenta wymagają `Authorization: Bearer <MINDGATE_NODE_SECRET>`; tray bierze ten sam sekret z `agent.secret` w `tray.yml` (albo ze zmiennej środowiskowej `MINDGATE_NODE_SECRET`).
+The tray and the agent talk over HTTP on localhost. The agent's paths need `Authorization: Bearer <MINDGATE_NODE_SECRET>`; the tray takes the same secret from `agent.secret` in `tray.yml` (or from the environment variable `MINDGATE_NODE_SECRET`).
 
 ```
 Agent  →  POST http://127.0.0.1:3002/shutdown-check  →  Tray   { idle_minutes }  →  { allow, reason }
-Tray   →  GET  <agent>/health                         (co 5 s: stan, ikona, `in_flight` + `downloads` = „zajęty”)
-Tray   →  POST <agent>/node/user-active               (co 5 s i przy zmianie toggla: { active, last_input_seconds_ago })
-Tray   →  POST <agent>/node/exit                      (menu „Zamknij tray”: agent kończy pracę)
+Tray   →  GET  <agent>/health                         (every 5 s: state, icon, `in_flight` + `downloads` = "busy")
+Tray   →  POST <agent>/node/user-active               (every 5 s and when the toggle changes: { active, last_input_seconds_ago })
+Tray   →  POST <agent>/node/exit                      (menu "Quit MindGate": the agent exits)
 ```
 
-Mini-serwer traya (port 3002, tylko `127.0.0.1`) udostępnia też `GET /status` (`user_toggle_active`, `idle_seconds`).
+The tray's small server (port 3002, `127.0.0.1` only) also serves `GET /status` (`user_toggle_active`, `idle_seconds`). It has no authentication: it only listens on the loopback interface, and what it reveals or changes is limited to this one machine's own state.
 
-Pełny kontrakt agenta: [05 - Węzły](05-nodes.md). Test w repozytorium (`e2e/`) sprawdza, że każda ścieżka, którą woła tray, istnieje w agencie.
+The agent's full contract: [05 - Node protocol](05-nodes.md). A test in the repository (`e2e/`) checks that every path the tray calls exists in the agent.
 
 ---
 
-## Struktura kodu
+## Code layout
 
 ```
 tray/src/
-├── index.js          Główna pętla, inicjalizacja systray
-├── menu.js           Budowanie i aktualizacja menu trayu
-├── ipc.js            Komunikacja HTTP z agentem
-├── idle.js           Sprawdzanie aktywności użytkownika
-├── shutdown-block.js Blokada ręcznego wyłączenia Windows, gdy agent pracuje
-├── icons/
-│   ├── green.ico
-│   ├── yellow.ico
-│   ├── blue.ico
-│   ├── red.ico
-│   └── gray.ico
-└── config.js         Ładowanie tray.yml
+├── index.js           main loop, systray setup, polling the agent
+├── state.js           turns the agent's state into an icon and text (pure, tested)
+├── menu.js            builds and updates the tray menu
+├── ipc.js             the local HTTP server and the reports to the agent
+├── idle.js            idle time (Windows API / C# fallback / xprintidle)
+├── shutdown-block.js  holds a manual Windows shutdown back while the agent is busy
+├── blocker.cs         the helper program for it
+├── get-idle-time.cs   the idle-time helper
+├── config.js          loads tray.yml
+└── icons/             green, yellow, blue, red, gray (.ico)
 ```
-
----
-
-## Budowanie binarki (opcjonalnie)
-
-Jeśli chcesz jedną binarką zamiast `node src/index.js`:
-
-```bash
-npm install -g pkg
-pkg src/index.js --targets node20-win-x64,node20-linux-x64 --output dist/mindgate-tray
-```
-
-Wynik: `dist/mindgate-tray.exe` (Windows) i `dist/mindgate-tray` (Linux).
 
 ---
 
 ## Troubleshooting
 
-**Ikona nie pojawia się w trayu (Linux)**
-Zainstaluj `libappindicator3-1`:
+**The icon does not appear (Linux)**
+Install `libappindicator3-1`:
 ```bash
 sudo apt install libappindicator3-1
 ```
-Na GNOME może być potrzebne rozszerzenie "AppIndicator and KStatusNotifierItem Support".
+On GNOME the "AppIndicator and KStatusNotifierItem Support" extension may be needed.
 
-**WinAPI nie działa (idle detection na Windows)**
-Upewnij się że `node-ffi-napi` jest zainstalowane i skompilowane:
-```bash
-npm install node-ffi-napi
-npm rebuild
-```
+**The idle time is always 0 (Windows)**
+Look at the tray's log for "Idle detection". If the native API is unavailable it falls back to the C# helper, which needs `csc.exe` from the .NET Framework (`C:\Windows\Microsoft.NET\Framework64\v4.0.30319\`). If the compiler is missing, the idle time cannot be read and the tray treats you as always active.
 
-**Toggle "Używam PC" resetuje się po restarcie**
-Celowe zachowanie — po każdym starcie systemu zakładamy że komputer może być wyłączony zdalnie. Włącz ręcznie gdy potrzebujesz.
+**The tray says "agent rejected the secret"**
+The `agent.secret` in `tray.yml` differs from `MINDGATE_NODE_SECRET` in `agent/.env`.
+
+**The icon is yellow although nobody is using the hub**
+Yellow means the agent counts a request in flight or a download. Look at `in_flight` and `downloads` in `GET <agent>/health` and at the hub's request log to see which client is sending requests (a model-list request, `GET /v1/models`, is not counted as work).

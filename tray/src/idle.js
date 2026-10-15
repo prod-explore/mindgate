@@ -10,15 +10,15 @@ const __dirname = path.dirname(__filename)
 const log = pino({ name: 'idle' })
 
 /**
- * Sprawdza ile sekund minęło od ostatniego inputu użytkownika.
- * Windows: GetLastInputInfo przez PowerShell (fallback bez ffi-napi)
+ * Tells how many seconds have passed since the user's last input.
+ * Windows: GetLastInputInfo through a small C# program (fallback without ffi-napi)
  * Linux: xprintidle
  */
 
 let useNativeApi = false
 let ffi, ref, StructType
 
-// Próba załadowania natywnego API (Windows)
+// Try to load the native API (Windows)
 if (process.platform === 'win32') {
   try {
     ffi = (await import('ffi-napi')).default
@@ -26,14 +26,14 @@ if (process.platform === 'win32') {
     StructType = (await import('ref-struct-napi')).default
 
     useNativeApi = true
-    log.info('Idle detection: natywne WinAPI (ffi-napi)')
+    log.info('Idle detection: native WinAPI (ffi-napi)')
   } catch {
-    log.info('Idle detection: PowerShell fallback (ffi-napi niedostępne)')
+    log.info('Idle detection: C# fallback (ffi-napi is not available)')
   }
 }
 
 /**
- * Zwraca sekundy od ostatniego inputu (mysz/klawiatura).
+ * Returns the seconds since the last input (mouse/keyboard).
  */
 export function getIdleSeconds() {
   try {
@@ -43,13 +43,13 @@ export function getIdleSeconds() {
       return getIdleLinux()
     }
   } catch (err) {
-    log.warn({ err: err.message }, 'Nie mogę sprawdzić idle — zakładam aktywność')
-    return 0 // bezpieczne domyślne
+    log.warn({ err: err.message }, 'Cannot read the idle time — assuming activity')
+    return 0 // the safe default
   }
 }
 
 /**
- * Windows — natywne WinAPI przez ffi-napi.
+ * Windows — native WinAPI through ffi-napi.
  */
 function getIdleWindows_native() {
   const LASTINPUTINFO = StructType({
@@ -75,8 +75,8 @@ function getIdleWindows_native() {
 }
 
 /**
- * Windows — C# Executable fallback (zamiast PowerShell).
- * Kompiluje i uruchamia mały program w C#, by uniknąć okienek PowerShell.
+ * Windows — C# executable fallback (instead of PowerShell).
+ * Compiles and runs a small C# program, which avoids PowerShell windows.
  */
 function getIdleWindows_powershell() {
   const exePath = path.join(__dirname, 'get-idle-time.exe')
@@ -85,7 +85,7 @@ function getIdleWindows_powershell() {
     if (!fs.existsSync(exePath)) {
       const csPath = path.join(__dirname, 'get-idle-time.cs')
       if (!fs.existsSync(csPath)) {
-          // Jeśli brakuje kodu źródłowego, zapisz go w locie
+          // If the source is missing, write it on the fly
           const csCode = `
 using System;
 using System.Runtime.InteropServices;
@@ -113,7 +113,7 @@ public class IdleTimeFinder {
 `
           fs.writeFileSync(csPath, csCode)
       }
-      log.info('Kompiluję get-idle-time.exe (fallback dla idle)...')
+      log.info('Compiling get-idle-time.exe (idle fallback)...')
       execSync(`C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\csc.exe /nologo /target:exe /out:"${exePath}" "${csPath}"`, { windowsHide: true })
     }
 
@@ -124,7 +124,7 @@ public class IdleTimeFinder {
     })
     return parseInt(result.trim(), 10) || 0
   } catch (err) {
-    log.warn({ err: err.message }, 'Błąd podczas wykonywania get-idle-time.exe')
+    log.warn({ err: err.message }, 'get-idle-time.exe failed')
     return 0
   }
 }

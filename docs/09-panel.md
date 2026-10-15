@@ -1,106 +1,107 @@
-# Panel administracyjny
+# The admin panel
 
-Panel to strona, przez którą zarządzasz hubem bez `curl`: dostawcy, modele, aliasy, klucze klientów, zużycie, log żądań i modele na maszynach z GPU. Robi dokładnie to, co [API administratora](08-api.md) — nie ma żadnej własnej ścieżki do bazy.
+The panel is a web page for managing the hub without `curl`: providers, models, aliases, client keys, usage, the request log and the models on GPU machines. It does exactly what the [administrator API](08-api.md) does — it has no path of its own to the database.
 
-- **Adres:** `http://<hub>:3000/admin/` (`/admin` przekierowuje na `/admin/`).
-- **Logowanie:** wartość `MINDGATE_ADMIN_TOKEN` z środowiska huba. To ten sam token, który chroni `/admin/api`.
-- **Języki:** polski i angielski (domyślnie wg przeglądarki), motyw jasny / ciemny / automatyczny. Oba wybory zapamiętuje przeglądarka.
+- **Address:** `http://<hub>:3000/admin/` (`/admin` redirects to `/admin/`).
+- **Sign-in:** the value of `MINDGATE_ADMIN_TOKEN` from the hub's environment — the same token that protects `/admin/api`.
+- **Language and theme:** English. The theme is light, dark or automatic; the browser remembers the choice.
 
-## Uruchomienie
+## Running it
 
-**Docker** — obraz zawiera hub i zbudowany panel; nic więcej nie trzeba robić. Zmieniło się tylko to, skąd obraz jest budowany: **kontekstem jest katalog główny repozytorium**, bo do obrazu trafia też `panel/`. `docker compose up -d --build` w `gate/` robi to samo co dotąd (plik `docker-compose.yml` ma już `context: ..`). Ręcznie:
+**Docker** — the image contains the hub and the built panel; there is nothing else to do. The only thing that changed is where the image is built from: **the build context is the repository root**, because `panel/` goes into the image too. `docker compose up -d --build` in `gate/` does the same as before (`docker-compose.yml` already has `context: ..`). By hand:
 
 ```bash
-docker build -f gate/Dockerfile -t mindgate-hub .      # z katalogu głównego repozytorium
+docker build -f gate/Dockerfile -t mindgate-hub .      # from the repository root
 ```
 
-**Bez Dockera** — panel trzeba zbudować raz; hub znajdzie go w `panel/dist`:
+**Without Docker** — build the panel once; the hub finds it in `panel/dist`:
 
 ```bash
 cd panel
 npm ci
-npm run build          # sprawdza typy i buduje do panel/dist
+npm run build          # type-checks and builds into panel/dist
 cd ../gate && npm start
 ```
 
-Katalog z panelem wskazuje `MINDGATE_PANEL_DIR`:
+`MINDGATE_PANEL_DIR` points to the panel directory:
 
-| Wartość | Efekt |
+| Value | Effect |
 |---|---|
-| nie ustawiona | `panel/dist` obok `gate/` (z checkoutu), w obrazie `/app/panel` |
-| ścieżka | panel z tego katalogu |
-| pusta (`MINDGATE_PANEL_DIR=`) | panel wyłączony, zostaje samo API |
+| not set | `panel/dist` next to `gate/` (from a checkout), `/app/panel` in the image |
+| a path | the panel from that directory |
+| empty (`MINDGATE_PANEL_DIR=`) | panel off, only the API remains |
 
-Gdy katalog nie zawiera zbudowanego panelu (brak `index.html`), hub **startuje normalnie**, a w logu ostrzega: `the admin panel is not built there … /admin/ is off`. `/admin/` odpowiada wtedy `404`, API działa.
+When the directory has no built panel (no `index.html`), the hub **starts normally** and warns in the log: `the admin panel is not built there … /admin/ is off`. `/admin/` then answers `404`; the API works.
 
-## Logowanie i token
+## Signing in and the token
 
-Token wpisujesz raz na ekranie logowania; panel od razu sprawdza go w hubie (`GET /admin/api/status`), więc zły token widać od razu.
+You enter the token once on the sign-in screen; the panel checks it against the hub at once (`GET /admin/api/status`), so a wrong token shows immediately.
 
-- Domyślnie token żyje **tylko w tej karcie** (`sessionStorage`) — zamknięcie karty wylogowuje.
-- „Zostaw mnie zalogowanego na tym urządzeniu” zapisuje go w `localStorage`. Nie włączaj tego na cudzym komputerze.
-- Hub odrzucił token (zmieniony, wyczyszczony)? Panel wraca do logowania z komunikatem. „Wyloguj” w menu usuwa token z obu miejsc.
-- Token jest wysyłany wyłącznie do `/admin/api` tego samego adresu, w nagłówku `Authorization`. Pliki panelu są publiczne i **nie zawierają żadnych sekretów** — sam adres `/admin/` nic nie ujawnia, wszystko, co widać po zalogowaniu, pochodzi z API.
-- Klucze dostawców nie wracają z API nigdy (widać tylko ostatnie znaki). Pełny klucz klienta pokazuje się **raz**, w oknie po utworzeniu — potem nie da się go odczytać.
+- By default the token lives **in this tab only** (`sessionStorage`) — closing the tab signs you out.
+- "Keep me signed in on this device" stores it in `localStorage`. Do not turn that on on a shared computer.
+- If the hub rejects the token (changed, cleared), the panel goes back to the sign-in screen with a message. "Sign out" in the menu removes the token from both places.
+- The token is sent only to `/admin/api` at the same address, in the `Authorization` header. The panel files are public and **contain no secrets** — the `/admin/` address reveals nothing, and everything you see after signing in comes from the API.
+- Provider keys never come back from the API (only the last characters show). A client's full key is shown **once**, in the window after it is created — it cannot be read later.
 
-## Ekrany
+## Screens
 
-| Menu | Co tam jest |
+| Menu | What is there |
 |---|---|
-| **Przegląd** | stan dostawców (online / śpi / budzi się, kolejka „trwa / czeka”, ostatni problem), liczby z dzisiaj (żądania, tokeny, błędy, udział tokenów na Twoim sprzęcie), wykres 14 dni, ostatnie błędy |
-| **Dostawcy** | dodawanie z gotowych wpisów (OpenRouter, Gemini, Anthropic, maszyna z agentem…), edycja, test połączenia, synchronizacja listy modeli, włączanie / wyłączanie, budzenie maszyny, usuwanie (z listą aliasów, które straciły model) |
-| **Węzły** | maszyny z agentem: połączenie, sprzęt (CPU, RAM, GPU, dysk), modele w pamięci GPU, zainstalowane modele z oceną, czy zmieszczą się w VRAM, pobieranie z postępem i anulowaniem, ładowanie / zwalnianie / usuwanie, wyłączenie z przyczyną odmowy |
-| **Modele** | wszystko, co hub może obsłużyć: wyszukiwanie i filtry (dostawca, rodzaj, gdzie działa, stan, tag), włączanie pojedynczo i masowo, edycja nazwy / tagów / kontekstu / możliwości, ręczne dodawanie modelu |
-| **Aliasy** | uporządkowana lista modeli pod jedną nazwą — jedyne miejsce, gdzie działa fallback; od razu widać, czy łańcuch jest w całości lokalny |
-| **Klucze klientów** | tworzenie, limity (żądania na minutę / dzień, tokeny na dzień / miesiąc), zakres priorytetów, „tylko lokalnie”, dozwolone modele, zużycie względem limitów, unieważnianie i usuwanie |
-| **Zużycie** | 7 / 30 / 90 dni, żądania / tokeny / błędy, rozbicie na lokalne i chmurowe, tabele per model i per klucz; filtry klucza i modelu działają w przeglądarce, bez ponownego pobierania |
-| **Log żądań** | kto, jaki model, jak poszło, ile trwało; szczegóły jednego żądania; „Wczytaj starsze”; samoodświeżanie co 5 s (można wyłączyć). Nigdy treść promptów ani odpowiedzi — tak jak w hubie |
+| **Overview** | the state of providers (online / asleep / waking, queue "running / waiting", the last problem), today's numbers (requests, tokens, errors, the share of tokens served on your own hardware), a 14-day chart, recent errors |
+| **Providers** | adding from presets (OpenRouter, Gemini, Anthropic, a machine with an agent…), editing, connection test, model list sync, enabling / disabling, waking a machine, deleting (with the list of aliases that lost a model) |
+| **Models** | everything the hub can serve: search and filters (provider, kind, where it runs, state, tag), enabling one by one or in bulk, editing the name / tags / context / capabilities, adding a model by hand |
+| **Aliases** | an ordered list of models under one name — the only place where fallback happens; you can see at once whether the chain is entirely local |
+| **Client keys** | creating, limits (requests per minute / day, tokens per day / month), priority range, "local only", allowed models, usage against limits, revoking and deleting |
+| **Usage** | 7 / 30 / 90 days, requests / tokens / errors, local vs cloud split, tables per model and per key; the key and model filters work in the browser, with no refetch |
+| **Request log** | who, which model, how it went, how long it took; details of one request; "Load older"; auto-refresh every 5 s (can be turned off). Never the content of prompts or answers — same as in the hub |
 
-Adres strony niesie stan widoku (`#/usage?days=7&metric=tokens`, `#/log?errors=1&key=…`, `#/models?q=qwen&state=off`), więc widok można wkleić komuś lub wrócić do niego przyciskiem „wstecz”.
+The page address carries the state of the view (`#/usage?days=7&metric=tokens`, `#/log?errors=1&key=…`, `#/models?q=qwen&state=off`), so you can paste a view to someone or return to it with the "back" button.
 
-### Maszyny z agentem
+### Machines with an agent
 
-Panel **nigdy nie budzi maszyny sam**. Śpiąca maszyna jest pokazana jako śpiąca, a jej ekran modeli nie odpytuje agenta, dopóki jej nie obudzisz przyciskiem „Obudź” — tak samo jak w hubie ([05 - Węzły](05-nodes.md)). Odmowa wyłączenia (ktoś pracuje, trwa pobieranie, żądania w toku…) jest pokazywana z przyczyną; „Wyłącz mimo to” jest osobnym, potwierdzanym krokiem.
+A provider that has an agent also shows the machine on its own page: the connection, the hardware (CPU, RAM, GPU, disk), the models in GPU memory, the installed models with an estimate of whether they fit in VRAM, downloads with progress and cancelling, loading / unloading / deleting, and shutting down with the reason for a refusal.
 
-## Bezpieczeństwo
+The panel **never wakes a machine by itself**. A sleeping machine is shown as sleeping, and its model screen does not query the agent until you wake it with the "Wake up" button — the same as in the hub ([05 - Node protocol](05-nodes.md)). A refused shutdown (someone is working, a download is running, requests are in progress…) is shown with the reason; "Shut down anyway" is a separate, confirmed step.
 
-Hub podaje pliki panelu tylko metodami `GET` i `HEAD`, z własnego katalogu: ścieżki z `..`, ukryte pliki (`.env`, `.git`), katalogi i dowiązania wychodzące poza katalog panelu są odrzucane (`404`). Strona dostaje restrykcyjną politykę treści:
+## Security
+
+The hub serves the panel files only with `GET` and `HEAD`, from its own directory: paths with `..`, hidden files (`.env`, `.git`), directories and links that point outside the panel directory are rejected (`404`). The page gets a restrictive content policy:
 
 ```
 default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:;
 connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
 ```
 
-czyli: żadnych zewnętrznych skryptów, czcionek ani połączeń (panel nie ładuje niczego z internetu — czcionki są w paczce), żadnych skryptów w treści strony, brak osadzania w ramce. Pliki w `assets/` mają w nazwie skrót zawartości i są cache'owane „na zawsze”; sama strona (`index.html`) nie — po aktualizacji huba przeglądarka od razu bierze nową wersję.
+That means no external scripts, fonts or connections (the panel loads nothing from the internet — the fonts are in the bundle), no inline scripts, and no embedding in a frame. Files in `assets/` have a content hash in the name and are cached "forever"; the page itself (`index.html`) is not — after the hub is updated, the browser picks up the new version at once.
 
-Pamiętaj o dwóch rzeczach, które nie zależą od panelu:
+Two things do not depend on the panel:
 
-- Token administratora przechodzi w nagłówku, więc poza siecią domową używaj **HTTPS** (nginx / Caddy przed hubem, `MINDGATE_TRUST_PROXY=true`).
-- `/admin` (razem z panelem) nie musi być widoczne z internetu — w nginx możesz je ograniczyć do sieci lokalnej, jak opisano w [01 - Hub](01-gate.md).
+- The admin token travels in a header, so outside your home network use **HTTPS** (nginx / Caddy in front of the hub, `MINDGATE_TRUST_PROXY=true`).
+- `/admin` (the panel included) does not have to be visible from the internet — in nginx you can limit it to the local network, as described in [01 - Hub](01-gate.md).
 
-## Rozwój panelu
+## Developing the panel
 
-Panel to Vite + React + TypeScript w `panel/`, bez zewnętrznych usług w czasie działania.
+The panel is Vite + React + TypeScript in `panel/`, with no external services at run time.
 
 ```bash
-cd gate && npm run dev                 # hub na :3000
-cd panel && npm ci && npm run dev      # panel na http://localhost:5173/admin/, /admin/api idzie do huba
-                                       # inny adres huba: MINDGATE_URL=http://pi.lan:3000 npm run dev
-npm test                               # testy (Vitest + Testing Library)
+cd gate && npm run dev                 # hub on :3000
+cd panel && npm ci && npm run dev      # panel at http://localhost:5173/admin/, /admin/api goes to the hub
+                                       # another hub address: MINDGATE_URL=http://pi.lan:3000 npm run dev
+npm test                               # tests (Vitest + Testing Library)
 npm run typecheck
 npm run build                          # panel/dist
 ```
 
-Układ: `src/api` (klient i typy odpowiedzi huba), `src/lib` (stan, zapytania, formatowanie — bez Reacta tam, gdzie się da), `src/ui` (przyciski, formularze, okna, wykresy), `src/pages` (po jednym pliku na ekran), `src/i18n` (`en.ts` jest wzorcem; `pl.ts` musi mieć te same klucze, pilnuje tego test). Dodając tekst, dodaj go w obu językach. Kolory mają znaczenie: bursztyn to „działa u Ciebie”, stalowy błękit to „działa u dostawcy”, zieleń / żółć / czerwień to stan — nie używaj ich do ozdoby.
+Layout: `src/api` (the client and the hub's response types), `src/lib` (state, queries, formatting — no React where possible), `src/ui` (buttons, forms, dialogs, charts), `src/pages` (one file per screen), `src/i18n` (`en.ts` — all user-facing text; a test fails on non-English letters). Colours carry meaning: amber is "runs on your side", steel blue is "runs at the provider", green / yellow / red are state — do not use them as decoration.
 
-## Problemy
+## Troubleshooting
 
-**`/admin/` odpowiada 404, a API działa** — panel nie jest zbudowany (patrz ostrzeżenie w logu huba) albo `MINDGATE_PANEL_DIR` jest puste. Zbuduj `panel/` albo użyj obrazu Dockera.
+**`/admin/` answers 404 and the API works** — the panel is not built (see the warning in the hub's log) or `MINDGATE_PANEL_DIR` is empty. Build `panel/` or use the Docker image.
 
-**Panel prosi o logowanie po każdym zamknięciu karty** — tak ma być; zaznacz „Zostaw mnie zalogowanego na tym urządzeniu”.
+**The panel asks for sign-in after every tab close** — that is how it works; tick "Keep me signed in on this device".
 
-**Panel wraca do logowania sam** — hub odrzucił token (zmieniony `MINDGATE_ADMIN_TOKEN`). Zaloguj się nowym.
+**The panel returns to sign-in by itself** — the hub rejected the token (a changed `MINDGATE_ADMIN_TOKEN`). Sign in with the new one.
 
-**Panel pokazuje „Hub nie odpowiada”** — przeglądarka nie dociera do huba (sieć, nginx, zły port). `GET /health` powinno działać bez tokena.
+**The panel shows "The hub does not answer"** — the browser cannot reach the hub (network, nginx, wrong port). `GET /health` should work without a token.
 
-**Po `docker compose up --build` obraz się nie buduje: `COPY panel/…` nie znajduje plików** — kontekst budowania nie jest katalogiem głównym repozytorium. Używaj `docker-compose.yml` z `gate/` (ma `context: ..`) albo `docker build -f gate/Dockerfile .` z korzenia.
+**After `docker compose up --build` the image does not build: `COPY panel/…` cannot find the files** — the build context is not the repository root. Use `docker-compose.yml` from `gate/` (it has `context: ..`) or `docker build -f gate/Dockerfile .` from the root.

@@ -1,8 +1,6 @@
-import { beforeEach, describe, expect, it } from 'vitest';
-import { setLang } from '../i18n';
+import { describe, expect, it } from 'vitest';
 import { bytes, compact, dash, dateTime, duration, limit, ms, num, percent, relative, shortDay } from './format';
 
-beforeEach(() => setLang('en'));
 
 describe('numbers', () => {
   it('groups digits and shows a dash for nothing', () => {
@@ -24,17 +22,14 @@ describe('numbers', () => {
     expect(compact(Number.NaN)).toBe(dash);
   });
 
-  it('writes the same suffixes whatever the ICU build says, and the decimal comma in Polish', () => {
-    setLang('pl');
-    expect(compact(1234567)).toBe('1,2M');
+  it('writes the same suffixes whatever the ICU build says', () => {
+    expect(compact(1234567)).toBe('1.2M');
     expect(compact(50_000)).toBe('50K');
   });
 
-  it('follows the language of the panel', () => {
-    setLang('pl');
-    // Polish groups with a (non-breaking) space and decimals with a comma
-    expect(num(1234567).replace(/\s/g, ' ')).toBe('1 234 567');
-    expect(percent(12.5, 1)).toBe('12,5%');
+  it('groups thousands with commas and decimals with a point', () => {
+    expect(num(1234567)).toBe('1,234,567');
+    expect(percent(12.5, 1)).toBe('12.5%');
   });
 
   it('writes a limit, with infinity for none', () => {

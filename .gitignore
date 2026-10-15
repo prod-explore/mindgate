@@ -30,3 +30,4 @@ gate/data/
 *.exe
 *.pdb
 tray/start-tray.vbs
+*.tsbuildinfo

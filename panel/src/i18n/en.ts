@@ -56,7 +56,6 @@ export const en = {
   'app.theme.system': 'Auto',
   'app.theme.light': 'Light',
   'app.theme.dark': 'Dark',
-  'app.language': 'Language',
   'app.version': 'Hub {version}, up {uptime}',
   'app.not_found': 'There is no page here.',
   'app.not_found_hint': 'Pick one from the menu.',

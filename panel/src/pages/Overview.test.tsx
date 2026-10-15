@@ -2,12 +2,10 @@ import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { UsageRow } from '../api/types';
-import { setLang } from '../i18n';
 import { cloud, fakeApi, logRow, provider, renderPage, usage } from '../test/fixtures';
 import { Overview } from './Overview';
 
 beforeEach(() => {
-  setLang('en');
   window.location.hash = '#/';
   vi.useFakeTimers({ toFake: ['Date'] });
   vi.setSystemTime(new Date('2026-10-14T12:00:00Z'));

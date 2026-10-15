@@ -1,12 +1,10 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { setLang } from '../i18n';
 import { apiKey, fakeApi, logRow, renderPage } from '../test/fixtures';
 import { Log } from './Log';
 
 beforeEach(() => {
-  setLang('en');
   window.location.hash = '#/log';
 });
 

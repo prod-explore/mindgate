@@ -1,11 +1,9 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, describe, expect, it } from 'vitest';
-import { setLang } from '../i18n';
+import { describe, expect, it } from 'vitest';
 import { alias, fakeApi, model, renderPage } from '../test/fixtures';
 import { Aliases } from './Aliases';
 
-beforeEach(() => setLang('en'));
 
 const catalog = () => [
   model({ id: 'home/qwen3:4b' }),

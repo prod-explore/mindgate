@@ -1,6 +1,4 @@
-import { getLang } from '../i18n';
-
-const locale = (): string => (getLang() === 'pl' ? 'pl-PL' : 'en-GB');
+const locale = (): string => 'en-GB';
 
 const fmt = new Map<string, Intl.NumberFormat>();
 function nf(opts: Intl.NumberFormatOptions): Intl.NumberFormat {

@@ -21,7 +21,7 @@ public class ShutdownBlocker : Form {
 
     protected override void OnHandleCreated(EventArgs e) {
         base.OnHandleCreated(e);
-        ShutdownBlockReasonCreate(this.Handle, "MindGate przetwarza żądania AI — poczekaj na zakończenie.");
+        ShutdownBlockReasonCreate(this.Handle, "MindGate is processing AI requests — please wait until it is done.");
         
         // Let the parent process know we are ready
         Console.WriteLine("BLOCKER_READY");

@@ -1,12 +1,10 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { setLang } from '../i18n';
 import { cloud, fakeApi, model, provider, renderPage } from '../test/fixtures';
 import { ProviderPage } from './ProviderPage';
 
 beforeEach(() => {
-  setLang('en');
   window.location.hash = '#/providers/openrouter';
 });
 

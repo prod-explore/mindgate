@@ -1,4 +1,4 @@
-// Usuwa usługę Windows zainstalowaną przez install-service.js.
+// Removes the Windows service installed by install-service.js.
 import { Service } from 'node-windows'
 import { fileURLToPath } from 'url'
 import path from 'path'
@@ -11,11 +11,11 @@ const svc = new Service({
 })
 
 svc.on('uninstall', () => {
-  console.log('✅ Usługa odinstalowana')
+  console.log('Service uninstalled')
 })
 
 svc.on('error', (err) => {
-  console.error('❌ Błąd:', err)
+  console.error('Error:', err)
 })
 
 svc.uninstall()

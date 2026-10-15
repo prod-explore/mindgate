@@ -14,7 +14,7 @@ describe('OpenAI -> Anthropic request translation', () => {
         { role: 'system', content: 'Be brief.' },
         { role: 'developer', content: 'Use Polish.' },
         { role: 'user', content: 'Hello' },
-        { role: 'assistant', content: 'Cześć' },
+        { role: 'assistant', content: 'Hello' },
         { role: 'user', content: [{ type: 'text', text: 'And now?' }] },
       ],
       temperature: 1.7,
@@ -24,7 +24,7 @@ describe('OpenAI -> Anthropic request translation', () => {
     assert.equal(request.system, 'Be brief.\n\nUse Polish.');
     assert.deepEqual(request.messages, [
       { role: 'user', content: [{ type: 'text', text: 'Hello' }] },
-      { role: 'assistant', content: [{ type: 'text', text: 'Cześć' }] },
+      { role: 'assistant', content: [{ type: 'text', text: 'Hello' }] },
       { role: 'user', content: [{ type: 'text', text: 'And now?' }] },
     ]);
     assert.equal(request.temperature, 1, 'OpenAI allows up to 2, Anthropic up to 1');

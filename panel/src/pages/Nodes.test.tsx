@@ -2,12 +2,10 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { ApiError } from '../api/client';
-import { setLang } from '../i18n';
 import { agent, fakeApi, model, nodeInfo, nodeModel, pull, renderPage } from '../test/fixtures';
 import { NodeDetail } from './Nodes';
 
 beforeEach(() => {
-  setLang('en');
   window.location.hash = '#/providers/home';
 });
 
