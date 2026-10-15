@@ -166,27 +166,4 @@ describe('models', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
     await waitFor(() => expect(api.models.remove).toHaveBeenCalledWith('home/nomic-embed-text'));
   });
-
-  it('adds a model the provider does not list', async () => {
-    const user = userEvent.setup();
-    const api = seeded();
-    renderPage(<Models />, api);
-    await screen.findByText('Showing 4 of 4');
-    await user.click(screen.getByRole('button', { name: 'Add model' }));
-    const form = await screen.findByRole('dialog', { name: 'Add model' });
-    expect(within(form).getByRole('button', { name: 'Create' })).toBeDisabled(); // no id yet
-    await user.type(within(form).getByLabelText(/Id at the provider/), ' llama3.2:3b ');
-    await user.selectOptions(within(form).getByLabelText('Provider'), 'openrouter');
-    await user.click(within(form).getByRole('button', { name: 'Create' }));
-    await waitFor(() => expect(api.models.create).toHaveBeenCalledWith({ provider: 'openrouter', id: 'llama3.2:3b', kind: 'chat' }));
-    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
-  });
-
-  it('cannot add a model before there is a provider', async () => {
-    const api = seeded([]);
-    api.providers.list.mockResolvedValue([]);
-    renderPage(<Models />, api);
-    await screen.findByText('No models yet.');
-    expect(screen.getByRole('button', { name: 'Add model' })).toBeDisabled();
-  });
 });

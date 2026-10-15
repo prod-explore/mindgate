@@ -43,6 +43,9 @@ export function Providers() {
   return (
     <>
       <PageHeader title={t('nav.providers')} sub={t('providers.sub')}>
+        <a className="btn" href={href(['models'])}>
+          {t('providers.all_models')}
+        </a>
         <Button variant="primary" onClick={() => setPicking(true)}>
           {t('providers.add')}
         </Button>
@@ -193,7 +196,7 @@ function ProviderRow({ provider: p, onChanged, onEdit }: { provider: Provider; o
       </td>
       <td className="actions">
         {p.node ? (
-          <a href={href(['nodes', p.id])} className="btn btn-sm">
+          <a href={href(['providers', p.id])} className="btn btn-sm">
             {t('providers.open_node')}
           </a>
         ) : null}

@@ -66,6 +66,43 @@
   font-weight: 640;
 }
 
+.nav-parent {
+  display: flex;
+  align-items: stretch;
+}
+
+.nav-parent a {
+  flex: 1;
+}
+
+.nav-toggle {
+  width: 30px;
+  border: 0;
+  background: none;
+  color: var(--ink-3);
+  cursor: pointer;
+  font: inherit;
+  border-radius: var(--r-s);
+}
+
+.nav-toggle:hover {
+  background: var(--surface-2);
+  color: var(--ink);
+}
+
+.nav-sub {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin: 0 0 4px 10px;
+}
+
+.nav-sub a {
+  padding-left: 14px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
 .nav-count {
   color: var(--ink-3);
   font-size: 12px;

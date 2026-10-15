@@ -40,11 +40,12 @@ export function Status({ status, label }: { status: ProviderStatus; label?: stri
 }
 
 /** `openrouter/deepseek/deepseek-chat`, with the provider part set back a little. */
-export function ModelId({ id, className }: { id: string; className?: string }) {
+/** `short` leaves out the provider, for a list that is already about one provider. */
+export function ModelId({ id, className, short }: { id: string; className?: string; short?: boolean }) {
   const i = id.indexOf('/');
   return (
     <span className={cx('mono mid', className)}>
-      {i > 0 ? <span className="mid-provider">{id.slice(0, i + 1)}</span> : null}
+      {i > 0 && !short ? <span className="mid-provider">{id.slice(0, i + 1)}</span> : null}
       {i > 0 ? id.slice(i + 1) : id}
     </span>
   );

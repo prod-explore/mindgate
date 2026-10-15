@@ -36,7 +36,7 @@ describe('overview', () => {
     ]);
     renderPage(<Overview />, api);
     const home = await rowOf('Home PC');
-    expect(within(home).getByRole('link', { name: 'Home PC' })).toHaveAttribute('href', '#/nodes/home');
+    expect(within(home).getByRole('link', { name: 'Home PC' })).toHaveAttribute('href', '#/providers/home');
     expect(within(home).getByText('machine')).toBeInTheDocument();
     expect(within(home).getByText('Unknown')).toBeInTheDocument();
     expect(within(home).getByText('no answer on port 3001')).toBeInTheDocument();
