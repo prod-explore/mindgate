@@ -4,6 +4,7 @@ import type { ModelFields, Support } from '../types.js';
 import { finiteNumber, guessKind, isPlainObject } from '../util.js';
 import { fetchJson, readSse, send, upstreamError, type ProviderRuntime } from '../upstream.js';
 import { authHeaders, joinUrl } from './common.js';
+import { adaptRequestForGemini, isGeminiEndpoint } from './gemini.js';
 import type { Adapter, ChatCall, ChatResult, Json, StreamItem } from './types.js';
 
 /**
@@ -11,13 +12,15 @@ import type { Adapter, ChatCall, ChatResult, Json, StreamItem } from './types.js
  * endpoint, Ollama and LM Studio (/v1), llama.cpp, vLLM, another MindGate, a subscription wrapper.
  *
  * The request goes through almost untouched (unknown parameters reach the upstream); only the model name is replaced
- * and, for streams, usage reporting is switched on so the hub can count tokens.
+ * and, for streams, usage reporting is switched on so the hub can count tokens. Google's compatibility endpoint is the one
+ * exception: its quirks are smoothed over in gemini.ts.
  */
 
 const chatUrl = (rt: ProviderRuntime) => joinUrl(rt.record.baseUrl, rt.record.options.chatPath ?? '/chat/completions');
 
 function buildBody(call: ChatCall): Json {
-  const body: Json = { ...call.body, model: call.model.upstreamId, stream: call.stream };
+  const sent = isGeminiEndpoint(call.runtime.record.baseUrl) ? adaptRequestForGemini(call.body) : call.body;
+  const body: Json = { ...sent, model: call.model.upstreamId, stream: call.stream };
   if (call.stream) {
     if (call.runtime.record.options.streamUsage !== false) {
       body['stream_options'] = { ...(isPlainObject(call.body['stream_options']) ? call.body['stream_options'] : {}), include_usage: true };

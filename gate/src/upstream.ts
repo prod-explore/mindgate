@@ -162,6 +162,19 @@ export function describeError(text: string): { message: string; code: string | u
   return { message: text.trim().slice(0, 300) || 'no details', code: undefined };
 }
 
+/** Ollama / llama.cpp messages for a generated tool call that is not valid JSON. */
+const TOOL_PARSE_ERROR = /looks like object|can'?t find closing|error parsing tool call|invalid tool call|failed to parse.*tool/i;
+
+/** A 5xx whose body says the real problem was a 4xx of the model server's own (or an unparseable tool call). */
+export function embeddedClientStatus(body: string): number | null {
+  const m = /\b(?:error|status)\W{0,3}(4\d\d)\b/i.exec(body) ?? /\b(4\d\d)\s+(?:bad request|unprocessable)/i.exec(body);
+  if (m) {
+    const status = Number(m[1]);
+    return status === 408 || status === 429 ? null : status; // those two are worth retrying
+  }
+  return TOOL_PARSE_ERROR.test(body) ? 400 : null;
+}
+
 /**
  * Turns a non-2xx upstream answer into the hub's error.
  *
@@ -183,7 +196,13 @@ export async function upstreamError(res: Res, provider: string, model: string): 
   if (s === 404) return new HubError({ status: 404, code: 'model_not_found', message: `${provider} does not know the model "${model}" (${message})`, extra, fallback: true });
   if (s === 408 || s === 504) return new HubError({ status: 504, code: 'upstream_timeout', message: detail, extra, fallback: true });
   if (s === 503 || s === 529) return new HubError({ status: 503, code: 'upstream_overloaded', message: detail, extra, fallback: true });
-  if (s >= 500) return new HubError({ status: 502, code: 'upstream_error', message: detail, extra, fallback: true });
+  if (s >= 500) {
+    // Ollama and llama.cpp answer 500 for a request that can never succeed (a generated tool call that is not valid JSON).
+    // Retrying or failing over would only repeat it, so it is reported as the client error it is.
+    const real = embeddedClientStatus(text);
+    if (real) return new HubError({ status: 400, code: 'upstream_bad_request', message: detail, extra });
+    return new HubError({ status: 502, code: 'upstream_error', message: detail, extra, fallback: true });
+  }
   if (s === 400 || s === 413 || s === 422) {
     // Keep the upstream's code when it has a recognisable one (context_length_exceeded, invalid_api_key...) so
     // clients can react to it as they would against the provider directly.
