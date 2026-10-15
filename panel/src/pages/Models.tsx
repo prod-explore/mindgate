@@ -18,18 +18,31 @@ import { ModelEditor } from './ModelEditor';
 
 const PAGE = 150;
 
+/** Every model the hub can serve, across providers. A provider's own page shows the same list, narrowed to it (`scope`). */
 export function Models() {
+  const t = useT();
+  return (
+    <>
+      <PageHeader title={t('nav.models')} sub={t('models.sub')} />
+      <ModelsView />
+    </>
+  );
+}
+
+export function ModelsView({ scope }: { scope?: string }) {
   const t = useT();
   const api = useApi();
   const confirm = useConfirm();
   const route = useRoute();
-  const filters = filtersFromQuery(route.query);
-  const setFilters = (patch: Partial<ModelFilters>) => replaceQuery(['models'], filtersToQuery({ ...filters, ...patch }));
+  // on the global page the filters live in the address; on a provider's page they would fight with its own address
+  const [local, setLocal] = useState<ModelFilters>(NO_FILTERS);
+  const filters = scope ? { ...local, provider: scope } : filtersFromQuery(route.query);
+  const setFilters = (patch: Partial<ModelFilters>) => (scope ? setLocal(f => ({ ...f, ...patch })) : replaceQuery(['models'], filtersToQuery({ ...filters, ...patch })));
+  const noFilters: ModelFilters = scope ? { ...NO_FILTERS, provider: scope } : NO_FILTERS;
 
-  const models = useQuery(s => api.models.list(undefined, s), [], { every: 20_000 });
-  const providers = useQuery(s => api.providers.list(s), [], {});
+  const models = useQuery(s => api.models.list(scope, s), [scope], { every: 20_000 });
+  const providers = useQuery(s => api.providers.list(s), [], { enabled: !scope });
   const [editing, setEditing] = useState<Model | null>(null);
-  const [adding, setAdding] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [shown, setShown] = useState(PAGE);
   const [bulk, setBulk] = useState<{ done: number; total: number } | null>(null);
@@ -39,7 +52,7 @@ export function Models() {
   const tags = useMemo(() => allTags(all), [all]);
   const visible = filtered.slice(0, shown);
   const selectedHere = filtered.filter(m => selected.has(m.id));
-  const filtering = JSON.stringify(filters) !== JSON.stringify(NO_FILTERS);
+  const filtering = JSON.stringify(filters) !== JSON.stringify(noFilters);
 
   const toggle = useAction(async (m: Model, enabled: boolean) => api.models.update(m.id, { enabled }));
 
@@ -99,22 +112,18 @@ export function Models() {
 
   return (
     <>
-      <PageHeader title={t('nav.models')} sub={t('models.sub')}>
-        <Button variant="primary" onClick={() => setAdding(true)} disabled={!providers.data?.length}>
-          {t('models.add')}
-        </Button>
-      </PageHeader>
-
       <div className="filters">
         <TextField className="field-grow" label={t('common.search')} type="search" value={filters.q} onChange={e => setFilters({ q: e.target.value })} placeholder={t('models.search_placeholder')} spellCheck={false} />
-        <SelectField label={t('models.f.provider')} value={filters.provider} onChange={e => setFilters({ provider: e.target.value })}>
-          <option value="">{t('common.all')}</option>
-          {(providers.data ?? []).map(p => (
-            <option key={p.id} value={p.id}>
-              {p.name}
-            </option>
-          ))}
-        </SelectField>
+        {scope ? null : (
+          <SelectField label={t('models.f.provider')} value={filters.provider} onChange={e => setFilters({ provider: e.target.value })}>
+            <option value="">{t('common.all')}</option>
+            {(providers.data ?? []).map(p => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </SelectField>
+        )}
         <SelectField label={t('models.f.kind')} value={filters.kind} onChange={e => setFilters({ kind: e.target.value as ModelFilters['kind'] })}>
           <option value="">{t('common.all')}</option>
           <option value="chat">chat</option>
@@ -144,7 +153,7 @@ export function Models() {
           </SelectField>
         ) : null}
         {filtering ? (
-          <Button size="sm" variant="ghost" onClick={() => replaceQuery(['models'], {})}>
+          <Button size="sm" variant="ghost" onClick={() => (scope ? setLocal(NO_FILTERS) : replaceQuery(['models'], {}))}>
             {t('models.clear_filters')}
           </Button>
         ) : null}
@@ -231,8 +240,8 @@ export function Models() {
                       <td>
                         <RowSwitch label={t('models.f.enabled')} checked={m.enabled} disabled={toggle.pending} onChange={v => void toggle.run(m, v).then(r => r && models.reload())} />
                       </td>
-                      <td>
-                        <ModelId id={m.id} className="cell-main" />
+                      <td className="model-cell">
+                        <ModelId id={m.id} short={!!scope} className="cell-main" />
                         {m.name && m.name !== m.upstream_id ? <div className="cell-sub">{m.name}</div> : null}
                       </td>
                       <td>
@@ -295,21 +304,12 @@ export function Models() {
           }}
         />
       ) : null}
-      {adding && providers.data ? (
-        <AddModel
-          providers={providers.data}
-          onClose={() => setAdding(false)}
-          onAdded={() => {
-            setAdding(false);
-            void models.reload();
-          }}
-        />
-      ) : null}
     </>
   );
 }
 
-function AddModel({ providers, onClose, onAdded }: { providers: Provider[]; onClose: () => void; onAdded: () => void }) {
+/** For a model the provider does not list. Lives on the provider's page, under Advanced. */
+export function AddModel({ providers, onClose, onAdded }: { providers: Provider[]; onClose: () => void; onAdded: () => void }) {
   const t = useT();
   const api = useApi();
   const [provider, setProvider] = useState(providers[0]?.id ?? '');
@@ -350,13 +350,15 @@ function AddModel({ providers, onClose, onAdded }: { providers: Provider[]; onCl
       <Note>{t('models.add_hint')}</Note>
       {add.error ? <Note tone="bad">{add.error}</Note> : null}
       <div className="form-grid">
-        <SelectField label={t('models.f.provider')} value={provider} onChange={e => setProvider(e.target.value)}>
-          {providers.map(p => (
-            <option key={p.id} value={p.id}>
-              {p.name}
-            </option>
-          ))}
-        </SelectField>
+        {providers.length > 1 ? (
+          <SelectField label={t('models.f.provider')} value={provider} onChange={e => setProvider(e.target.value)}>
+            {providers.map(p => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </SelectField>
+        ) : null}
         <TextField label={t('models.f.upstream_id')} hint={t('models.f.upstream_id_hint')} value={id} onChange={e => setId(e.target.value)} spellCheck={false} autoFocus />
         <TextField label={t('models.f.name')} value={name} onChange={e => setName(e.target.value)} />
         <SelectField label={t('models.f.kind')} value={kind} onChange={e => setKind(e.target.value as Model['kind'])}>

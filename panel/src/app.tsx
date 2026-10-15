@@ -1,9 +1,10 @@
 import { useEffect, useState, type ReactNode } from 'react';
+import type { Provider } from './api/types';
 import { useApi } from './api/context';
 import { useT, type Key } from './i18n';
 import { duration } from './lib/format';
 import { HubContext } from './lib/hub';
-import { href, useRoute } from './lib/router';
+import { href, replaceQuery, useRoute } from './lib/router';
 import { useQuery } from './lib/query';
 import { signOut, useSession } from './lib/session';
 import { Aliases } from './pages/Aliases';
@@ -11,8 +12,8 @@ import { Keys } from './pages/Keys';
 import { Log } from './pages/Log';
 import { Login } from './pages/Login';
 import { Models } from './pages/Models';
-import { Nodes } from './pages/Nodes';
 import { Overview } from './pages/Overview';
+import { ProviderPage } from './pages/ProviderPage';
 import { Providers } from './pages/Providers';
 import { Usage } from './pages/Usage';
 import { BrandMark } from './ui/Brand';
@@ -31,8 +32,6 @@ interface NavItem {
 const NAV: Array<{ group: Key; items: NavItem[] }> = [
   { group: 'nav.group.setup', items: [
     { page: 'providers', label: 'nav.providers', count: 'providers' },
-    { page: 'nodes', label: 'nav.nodes' },
-    { page: 'models', label: 'nav.models', count: 'models' },
     { page: 'aliases', label: 'nav.aliases', count: 'aliases' },
     { page: 'keys', label: 'nav.keys', count: 'keys' },
   ] },
@@ -44,8 +43,8 @@ const NAV: Array<{ group: Key; items: NavItem[] }> = [
 
 const PAGES: Record<string, () => ReactNode> = {
   '': () => <Overview />,
-  providers: () => <Providers />,
-  nodes: () => <Nodes />,
+  providers: () => <ProvidersRoute />,
+  nodes: () => <Moved />,
   models: () => <Models />,
   aliases: () => <Aliases />,
   keys: () => <Keys />,
@@ -56,13 +55,54 @@ const PAGES: Record<string, () => ReactNode> = {
 const TITLE: Record<string, Key> = {
   '': 'nav.overview',
   providers: 'nav.providers',
-  nodes: 'nav.nodes',
+  nodes: 'nav.providers',
   models: 'nav.models',
   aliases: 'nav.aliases',
   keys: 'nav.keys',
   usage: 'nav.usage',
   log: 'nav.log',
 };
+
+function ProvidersRoute() {
+  const id = useRoute().segments[1];
+  return id ? <ProviderPage id={id} /> : <Providers />;
+}
+
+/** Machines used to have a page of their own; old addresses go to the provider's page. */
+function Moved() {
+  const rest = useRoute().segments.slice(1);
+  useEffect(() => replaceQuery(['providers', ...rest], {}));
+  return null;
+}
+
+/** "Providers" in the menu opens into the list of them; each one's page holds its models. */
+function ProvidersNav({ active, id, count, list }: { active: boolean; id: string | undefined; count: number | undefined; list: Provider[] }) {
+  const t = useT();
+  const [manual, setManual] = useState<boolean | null>(null);
+  const open = manual ?? active;
+  return (
+    <>
+      <div className="nav-parent">
+        <a href={href(['providers'])} aria-current={active && !id ? 'page' : undefined}>
+          {t('nav.providers')}
+          {count !== undefined ? <span className="nav-count">{count}</span> : null}
+        </a>
+        <button type="button" className="nav-toggle" aria-expanded={open} aria-label={t('nav.show_providers')} onClick={() => setManual(!open)}>
+          <span aria-hidden="true">{open ? '▾' : '▸'}</span>
+        </button>
+      </div>
+      {open ? (
+        <div className="nav-sub">
+          {list.map(p => (
+            <a key={p.id} href={href(['providers', p.id])} aria-current={id === p.id ? 'page' : undefined}>
+              {p.name}
+            </a>
+          ))}
+        </div>
+      ) : null}
+    </>
+  );
+}
 
 export function App() {
   const session = useSession();
@@ -82,6 +122,7 @@ function Shell() {
   const page = route.segments[0] ?? '';
   const [open, setOpen] = useState(false);
   const status = useQuery(s => api.status(s), [], { every: 15_000 });
+  const providers = useQuery(s => api.providers.list(s), [], { every: 15_000 });
 
   // close the mobile menu after navigating, and say where we are in the tab title
   useEffect(() => setOpen(false), [page]);
@@ -117,12 +158,16 @@ function Shell() {
           {NAV.map(g => (
             <div key={g.group} className="stack" style={{ gap: 1 }}>
               <p className="nav-group">{t(g.group)}</p>
-              {g.items.map(item => (
-                <a key={item.page} href={href([item.page])} aria-current={page === item.page ? 'page' : undefined}>
-                  {t(item.label)}
-                  {item.count && counts ? <span className="nav-count">{counts[item.count]}</span> : null}
-                </a>
-              ))}
+              {g.items.map(item =>
+                item.page === 'providers' ? (
+                  <ProvidersNav key={item.page} active={page === 'providers'} id={route.segments[1]} count={counts?.providers} list={providers.data ?? []} />
+                ) : (
+                  <a key={item.page} href={href([item.page])} aria-current={page === item.page ? 'page' : undefined}>
+                    {t(item.label)}
+                    {item.count && counts ? <span className="nav-count">{counts[item.count]}</span> : null}
+                  </a>
+                ),
+              )}
             </div>
           ))}
         </nav>

@@ -1,111 +1,25 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useApi } from '../api/context';
 import { isApiError } from '../api/client';
-import type { AgentStatus, NodeInfo, NodeModel, PullJob, PullStatus, Provider, ShutdownVerdict } from '../api/types';
+import type { AgentStatus, NodeInfo, NodeModel, PullJob, PullStatus, ShutdownVerdict } from '../api/types';
 import { useT, type Key } from '../i18n';
 import { useAction } from '../lib/action';
 import { describeCode } from '../lib/errors';
 import { bytes, dash, duration, num, percent, relative } from '../lib/format';
 import { fit, isActivePull, SHUTDOWN_REASONS, sortPulls, validPullName } from '../lib/nodes';
 import { useQuery, type QueryResult } from '../lib/query';
-import { href, useRoute } from '../lib/router';
+import { href } from '../lib/router';
 import { toast } from '../lib/toast';
 import { Button } from '../ui/Button';
 import { useConfirm } from '../ui/Confirm';
 import { Badge, Empty, ErrorNote, Loading, LocalityBadge, Meter, ModelId, Note, PageHeader, Status, type BadgeTone } from '../ui/bits';
 import { TextField } from '../ui/fields';
-
-export function Nodes() {
-  const route = useRoute();
-  const id = route.segments[1];
-  return id ? <NodeDetail id={id} /> : <NodeList />;
-}
-
-// ── the list ──────────────────────────────────────────────────────────────
-
-function NodeList() {
-  const t = useT();
-  const api = useApi();
-  const list = useQuery(s => api.providers.list(s), [], { every: 5000 });
-  const nodes = (list.data ?? []).filter(p => p.node !== null);
-
-  return (
-    <>
-      <PageHeader title={t('nav.nodes')} sub={t('nodes.sub')} />
-      {list.loading ? (
-        <Loading />
-      ) : list.error && !list.data ? (
-        <ErrorNote error={list.error} onRetry={() => void list.reload()} />
-      ) : nodes.length === 0 ? (
-        <Empty title={t('nodes.empty')}>
-          <p>{t('nodes.empty_hint')}</p>
-          <p style={{ marginTop: 12 }}>
-            <a className="btn btn-primary" href={href(['providers'], { add: '1' })}>
-              {t('providers.add')}
-            </a>
-          </p>
-        </Empty>
-      ) : (
-        <div className="node-cards">
-          {nodes.map(p => (
-            <NodeCard key={p.id} provider={p} onChanged={() => void list.reload()} />
-          ))}
-        </div>
-      )}
-    </>
-  );
-}
-
-function NodeCard({ provider: p, onChanged }: { provider: Provider; onChanged: () => void }) {
-  const t = useT();
-  const api = useApi();
-  const wake = useAction(async () => api.providers.wake(p.id), { ok: r => t('providers.woken', { status: r.status }) });
-  const managed = !!p.node?.control_url;
-  return (
-    <article className={`card node-card${p.enabled ? '' : ' is-off'}`}>
-      <header className="card-head">
-        <div>
-          <h2>
-            <a href={href(['nodes', p.id])}>{p.name}</a>
-          </h2>
-          <p className="cell-sub mono">{p.id}</p>
-        </div>
-        <Status status={p.status} />
-      </header>
-      <dl className="facts">
-        <div className="fact">
-          <dt>{t('nodes.card.models')}</dt>
-          <dd>
-            {p.models_enabled} / {p.model_count}
-          </dd>
-        </div>
-        <div className="fact">
-          <dt>{t('nodes.card.queue')}</dt>
-          <dd>{p.queue.running + p.queue.queued === 0 ? dash : `${p.queue.running} / ${p.queue.queued}`}</dd>
-        </div>
-        <div className="fact">
-          <dt>{t('nodes.card.control')}</dt>
-          <dd>{managed ? <Badge tone="ok">{t('nodes.card.managed')}</Badge> : <Badge tone="warn">{t('nodes.card.no_agent')}</Badge>}</dd>
-        </div>
-      </dl>
-      {p.last_error ? <p className="cell-sub problem">{p.last_error}</p> : null}
-      <footer className="card-foot">
-        <a className="btn btn-sm btn-primary" href={href(['nodes', p.id])}>
-          {t('nodes.card.open')}
-        </a>
-        {p.status !== 'online' ? (
-          <Button size="sm" pending={wake.pending} onClick={() => void wake.run().then(onChanged)}>
-            {t('providers.wake')}
-          </Button>
-        ) : null}
-      </footer>
-    </article>
-  );
-}
+import { ModelsView } from './Models';
 
 // ── one machine ───────────────────────────────────────────────────────────
 
-function NodeDetail({ id }: { id: string }) {
+/** One machine: what it has, what runs on it, and its models in the hub. Reached from the provider's page. */
+export function NodeDetail({ id }: { id: string }) {
   const t = useT();
   const api = useApi();
   const providers = useQuery(s => api.providers.list(s), [], { every: 5000 });
@@ -156,8 +70,8 @@ function NodeDetail({ id }: { id: string }) {
     return (
       <>
         <PageHeader title={title}>
-          <a className="btn" href={href(['nodes'])}>
-            {t('nodes.all')}
+          <a className="btn" href={href(['providers'])}>
+            {t('provider.all')}
           </a>
         </PageHeader>
         {missing ? <Empty title={t('nodes.not_found')}>{t('nodes.not_found_hint')}</Empty> : <ErrorNote error={info.error} onRetry={() => void info.reload()} />}
@@ -176,8 +90,8 @@ function NodeDetail({ id }: { id: string }) {
           </>
         }
       >
-        <a className="btn" href={href(['nodes'])}>
-          {t('nodes.all')}
+        <a className="btn" href={href(['providers'])}>
+          {t('provider.all')}
         </a>
         <Button onClick={reloadAll} pending={info.refreshing && !!info.data}>
           {t('common.refresh')}
@@ -195,6 +109,14 @@ function NodeDetail({ id }: { id: string }) {
           <Power id={id} agent={agent} onChanged={reloadAll} />
         </>
       ) : null}
+
+      <section className="section" aria-labelledby="node-hub-models">
+        <div className="section-head">
+          <h2 id="node-hub-models">{t('provider.hub_models')}</h2>
+          <p className="section-sub">{t('provider.hub_models_sub')}</p>
+        </div>
+        <ModelsView scope={id} />
+      </section>
     </>
   );
 }
@@ -344,7 +266,6 @@ function Installed({ id, agent, models, onChanged }: { id: string; agent: AgentS
     <section className="section" aria-labelledby="node-models">
       <div className="section-head">
         <h2 id="node-models">{t('nodes.models')}</h2>
-        <a href={href(['models'], { provider: id })}>{t('nodes.models_in_hub')}</a>
       </div>
       {models.loading ? (
         <Loading />

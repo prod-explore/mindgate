@@ -32,8 +32,10 @@ describe('the app', () => {
     const nav = await screen.findByRole('navigation', { name: 'Main' });
     expect(within(nav).getByRole('link', { name: 'Overview' })).toHaveAttribute('aria-current', 'page');
     expect(within(nav).getByRole('link', { name: /Providers/ })).toHaveTextContent('2');
-    expect(within(nav).getByRole('link', { name: /Models/ })).toHaveTextContent('5');
-    expect(within(nav).getByRole('link', { name: 'Nodes' })).toBeInTheDocument();
+    expect(within(nav).getByRole('link', { name: /^Aliases/ })).toBeInTheDocument();
+    // machines and models live under their provider now
+    expect(within(nav).queryByRole('link', { name: 'Nodes' })).not.toBeInTheDocument();
+    expect(within(nav).queryByRole('link', { name: /^Models/ })).not.toBeInTheDocument();
     expect(within(nav).getByRole('link', { name: 'Usage' })).toBeInTheDocument();
     expect(within(nav).getByRole('link', { name: 'Request log' })).toBeInTheDocument();
     await waitFor(() => expect(document.title).toBe('Overview – MindGate'));
@@ -51,6 +53,35 @@ describe('the app', () => {
     await user.click(screen.getByRole('link', { name: 'Request log' }));
     expect(await screen.findByRole('heading', { level: 1, name: 'Request log' })).toBeInTheDocument();
     expect(window.location.hash).toBe('#/log');
+  });
+
+  it('opens the providers in the menu, each linking to its own page', async () => {
+    const user = userEvent.setup();
+    act(() => signIn('tok', false));
+    mount();
+    const nav = await screen.findByRole('navigation', { name: 'Main' });
+    expect(within(nav).queryByRole('link', { name: 'Home PC' })).not.toBeInTheDocument(); // closed away from the providers
+    await user.click(within(nav).getByRole('button', { name: 'Show the providers' }));
+    expect(within(nav).getByRole('link', { name: 'Home PC' })).toHaveAttribute('href', '#/providers/home');
+    expect(within(nav).getByRole('link', { name: 'OpenRouter' })).toHaveAttribute('href', '#/providers/openrouter');
+    await user.click(within(nav).getByRole('button', { name: 'Show the providers' }));
+    expect(within(nav).queryByRole('link', { name: 'Home PC' })).not.toBeInTheDocument();
+  });
+
+  it('is open on the providers, and marks the one being looked at', async () => {
+    window.location.hash = '#/providers/openrouter';
+    act(() => signIn('tok', false));
+    mount();
+    const nav = await screen.findByRole('navigation', { name: 'Main' });
+    expect(await within(nav).findByRole('link', { name: 'OpenRouter' })).toHaveAttribute('aria-current', 'page');
+    expect(within(nav).getByRole('link', { name: /^Providers/ })).not.toHaveAttribute('aria-current');
+  });
+
+  it('sends the old address of a machine to its provider page', async () => {
+    window.location.hash = '#/nodes/home';
+    act(() => signIn('tok', false));
+    mount();
+    await waitFor(() => expect(window.location.hash).toBe('#/providers/home'));
   });
 
   it('says so for a page that does not exist', async () => {
@@ -87,7 +118,7 @@ describe('the app', () => {
     await screen.findByRole('heading', { level: 1, name: 'Client keys' });
     await user.selectOptions(screen.getByRole('combobox', { name: 'Language' }), 'pl');
     expect(await screen.findByRole('heading', { level: 1, name: 'Klucze klientów' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Węzły' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /^Dostawcy/ })).toBeInTheDocument();
     expect(document.documentElement.lang).toBe('pl');
   });
 });

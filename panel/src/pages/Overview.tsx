@@ -74,7 +74,7 @@ export function Overview() {
                   return (
                     <tr key={p.id} className={p.enabled ? undefined : 'is-off'}>
                       <td>
-                        <a className="cell-main" href={p.node ? href(['nodes', p.id]) : href(['providers'])}>
+                        <a className="cell-main" href={p.node ? href(['providers', p.id]) : href(['providers'])}>
                           {p.name}
                         </a>
                         <div className="cell-sub mono">{p.id}</div>

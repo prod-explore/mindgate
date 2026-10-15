@@ -933,3 +933,8 @@ a.btn-primary:hover {
   max-width: 21ch;
   margin-left: auto;
 }
+
+/* a model's id is long; give it room and let the table scroll sideways inside its frame rather than break the id into pieces */
+.model-cell {
+  min-width: 190px;
+}

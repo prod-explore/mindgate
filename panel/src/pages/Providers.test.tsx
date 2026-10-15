@@ -92,7 +92,7 @@ describe('providers', () => {
 
   it('links a machine to its own page', async () => {
     renderPage(<Providers />);
-    expect(within(await rowOf('Home PC')).getByRole('link', { name: 'Machine' })).toHaveAttribute('href', '#/nodes/home');
+    expect(within(await rowOf('Home PC')).getByRole('link', { name: 'Machine' })).toHaveAttribute('href', '#/providers/home');
     expect(within(await rowOf('OpenRouter')).queryByRole('link', { name: 'Machine' })).not.toBeInTheDocument();
   });
 
