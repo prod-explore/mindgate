@@ -46,7 +46,7 @@ export interface FakeOllama {
 
 const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
 
-export async function startFakeOllama(initial: FakeModel[] = [], port = 0): Promise<FakeOllama> {
+export async function startFakeOllama(initial: FakeModel[] = [], port = 0, version = '0.0.0-fake'): Promise<FakeOllama> {
   const models = new Map<string, FakeModel>();
   for (const m of initial) models.set(m.name, m);
   const loaded = new Map<string, { expiresAt: string }>();
@@ -65,7 +65,7 @@ export async function startFakeOllama(initial: FakeModel[] = [], port = 0): Prom
     const { method, path, body } = rec;
     const name: string | undefined = body?.model ?? body?.name;
 
-    if (method === 'GET' && path === '/api/version') return json(res, 200, { version: '0.0.0-fake' });
+    if (method === 'GET' && path === '/api/version') return json(res, 200, { version });
 
     if (method === 'GET' && path === '/api/tags') {
       return json(res, 200, {
