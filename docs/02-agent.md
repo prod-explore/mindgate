@@ -99,7 +99,7 @@ cd mindgate\agent
 npm run install-service
 ```
 
-This creates the "MindGate Agent" service (automatic start). To remove it: `npm run uninstall-service`. After a code update (`git pull`) it is enough to `npm install`, `npm run build` and restart the service — `Restart-MindGate-Simple.bat` in the repository root does that.
+This creates the "MindGate Agent" service (automatic start). To remove it: `npm run uninstall-service`. After a code update (`git pull`) it is enough to `npm install`, `npm run build` and restart the service — `scripts/windows/restart-agent-and-tray.bat` does that (it also restarts the tray).
 
 Windows Defender Firewall has to let port `3001` through from the local network (only from the hub's address, if you can).
 

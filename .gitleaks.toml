@@ -1,0 +1,7 @@
+# The default rules, plus: the examples in the documentation use obvious placeholders for client keys.
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Placeholder client keys in curl examples"
+regexes = ['''mg-(your-key|twoj-klucz)''']
