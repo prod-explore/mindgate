@@ -148,6 +148,20 @@ export function describeError(text: string): { message: string; code: string | u
   return { message: text.trim().slice(0, 300) || 'no details', code: undefined };
 }
 
+/** Upstream codes that mean the provider's quota or credit is used up (the agy wrapper, OpenAI), as opposed to "too fast". */
+const QUOTA_CODES = new Set(['budget_exhausted', 'insufficient_quota']);
+
+/** The moment an upstream says its quota comes back (`error.reset_at`, ISO 8601), when it says so. */
+export function upstreamResetAt(text: string): string | undefined {
+  try {
+    const j = JSON.parse(text) as { error?: { reset_at?: unknown } } | undefined;
+    const at = j?.error?.reset_at;
+    return typeof at === 'string' && !Number.isNaN(Date.parse(at)) ? new Date(at).toISOString() : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /** Ollama / llama.cpp messages for a generated tool call that is not valid JSON. */
 const TOOL_PARSE_ERROR = /looks like object|can'?t find closing|error parsing tool call|invalid tool call|failed to parse.*tool/i;
 
@@ -176,7 +190,13 @@ export async function upstreamError(res: Res, provider: string, model: string): 
   const s = res.status;
   if (s === 429) {
     const ra = retryAfterSeconds(res);
-    return new HubError({ status: 429, code: 'upstream_rate_limited', message: detail, extra, fallback: true, ...(ra ? { headers: { 'Retry-After': ra } } : {}) });
+    const headers = ra ? { headers: { 'Retry-After': ra } } : {};
+    // A used-up subscription or credit is not "slow down": waiting seconds will not help, and the client can show when it comes back.
+    if (code && QUOTA_CODES.has(code)) {
+      const resetAt = upstreamResetAt(text);
+      return new HubError({ status: 429, code: 'upstream_quota_exhausted', message: detail, extra: { ...extra, ...(resetAt ? { reset_at: resetAt } : {}) }, fallback: true, ...headers });
+    }
+    return new HubError({ status: 429, code: 'upstream_rate_limited', message: detail, extra, fallback: true, ...headers });
   }
   if (s === 401 || s === 403) return new HubError({ status: 502, code: 'upstream_auth_failed', message: `${provider} rejected the credentials stored for it (${message})`, extra, fallback: true });
   if (s === 404) return new HubError({ status: 404, code: 'model_not_found', message: `${provider} does not know the model "${model}" (${message})`, extra, fallback: true });
