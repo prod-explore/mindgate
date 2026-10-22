@@ -86,6 +86,7 @@ It works for a key that has used up its limit as well.
 | 429 | `budget_exhausted` | the daily/monthly limit; the `limit` field (`requests_per_day`, `tokens_per_day`, `tokens_per_month`) and `reset_at` |
 | 429 | `too_many_auth_failures` | the address is blocked after 20 failed sign-ins per minute |
 | 429 | `upstream_rate_limited` | a limit on the provider's side (with its `Retry-After`) |
+| 429 | `upstream_quota_exhausted` | the provider's quota or credit is used up (the subscription wrapper's `budget_exhausted`, OpenAI's `insufficient_quota`); `reset_at` when the provider says when it comes back, `Retry-After` in seconds |
 | 500 | `internal_error` | a bug in the hub; the details are in its log under the same `X-Request-Id` |
 | 502 | `upstream_error`, `upstream_unreachable`, `upstream_empty_response`, `upstream_invalid_response`, `upstream_auth_failed` | a provider failure / a wrong provider key (the owner's, not the client's) |
 | 502 | `node_connection_lost` | the machine disappeared mid-request, and the retry failed too |
@@ -98,7 +99,7 @@ It works for a key that has used up its limit as well.
 | 504 | `queue_timeout`, `upstream_timeout` | waiting for too long |
 | in the stream | `upstream_stream_interrupted` | the provider broke off the answer midway |
 
-An alias falls back on provider failures: `upstream_error`, `upstream_unreachable`, `upstream_overloaded`, `upstream_timeout`, `upstream_rate_limited`, `upstream_empty_response`, `upstream_invalid_response`, `upstream_auth_failed`, `upstream_stream_interrupted`, when the provider does not know the model (`model_not_found` from the provider), `node_*`, `wol_failed`, `queue_full`, `queue_timeout` — and only before the client has received the first content. Errors of the request itself (`400`, `403`, a key's `429`) never trigger a fallback.
+An alias falls back on provider failures: `upstream_error`, `upstream_unreachable`, `upstream_overloaded`, `upstream_timeout`, `upstream_rate_limited`, `upstream_quota_exhausted`, `upstream_empty_response`, `upstream_invalid_response`, `upstream_auth_failed`, `upstream_stream_interrupted`, when the provider does not know the model (`model_not_found` from the provider), `node_*`, `wol_failed`, `queue_full`, `queue_timeout` — and only before the client has received the first content. Errors of the request itself (`400`, `403`, a key's `429`) never trigger a fallback.
 
 ---
 

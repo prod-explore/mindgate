@@ -20,7 +20,7 @@ import {
 describe('OpenAI-compatible upstream through the hub', () => {
   let up: Upstream;
   let h: TestHub;
-  let mode: 'echo' | 'tools' | 'reasoning' | 'ignore-stream' | 'rate-limit' | 'bad-key' | 'context' | 'boom' | 'cut' | 'no-usage' = 'echo';
+  let mode: 'echo' | 'tools' | 'reasoning' | 'ignore-stream' | 'rate-limit' | 'quota' | 'bad-key' | 'context' | 'boom' | 'cut' | 'no-usage' = 'echo';
 
   before(async () => {
     up = await openaiUpstream({
@@ -54,6 +54,8 @@ describe('OpenAI-compatible upstream through the hub', () => {
             return sendJson(res, 200, completion('all at once'));
           case 'rate-limit':
             return sendJson(res, 429, { error: { message: 'slow down', code: 'rate_limit_exceeded' } }, { 'Retry-After': '7' });
+          case 'quota':
+            return sendJson(res, 429, { error: { message: 'Subscription quota exhausted: Individual quota reached. Resets in 1h29m29s.', code: 'budget_exhausted', reset_at: '2026-10-23T01:29:29.000Z' } }, { 'Retry-After': '5369' });
           case 'bad-key':
             return sendJson(res, 401, { error: { message: 'Incorrect API key provided', code: 'invalid_api_key' } });
           case 'context':
@@ -208,6 +210,14 @@ describe('OpenAI-compatible upstream through the hub', () => {
     assert.equal(r.json.error.code, 'upstream_rate_limited');
     assert.equal(r.json.error.provider, 'fake');
     assert.equal(r.headers.get('retry-after'), '7');
+
+    mode = 'quota';
+    r = await chat({});
+    assert.equal(r.status, 429);
+    assert.equal(r.json.error.code, 'upstream_quota_exhausted', 'a used-up quota is told apart from "too fast"');
+    assert.equal(r.json.error.reset_at, '2026-10-23T01:29:29.000Z');
+    assert.equal(r.json.error.provider, 'fake');
+    assert.equal(r.headers.get('retry-after'), '5369');
 
     mode = 'bad-key';
     r = await chat({});
