@@ -1,11 +1,13 @@
 @echo off
 echo Running Restart script...
-cd /d "%~dp0"
+rem The script lives in scripts\windows; the repository root is two levels up.
+for %%I in ("%~dp0..\..") do set "ROOT=%%~fI"
+cd /d "%ROOT%"
 echo Pulling latest code changes...
 git pull
 echo.
 echo Updating the agent (npm install, build)...
-pushd "%~dp0agent"
+pushd "%ROOT%\agent"
 call npm install
 if errorlevel 1 (
   popd
@@ -30,8 +32,8 @@ powershell -Command "Get-CimInstance Win32_Process -Filter \"name='node.exe'\" |
 powershell -Command "Stop-Process -Name 'tray_windows*' -Force -ErrorAction SilentlyContinue"
 echo.
 echo Set WshShell = CreateObject("WScript.Shell") > "%temp%\run_tray.vbs"
-echo WshShell.CurrentDirectory = "%~dp0tray" >> "%temp%\run_tray.vbs"
-echo WshShell.Run "node.exe ""%~dp0tray\src\index.js""", 0, False >> "%temp%\run_tray.vbs"
+echo WshShell.CurrentDirectory = "%ROOT%\tray" >> "%temp%\run_tray.vbs"
+echo WshShell.Run "node.exe ""%ROOT%\tray\src\index.js""", 0, False >> "%temp%\run_tray.vbs"
 wscript "%temp%\run_tray.vbs"
 del "%temp%\run_tray.vbs"
 echo.

@@ -9,6 +9,14 @@ services:
     env_file: .env
     volumes:
       - mindgate-data:/data
+    # The hub writes only to /data (the SQLite database). Everything else is locked down.
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
     # The port is not published: the reverse proxy (nginx, Caddy) reaches the hub inside the Docker network.
     # With nothing in front, publish it on the loopback only:  ports: ["127.0.0.1:3000:3000"]
     logging:

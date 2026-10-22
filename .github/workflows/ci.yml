@@ -26,6 +26,9 @@ jobs:
       - name: Build and test
         run: npm test
         working-directory: gate
+      - name: Known vulnerabilities in production dependencies
+        run: npm audit --omit=dev --audit-level=high
+        working-directory: gate
 
   image:
     name: hub (docker image)
@@ -71,6 +74,9 @@ jobs:
       - name: Test
         run: npm test
         working-directory: panel
+      - name: Known vulnerabilities in production dependencies
+        run: npm audit --omit=dev --audit-level=high
+        working-directory: panel
 
   agent:
     name: agent (build + tests)
@@ -87,6 +93,9 @@ jobs:
         working-directory: agent
       - name: Build and test
         run: npm test
+        working-directory: agent
+      - name: Known vulnerabilities in production dependencies
+        run: npm audit --omit=dev --audit-level=high
         working-directory: agent
 
   chain:
@@ -107,15 +116,23 @@ jobs:
         run: node --test --test-timeout=60000 e2e/*.test.mjs
 
   tray:
-    name: tray (install + syntax)
+    name: tray (tests + syntax)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
+          cache-dependency-path: tray/package-lock.json
       - name: Install
-        run: npm install
+        run: npm ci
+        working-directory: tray
+      - name: Test
+        run: npm test
         working-directory: tray
       - name: Every source file at least parses
         run: for f in tray/src/*.js tray/scripts/*.js; do node --check "$f"; done
+      - name: Known vulnerabilities in production dependencies
+        run: npm audit --omit=dev --audit-level=high
+        working-directory: tray
