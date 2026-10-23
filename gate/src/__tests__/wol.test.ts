@@ -151,7 +151,7 @@ describe('a hub with a relay wakes the machine through it', () => {
       env: { MINDGATE_WOL_RELAY_URL: `http://127.0.0.1:${(relay.address() as AddressInfo).port}`, MINDGATE_WOL_RELAY_TOKEN: TOKEN },
       hub: { node: { log: { info: () => undefined, warn: (_o, m) => void warnings.push(m ?? '') } } },
       setup: async hub => {
-        const node = { mac: MAC, bootTimeoutMs: 2000, pollIntervalMs: 50, minWakePriority: 0 };
+        const node = { mac: MAC, bootTimeoutMs: 2000, pollIntervalMs: 100, minWakePriority: 1 };
         await addProvider(hub, 'pc', pc, { locality: 'local', node: { ...node, broadcast: '192.168.1.255' } });
         // the machine's own address as `broadcast` (127.0.0.1 in this test): the setting that makes a packet get lost in real life
         await addProvider(hub, 'self', pc, { locality: 'local', node: { ...node, broadcast: '127.0.0.1' } });

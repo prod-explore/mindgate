@@ -352,7 +352,7 @@ export const en = {
   'providers.f.mac': 'MAC address',
   'providers.f.mac_error': 'Use the form AA:BB:CC:DD:EE:FF.',
   'providers.f.broadcast': 'Broadcast address',
-  'providers.f.broadcast_hint': 'Usually the network’s last address, such as 192.168.1.255.',
+  'providers.f.broadcast_hint': 'The network’s broadcast address, such as 192.168.1.255 — not the machine’s own address. In Docker the hub also needs the Wake-on-LAN relay.',
   'providers.f.broadcast_error': 'Enter the broadcast address.',
   'providers.f.idle_shutdown': 'Shut down after idle (minutes)',
   'providers.f.idle_shutdown_hint': 'Empty keeps the machine on. The agent still asks the tray before it agrees.',

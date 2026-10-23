@@ -214,7 +214,9 @@ gate/src/
 ├── chat.ts                   one request from the key to the last byte (fallback, SSE, accounting)
 ├── routing.ts                name → list of targets; local_only, allowed_models
 ├── limits.ts, queue.ts       key limits, the priority queue
-├── node.ts                   Wake-on-LAN, machine state, shutdown on idle
+├── node.ts                   machine state, waking, shutdown on idle
+├── wol.ts                    the magic packet, and the client of the relay
+├── wol-relay.ts              the relay: sends the packet from the host's network (own container)
 ├── adapters/                 openai (transparent), anthropic (translation both ways)
 ├── store/                    providers, models, aliases, keys, usage (SQLite)
 ├── crypto.ts, db.ts, …       secret encryption, database migrations
@@ -231,7 +233,7 @@ gate/src/
 
 **`node_asleep` although I want to wake the machine** — the request's priority is lower than `min_wake_priority`. Send `X-MindGate-Priority: 3` or more, or wake it by hand: `POST /admin/api/providers/<id>/wake`.
 
-**WoL does not work** — [06 - Wake-on-LAN](06-wol.md). Most often: WoL is off in the BIOS, or Fast Startup is on in Windows. When the hub runs on a Docker bridge, put the machine's IP address (unicast) into `broadcast` instead of the network's broadcast address.
+**WoL does not work** — [06 - Wake-on-LAN](06-wol.md). Most often: WoL is off in the BIOS, or Fast Startup is on in Windows. `broadcast` must be the network's broadcast address, not the machine's own IP (a unicast packet is dropped once the machine's ARP entry has expired); when the hub runs on a Docker bridge it also needs the Wake-on-LAN relay ([06 - Wake-on-LAN](06-wol.md#hub-in-docker-the-relay)).
 
 **`429 budget_exhausted`** — the client has used up its key's limit; `GET /v1/usage` says how much it used and when it comes back (`reset_at`).
 

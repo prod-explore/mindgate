@@ -26,6 +26,35 @@ services:
         max-file: "3"
     networks:
       - mindgate_net
+    image: mindgate-hub
+
+  # Sends the Wake-on-LAN broadcast for a machine that sleeps. A container on a Docker bridge cannot broadcast onto the LAN,
+  # so this one runs on the host's own network (same image, different command). It is off unless the profile is on:
+  #   COMPOSE_PROFILES=wol   (in .env, together with MINDGATE_WOL_RELAY_TOKEN, MINDGATE_WOL_RELAY_BIND and, for the hub,
+  #                           MINDGATE_WOL_RELAY_URL — see .env.example and docs/06-wol.md)
+  wol-relay:
+    profiles: [wol]
+    image: mindgate-hub
+    pull_policy: never
+    command: ["node", "dist/wol-relay.js"]
+    container_name: mindgate-wol-relay
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      # the relay refuses to start without a token of at least 16 characters
+      MINDGATE_WOL_RELAY_TOKEN: ${MINDGATE_WOL_RELAY_TOKEN:-}
+      MINDGATE_WOL_RELAY_BIND: ${MINDGATE_WOL_RELAY_BIND:-127.0.0.1}
+      MINDGATE_WOL_RELAY_PORT: ${MINDGATE_WOL_RELAY_PORT:-7009}
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 volumes:
   mindgate-data:
