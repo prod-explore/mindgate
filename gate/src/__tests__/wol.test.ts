@@ -5,7 +5,7 @@ import { after, before, describe, it } from 'node:test';
 import { loadConfig } from '../config.js';
 import { createRelay } from '../wol-relay.js';
 import { localBroadcasts, relaySender, type MagicTarget } from '../wol.js';
-import { addProvider, openaiUpstream, startHub, type TestHub, type Upstream } from './helpers.js';
+import { ADMIN, MASTER, addProvider, openaiUpstream, startHub, type TestHub, type Upstream } from './helpers.js';
 
 const MAC = 'AA:BB:CC:DD:EE:01';
 const TOKEN = 'relay-token-0123456789abcdef';
@@ -107,7 +107,7 @@ describe('the Wake-on-LAN relay', () => {
 });
 
 describe('configuration', () => {
-  const base = { MINDGATE_MASTER_KEY: 'm'.repeat(8) + 'aB3dE5gH7jK9mN1pQ3rS5tU7vW9xY1zA', MINDGATE_ADMIN_TOKEN: 'adm-Zy9Xw7Vu5Ts3Rq1Po9Nm7Lk5Ji3Hg1Fe', MINDGATE_DB: ':memory:', MINDGATE_PANEL_DIR: '' };
+  const base = { MINDGATE_MASTER_KEY: MASTER, MINDGATE_ADMIN_TOKEN: ADMIN, MINDGATE_DB: ':memory:', MINDGATE_PANEL_DIR: '' };
 
   it('has no relay unless one is configured', () => {
     assert.equal(loadConfig(base, () => undefined).wolRelay, null);
