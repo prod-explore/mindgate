@@ -36,7 +36,7 @@ export interface ProviderOptions {
 /** A machine that sleeps: woken with Wake-on-LAN, polled until it answers, optionally told to shut down when idle. */
 export interface NodeConfig {
   mac: string;
-  /** Broadcast address of the LAN, or the machine's own IP (unicast works from a Docker bridge). */
+  /** Broadcast address of the LAN (for example 192.168.1.255). The machine's own IP does not work: a unicast packet is dropped once its ARP entry has expired. */
   broadcast: string;
   port: number;
   /**

@@ -1,4 +1,3 @@
-import dgram from 'node:dgram';
 import { authHeaders, joinUrl } from './adapters/common.js';
 import { HubError } from './errors.js';
 import type { Registry } from './registry.js';
@@ -6,6 +5,9 @@ import type { ProviderStore } from './store/providers.js';
 import type { NodeConfig, ProviderRecord } from './types.js';
 import { ClientAbort, send } from './upstream.js';
 import { sleep } from './util.js';
+import { magicPacket, sendMagicPacket } from './wol.js';
+
+export { magicPacket, sendMagicPacket };
 
 /**
  * A "node" is a provider on a machine that sleeps — the PC with the GPU. The hub keeps track of whether it is up,
@@ -48,33 +50,6 @@ export function shutdownUrlOf(provider: ProviderRecord): string | undefined {
   const cfg = provider.node;
   if (cfg?.shutdownUrl) return cfg.shutdownUrl;
   return cfg?.controlUrl ? joinUrl(cfg.controlUrl, '/node/power/shutdown-request') : undefined;
-}
-
-export function magicPacket(mac: string): Buffer {
-  const bytes = Buffer.from(mac.split(/[:-]/).map(h => parseInt(h, 16)));
-  return Buffer.concat([Buffer.alloc(6, 0xff), ...Array.from({ length: 16 }, () => bytes)]);
-}
-
-export function sendMagicPacket(cfg: Pick<NodeConfig, 'mac' | 'broadcast' | 'port'>): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const socket = dgram.createSocket('udp4');
-    socket.once('error', err => {
-      socket.close();
-      reject(err);
-    });
-    socket.bind(0, () => {
-      try {
-        socket.setBroadcast(true);
-      } catch {
-        /* unicast targets do not need it */
-      }
-      socket.send(magicPacket(cfg.mac), cfg.port, cfg.broadcast, err => {
-        socket.close();
-        if (err) reject(err);
-        else resolve();
-      });
-    });
-  });
 }
 
 export interface NodeDeps {
@@ -206,6 +181,31 @@ export class NodeManager {
     return raceAbort(this.wake(provider), signal);
   }
 
+  private readonly warned = new Set<string>();
+
+  /**
+   * `broadcast` set to the machine's own address sends the packet unicast. That only works while the sender still has the
+   * machine in its ARP table; once the machine has been off for a while nobody answers the ARP request and the kernel drops the
+   * packet, so the machine never wakes although the hub says "waking".
+   */
+  private warnIfUnicast(provider: ProviderRecord): void {
+    const cfg = provider.node;
+    if (!cfg || this.warned.has(provider.id)) return;
+    const hosts = [cfg.controlUrl, cfg.healthUrl, provider.baseUrl].flatMap(u => {
+      try {
+        return u ? [new URL(u).hostname] : [];
+      } catch {
+        return [];
+      }
+    });
+    if (!hosts.includes(cfg.broadcast)) return;
+    this.warned.add(provider.id);
+    this.log.warn(
+      { provider: provider.id, broadcast: cfg.broadcast },
+      "node.broadcast is the machine's own address, so the wake-up packet is unicast and is dropped once the machine's ARP entry has expired. Use the network's broadcast address (for example 192.168.1.255) and the Wake-on-LAN relay when the hub runs in Docker",
+    );
+  }
+
   /** Sends Wake-on-LAN and waits for the node to answer. One wake serves every request waiting for it. */
   wake(provider: ProviderRecord): Promise<void> {
     const cfg = provider.node;
@@ -217,7 +217,8 @@ export class NodeManager {
     const run = async () => {
       const started = this.now();
       let lastMagic = 0;
-      this.log.info({ provider: provider.id, mac: cfg.mac }, 'waking node');
+      this.log.info({ provider: provider.id, mac: cfg.mac, broadcast: cfg.broadcast }, 'waking node');
+      this.warnIfUnicast(provider);
       try {
         while (this.now() - started < cfg.bootTimeoutMs) {
           if (this.now() - lastMagic >= RESEND_MAGIC_MS || lastMagic === 0) {
