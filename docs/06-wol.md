@@ -176,7 +176,17 @@ The relay is a second container from the same image (`node dist/wol-relay.js`) w
 3. `docker compose up -d --build`. The relay logs the broadcast addresses it will accept (`docker logs mindgate-wol-relay`).
 4. Set the machine's `broadcast` to one of them (the LAN's, for example `192.168.1.255`).
 
-If the host runs a firewall, the container must be allowed to reach the relay's port (7009) on the gateway address.
+If the host runs a firewall, the hub's container must be allowed to reach the relay's port. With `ufw` (which blocks it by default; the symptom is `UND_ERR_CONNECT_TIMEOUT` from the hub):
+
+```bash
+sudo ufw allow from <the Docker network, e.g. 172.31.0.0/16> to <the gateway address> port 7009 proto tcp comment 'mindgate wol relay'
+```
+
+To check that the hub reaches it (a `401` means yes):
+
+```bash
+docker exec mindgate-gate node -e "fetch(process.env.MINDGATE_WOL_RELAY_URL+'/wake',{method:'POST'}).then(r=>console.log(r.status),e=>console.log(e.cause?.code||e.message))"
+```
 
 Without a relay the hub sends the packet itself, which works when it runs directly on the host (not in Docker).
 

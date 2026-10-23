@@ -50,6 +50,12 @@ services:
       - ALL
     security_opt:
       - no-new-privileges:true
+    # The image's own health check looks at the hub's port; the relay answers 404 to a plain GET when it is up.
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://'+process.env.MINDGATE_WOL_RELAY_BIND+':'+process.env.MINDGATE_WOL_RELAY_PORT+'/').then(r=>process.exit(r.status===404?0:1),()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
     logging:
       driver: json-file
       options:
