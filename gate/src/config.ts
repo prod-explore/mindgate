@@ -29,6 +29,8 @@ export interface HubConfig {
   defaultIdleTimeoutMs: number;
   /** Where the built admin panel is (null = no panel). Served at /admin/. */
   panelDir: string | null;
+  /** A Wake-on-LAN relay on the host's network, for a hub that runs in a Docker bridge (null = the hub sends the packet itself). */
+  wolRelay: { url: string; token: string } | null;
 }
 
 function int(env: NodeJS.ProcessEnv, name: string, fallback: number, min = 0): number {
@@ -68,6 +70,17 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, warn: (m: strin
   const usageTz = env['MINDGATE_USAGE_TZ'] || 'UTC';
   assertTimeZone(usageTz);
 
+  const wolRelayUrl = env['MINDGATE_WOL_RELAY_URL'] ?? '';
+  const wolRelayToken = env['MINDGATE_WOL_RELAY_TOKEN'] ?? '';
+  if (wolRelayUrl) {
+    try {
+      new URL(wolRelayUrl);
+    } catch {
+      throw new Error(`MINDGATE_WOL_RELAY_URL "${wolRelayUrl}" is not a URL (for example http://172.17.0.1:7009)`);
+    }
+    if (!wolRelayToken) throw new Error('MINDGATE_WOL_RELAY_TOKEN is required together with MINDGATE_WOL_RELAY_URL');
+  }
+
   return {
     host: env['MINDGATE_HOST'] || '0.0.0.0',
     port: int(env, 'MINDGATE_PORT', 3000, 1),
@@ -88,5 +101,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, warn: (m: strin
     defaultIdleTimeoutMs: int(env, 'MINDGATE_IDLE_TIMEOUT_MS', 120_000, 1000),
     // unset = the panel in this repository; empty = no panel at all
     panelDir: env['MINDGATE_PANEL_DIR'] === undefined ? DEFAULT_PANEL_DIR : env['MINDGATE_PANEL_DIR'] === '' ? null : resolve(env['MINDGATE_PANEL_DIR']),
+    wolRelay: wolRelayUrl ? { url: wolRelayUrl, token: wolRelayToken } : null,
   };
 }

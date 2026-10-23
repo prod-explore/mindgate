@@ -4,6 +4,7 @@ import { openDatabase, type Db } from './db.js';
 import { Limits } from './limits.js';
 import { NodeClient } from './node-client.js';
 import { NodeManager, type NodeDeps } from './node.js';
+import { relaySender } from './wol.js';
 import { Registry } from './registry.js';
 import { Router } from './routing.js';
 import { AliasStore } from './store/aliases.js';
@@ -62,7 +63,7 @@ export function createHub(config: HubConfig, log: Logger = silentLogger, overrid
   const registry = new Registry(providers, config);
   const router = new Router(models, aliases, providers);
   const limits = new Limits(usage, config.usageTz, clock);
-  const nodes = new NodeManager(providers, registry, { log, ...overrides.node });
+  const nodes = new NodeManager(providers, registry, { log, ...(config.wolRelay ? { sendMagic: relaySender(config.wolRelay.url, config.wolRelay.token) } : {}), ...overrides.node });
   const sync = new ModelSync(providers, models, registry, nodes, log);
   const nodeClient = new NodeClient(providers, registry, nodes, sync, log, overrides.nodePullPollMs);
   return { config, db, box, providers, models, aliases, keys, usage, registry, router, limits, nodes, nodeClient, sync, log, clock };
