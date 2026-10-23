@@ -80,13 +80,13 @@ describe('overview', () => {
     const api = fakeApi();
     api.log.mockResolvedValue([
       logRow({ id: 2, status: 429, error_code: 'rate_limited' }),
-      logRow({ id: 1, status: 502, error_code: 'upstream_error', model: null, requested_model: 'smart' }),
+      logRow({ id: 1, status: 502, error_code: 'upstream_error', model: null, requested_model: 'cloud/ghost' }),
     ]);
     renderPage(<Overview />, api);
     const section = (await screen.findByRole('heading', { name: 'Recent errors' })).closest('section')!;
     expect(await within(section).findByText('429')).toHaveClass('badge-warn');
     expect(within(section).getByText('502')).toHaveClass('badge-bad');
-    expect(within(section).getByText('smart')).toBeInTheDocument();
+    expect(within(section).getByText('cloud/ghost')).toBeInTheDocument();
     expect(api.log).toHaveBeenCalledWith({ limit: 6, errors: true }, expect.anything());
     expect(within(section).getByRole('link', { name: 'Open the request log' })).toHaveAttribute('href', '#/log?errors=1');
   });

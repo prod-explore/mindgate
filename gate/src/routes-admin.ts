@@ -4,7 +4,7 @@ import { authenticateAdmin, type AuthThrottle } from './auth.js';
 import type { Hub } from './context.js';
 import { HubError, badRequest } from './errors.js';
 import { withDeadline } from './upstream.js';
-import { aliasView, camelKeys, keyView, modelView, providerView, snakeKeys } from './present.js';
+import { camelKeys, keyView, modelView, providerView, snakeKeys } from './present.js';
 import { PRESETS } from './presets.js';
 import type { ProviderInput, ProviderPatch } from './store/providers.js';
 import { dayKey } from './time.js';
@@ -127,7 +127,6 @@ export function registerAdmin(app: FastifyInstance, hub: Hub, throttle: AuthThro
         counts: {
           providers: hub.providers.list().length,
           models: hub.models.list().length,
-          aliases: hub.aliases.list().length,
           keys: hub.keys.list().filter(k => !k.revokedAt).length,
         },
         time_zone: hub.config.usageTz,
@@ -167,9 +166,8 @@ export function registerAdmin(app: FastifyInstance, hub: Hub, throttle: AuthThro
 
       admin.delete('/providers/:id', async (req, reply) => {
         const { id } = req.params as { id: string };
-        const ids = hub.aliases.list().filter(a => a.targets.some(t => t.startsWith(`${id}/`)));
         hub.providers.delete(id);
-        return reply.send({ deleted: true, id, aliases_affected: ids.map(a => a.name) });
+        return reply.send({ deleted: true, id });
       });
 
       /** Connectivity check: asks the upstream for its model list without changing anything. */
@@ -264,16 +262,15 @@ export function registerAdmin(app: FastifyInstance, hub: Hub, throttle: AuthThro
         return hub.nodeClient.unload(provider, name);
       });
 
-      /** Deletes the model from the machine's disk and forgets it here. Aliases that pointed at it are listed. */
+      /** Deletes the model from the machine's disk and forgets it here. */
       admin.delete('/providers/:id/node/models/*', async req => {
         const params = req.params as { id: string; '*': string };
         const provider = hub.providers.require(params.id);
         const name = params['*'];
         const result = await hub.nodeClient.removeModel(provider, name);
         const id = canonicalId(provider.id, name);
-        const affected = hub.aliases.list().filter(a => a.targets.includes(id)).map(a => a.name);
         if (hub.models.getRecord(id)) hub.models.purge(id);
-        return { ...result, id, aliases_affected: affected };
+        return { ...result, id };
       });
 
       /** `force` is a person's decision and skips the checks that stop an idle timer from powering off a PC in use. */
@@ -308,38 +305,6 @@ export function registerAdmin(app: FastifyInstance, hub: Hub, throttle: AuthThro
       admin.delete('/models/*', async req => {
         const id = (req.params as { '*': string })['*'];
         return { id, ...hub.models.delete(id) };
-      });
-
-      // ── aliases ──────────────────────────────────────────────────────────
-      admin.get('/aliases', async () => ({ data: hub.aliases.list().map(a => aliasView(a, hub)) }));
-
-      admin.post('/aliases', async (req, reply) => {
-        const b = body(req);
-        const created = hub.aliases.create({
-          name: str(b, 'name') ?? '',
-          ...(has(b, 'description') ? { description: str(b, 'description')! } : {}),
-          ...(has(b, 'tags') ? { tags: b['tags'] as string[] } : {}),
-          targets: b['targets'] as string[],
-          ...(has(b, 'enabled') ? { enabled: bool(b, 'enabled')! } : {}),
-        });
-        return reply.code(201).send(aliasView(created, hub));
-      });
-
-      admin.patch('/aliases/:name', async req => {
-        const b = body(req);
-        const updated = hub.aliases.update((req.params as { name: string }).name, {
-          ...(has(b, 'description') ? { description: str(b, 'description')! } : {}),
-          ...(has(b, 'tags') ? { tags: b['tags'] as string[] } : {}),
-          ...(has(b, 'targets') ? { targets: b['targets'] as string[] } : {}),
-          ...(has(b, 'enabled') ? { enabled: bool(b, 'enabled')! } : {}),
-        });
-        return aliasView(updated, hub);
-      });
-
-      admin.delete('/aliases/:name', async (req, reply) => {
-        const { name } = req.params as { name: string };
-        hub.aliases.delete(name);
-        return reply.send({ deleted: true, name });
       });
 
       // ── client keys ──────────────────────────────────────────────────────

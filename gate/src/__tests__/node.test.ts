@@ -84,7 +84,6 @@ describe('a machine that sleeps', () => {
           node: { mac: MAC, broadcast: '192.168.1.255', bootTimeoutMs: 1500, pollIntervalMs: 100, minWakePriority: 3, idleShutdownMinutes: 10, shutdownUrl: `${agent.url}/shutdown` },
         });
         await addProvider(hub, 'cloud', cloud);
-        hub.aliases.create({ name: 'pc-or-cloud', targets: ['pc/llama', 'cloud/fake-model'] });
       },
     });
   });
@@ -162,26 +161,25 @@ describe('a machine that sleeps', () => {
     assert.equal(pcStatus(), 'asleep');
   });
 
-  it('...and an alias then answers from its next target instead', async () => {
+  it('...and the error says the app may pick another model, which the hub never does for it', async () => {
     fallAsleep();
-    const r = await ask('pc-or-cloud', { 'X-MindGate-Priority': '1' });
-    assert.equal(r.status, 200);
-    assert.equal(r.json.model, 'cloud/fake-model');
-    assert.equal(r.headers.get('x-mindgate-fallback'), 'pc/llama');
+    const cloudCalls = () => cloud.requests.filter(q => q.path === '/v1/chat/completions').length;
+    const before = cloudCalls();
+    const r = await ask('pc/llama', { 'X-MindGate-Priority': '1' });
+    assert.equal(r.json.error.code, 'node_asleep');
+    assert.equal(r.json.error.fallback, true);
     assert.equal(magic.length, 0);
+    assert.equal(cloudCalls(), before, 'the hub does not try the cloud on its own');
   });
 
-  it('a machine that does not come up in time gives node_unavailable, and an alias falls back', async () => {
+  it('a machine that does not come up in time gives node_unavailable, marked as a reason to try another model', async () => {
     fallAsleep();
     neverWakes = true;
     const direct = await ask('pc/llama');
     assert.equal(direct.status, 503);
     assert.equal(direct.json.error.code, 'node_unavailable');
+    assert.equal(direct.json.error.fallback, true);
     assert.ok(magic.length >= 1);
-    fallAsleep();
-    const viaAlias = await ask('pc-or-cloud');
-    assert.equal(viaAlias.status, 200);
-    assert.equal(viaAlias.json.model, 'cloud/fake-model');
   });
 
   it('a Wake-on-LAN packet that cannot be sent is reported as wol_failed', async () => {
@@ -250,10 +248,7 @@ describe('a machine that sleeps', () => {
     const r = await ask('pc/llama');
     assert.equal(r.status, 502);
     assert.equal(r.json.error.code, 'node_connection_lost');
-    // an alias moves on to the cloud
-    const viaAlias = await ask('pc-or-cloud');
-    assert.equal(viaAlias.status, 200);
-    assert.equal(viaAlias.json.model, 'cloud/fake-model');
+    assert.equal(r.json.error.fallback, true);
   });
 
   it('the model list tells whether a machine is asleep', async () => {

@@ -9,7 +9,7 @@ The agent does four things:
 3. **Gives the hub a management API** (`/node/*`): machine status, model list, background downloads, deletion, loading into and unloading from memory. Full description: [05 - Node protocol](05-nodes.md).
 4. **Shuts the computer down** at the hub's request after a period of inactivity — but only when nothing is in progress and nobody is using the PC (see [03 - Tray](03-tray.md)).
 
-What the agent does **not** do: there are no profiles (`flash`, `reasoning`…), no pipelines, no MCP tools and no queue of its own. The names for clients are **aliases in the hub**, the hub runs the queue (the provider's `max_concurrency`), and you pick a model simply by its Ollama name. That keeps the agent so simple that there is hardly anything in it that can break.
+What the agent does **not** do: there are no profiles (`flash`, `reasoning`…), no pipelines, no MCP tools and no queue of its own. The hub runs the queue (the provider's `max_concurrency`), and you pick a model simply by its Ollama name. That keeps the agent so simple that there is hardly anything in it that can break.
 
 ---
 
@@ -149,7 +149,7 @@ curl -X POST http://localhost:3000/admin/api/providers \
 
 `control_url` is the one thing that tells the hub "the agent is here": from it the hub derives the address for checking the state (`/health`) and for the shutdown request (`/node/power/shutdown-request`). Without it the node still works (waking, requests), but its models cannot be managed from the hub. Waking: [06 - Wake-on-LAN](06-wol.md).
 
-From there everything happens in the hub — downloading a model (`POST /admin/api/providers/pc/node/pulls {"name":"qwen3:4b"}`), the list, deletion, aliases: [04 - Models](04-models.md) and [08 - API](08-api.md).
+From there everything happens in the hub — downloading a model (`POST /admin/api/providers/pc/node/pulls {"name":"qwen3:4b"}`), the list, deletion, tags: [04 - Models](04-models.md) and [08 - API](08-api.md).
 
 ---
 

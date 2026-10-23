@@ -152,7 +152,7 @@ function ProviderRow({ provider: p, onChanged, onEdit }: { provider: Provider; o
     if (!ok) return;
     const r = await remove.run();
     if (r) {
-      toast.ok(r.aliases_affected.length ? t('providers.deleted_aliases', { aliases: r.aliases_affected.join(', ') }) : t('providers.deleted'));
+      toast.ok(t('providers.deleted'));
       onChanged();
     }
   };

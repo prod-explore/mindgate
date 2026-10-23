@@ -8,13 +8,13 @@ import { dayKey, monthStartKey } from './time.js';
 
 const truthy = (v: string | undefined): boolean => v !== undefined && /^(1|true|yes|on)$/i.test(v.trim());
 
-/** A model or alias as GET /v1/models shows it: the OpenAI fields, plus OpenRouter-style extras clients may ignore. */
+/** A model as GET /v1/models shows it: the OpenAI fields, plus OpenRouter-style extras clients may ignore. */
 export function modelEntry(hub: Hub, m: ListedModel): Record<string, unknown> {
   const e: Record<string, unknown> = {
     id: m.id,
     object: 'model',
     created: Math.floor(Date.parse(m.primary.provider.createdAt) / 1000) || 0,
-    owned_by: m.providerId ?? 'mindgate',
+    owned_by: m.providerId,
     name: m.name,
     description: m.description,
     kind: m.kind,
@@ -23,7 +23,6 @@ export function modelEntry(hub: Hub, m: ListedModel): Record<string, unknown> {
     status: hub.nodes.status(m.primary.provider) ?? 'online',
   };
   if (m.contextLength !== null) e['context_length'] = m.contextLength;
-  if (m.type === 'alias') e['alias_of'] = m.targets;
   // Capabilities are reported only when known: leaving the fields out means "unknown", not "no tools".
   if (m.supports) {
     e['supports'] = m.supports;

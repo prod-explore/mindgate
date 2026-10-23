@@ -118,6 +118,36 @@ const MIGRATIONS: ReadonlyArray<(db: Db) => void> = [
       CREATE INDEX request_log_key ON request_log(key_id, ts);
     `);
   },
+  // Aliases are gone: an app that wants a fallback picks it from the models' tags itself. A key that was limited to an
+  // alias keeps working: its allow-list now names the models the alias pointed at.
+  db => {
+    const aliases = db.prepare('SELECT name, targets FROM aliases').all() as Array<{ name: string; targets: string }>;
+    if (aliases.length) {
+      const targetsOf = new Map<string, string[]>();
+      for (const a of aliases) {
+        try {
+          const t = JSON.parse(a.targets) as unknown;
+          if (Array.isArray(t)) targetsOf.set(a.name, t.filter((x): x is string => typeof x === 'string'));
+        } catch {
+          /* an unreadable alias grants nothing */
+        }
+      }
+      const keys = db.prepare('SELECT id, allowed_models FROM api_keys WHERE allowed_models IS NOT NULL').all() as Array<{ id: string; allowed_models: string }>;
+      const update = db.prepare('UPDATE api_keys SET allowed_models = ? WHERE id = ?');
+      for (const k of keys) {
+        let list: unknown;
+        try {
+          list = JSON.parse(k.allowed_models);
+        } catch {
+          continue;
+        }
+        if (!Array.isArray(list)) continue;
+        const next = [...new Set(list.flatMap(p => (typeof p === 'string' && targetsOf.has(p) ? targetsOf.get(p)! : [p])))];
+        if (next.length !== list.length || next.some((p, i) => p !== list[i])) update.run(JSON.stringify(next), k.id);
+      }
+    }
+    db.exec('DROP TABLE aliases');
+  },
 ];
 
 export const LATEST_SCHEMA_VERSION = MIGRATIONS.length;
@@ -149,7 +179,8 @@ export function openDatabase(path: string): Db {
   return db;
 }
 
-export function migrate(db: Db): void {
+/** Brings the schema up to date (or, for tests of a single step, up to `upTo`). */
+export function migrate(db: Db, upTo: number = LATEST_SCHEMA_VERSION): void {
   const current = schemaVersion(db);
   if (current > LATEST_SCHEMA_VERSION) {
     throw new Error(
@@ -157,7 +188,7 @@ export function migrate(db: Db): void {
         `It was written by a newer MindGate — upgrade instead of downgrading.`,
     );
   }
-  for (let v = current; v < LATEST_SCHEMA_VERSION; v++) {
+  for (let v = current; v < upTo; v++) {
     db.transaction(() => {
       MIGRATIONS[v]!(db);
       db.pragma(`user_version = ${v + 1}`);

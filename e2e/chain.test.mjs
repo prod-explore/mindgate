@@ -185,14 +185,12 @@ describe('hub -> agent -> Ollama', () => {
 
   it('removes a model from the disk and the catalog; asking for it afterwards fails cleanly', async () => {
     const name = 'hf.co/mlabonne/gemma-3-4b-it-abliterated-GGUF:Q4_K_M';
-    hub.aliases.create({ name: 'free', targets: [`pc/${name}`] });
     const r = await admin('DELETE', `/providers/pc/node/models/${name}`);
     assert.equal(r.status, 200, JSON.stringify(r.json));
-    assert.deepEqual(r.json.aliases_affected, ['free']);
     assert.ok(!ollama.models.has(name));
     assert.equal(hub.models.getRecord(`pc/${name}`), undefined);
-    const gone = await chat('free');
-    assert.ok(gone.status >= 400, 'the alias has nothing to point at any more');
+    const gone = await chat(`pc/${name}`);
+    assert.ok(gone.status >= 400, 'the model has nothing to answer with any more');
   });
 
   it('the tray and the agent agree on the addresses and the verbs', () => {

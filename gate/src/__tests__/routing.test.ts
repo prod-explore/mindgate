@@ -4,7 +4,7 @@ import { addProvider, chunk, echoChat, openaiUpstream, parseSse, sendJson, sleep
 
 type Behaviour = 'ok' | 'boom' | 'bad-request' | 'cut-after-content' | 'cut-before-content';
 
-describe('routing, aliases, fallback and local-only', () => {
+describe('routing, no silent fallback and local-only', () => {
   let cloud: Upstream;
   let backup: Upstream;
   let local: Upstream;
@@ -40,9 +40,6 @@ describe('routing, aliases, fallback and local-only', () => {
         await addProvider(hub, 'cloud', cloud, { locality: 'cloud' });
         await addProvider(hub, 'backup', backup, { locality: 'cloud' });
         await addProvider(hub, 'home', local, { locality: 'local' });
-        hub.aliases.create({ name: 'smart', targets: ['cloud/fake-model', 'backup/fake-model'] });
-        hub.aliases.create({ name: 'private-first', targets: ['cloud/fake-model', 'home/llama'] });
-        hub.aliases.create({ name: 'cloud-only', targets: ['cloud/fake-model', 'backup/fake-model'], description: 'two clouds' });
       },
     });
   });
@@ -82,6 +79,14 @@ describe('routing, aliases, fallback and local-only', () => {
       assert.equal((await chat('nonsense')).json.error.code, 'model_not_found');
     });
 
+    it('a bare name is not a model: there are no aliases, only provider/model ids', async () => {
+      for (const name of ['smart', 'free', 'fake-model', '/fake-model']) {
+        const r = await chat(name);
+        assert.equal(r.status, 404, name);
+        assert.equal(r.json.error.code, 'model_not_found');
+      }
+    });
+
     it('a missing model is a 400', async () => {
       const r = await h.api('POST', '/v1/chat/completions', { messages: [{ role: 'user', content: 'x' }] });
       assert.equal(r.status, 400);
@@ -102,95 +107,65 @@ describe('routing, aliases, fallback and local-only', () => {
       assert.equal(r.status, 502);
       assert.equal(r.json.error.code, 'upstream_error');
       assert.equal(r.json.error.provider, 'cloud');
-      assert.equal(chatCalls(backup), 0, 'the backup of the alias must not be used when the model was named directly');
-    });
-  });
-
-  describe('explicit fallback through an alias', () => {
-    it('an alias goes to its first target when that works', async () => {
-      const r = await chat('smart');
-      assert.equal(r.status, 200);
-      assert.equal(r.json.model, 'cloud/fake-model');
-      assert.equal(r.json.mindgate.requested, 'smart');
-      assert.deepEqual(r.json.mindgate.attempts, [{ model: 'cloud/fake-model', outcome: 'ok' }]);
-      assert.equal(chatCalls(backup), 0);
-    });
-
-    it('moves to the next target when the first fails, and tells the client', async () => {
-      mode.cloud = 'boom';
-      const r = await chat('smart');
-      assert.equal(r.status, 200);
-      assert.equal(r.json.model, 'backup/fake-model');
-      assert.equal(r.headers.get('x-mindgate-fallback'), 'cloud/fake-model');
-      assert.deepEqual(r.json.mindgate.attempts, [
-        { model: 'cloud/fake-model', outcome: 'upstream_error' },
-        { model: 'backup/fake-model', outcome: 'ok' },
-      ]);
-    });
-
-    it('every target failing returns the last error', async () => {
-      mode.cloud = mode.backup = 'boom';
-      const r = await chat('smart');
-      assert.equal(r.status, 502);
-      assert.equal(r.json.error.provider, 'backup');
+      assert.equal(chatCalls(backup), 0, 'a model with the same name at another provider must not be used');
       assert.equal(chatCalls(cloud), 1);
-      assert.equal(chatCalls(backup), 1);
     });
 
-    it('a request the model rejects (bad input) is not retried elsewhere', async () => {
+    it('the error tells the app it may pick another model: fallback is true when the failure was the model\'s', async () => {
+      mode.cloud = 'boom';
+      const r = await chat('cloud/fake-model');
+      assert.equal(r.json.error.fallback, true);
+    });
+
+    it('a request the model rejects (bad input) is not marked as retryable elsewhere', async () => {
       mode.cloud = 'bad-request';
-      const r = await chat('smart');
+      const r = await chat('cloud/fake-model');
       assert.equal(r.status, 400);
       assert.equal(r.json.error.code, 'context_length_exceeded');
+      assert.equal(r.json.error.fallback, undefined);
       assert.equal(chatCalls(backup), 0);
     });
 
-    it('streaming: a connection that dies before any content falls back', async () => {
-      mode.cloud = 'cut-before-content';
-      const r = await h.raw('POST', '/v1/chat/completions', { model: 'smart', stream: true, messages: [{ role: 'user', content: 'hi' }] });
-      assert.equal(r.status, 200);
-      const events = parseSse(await r.text());
-      const text = events.filter((e): e is Json => typeof e === 'object' && !!e.choices?.length).map(e => e.choices[0].delta.content ?? '').join('');
-      assert.equal(text, 'echo: hi');
-      assert.equal(events.at(-1), '[DONE]');
-      assert.equal(chatCalls(backup), 1);
+    it('the response of a successful call has no fallback marks', async () => {
+      const r = await chat('cloud/fake-model');
+      assert.equal(r.headers.get('x-mindgate-fallback'), null);
+      assert.deepEqual(r.json.mindgate.attempts, [{ model: 'cloud/fake-model', outcome: 'ok' }]);
+      assert.equal(r.json.error, undefined);
     });
 
-    it('streaming: once content has reached the client there is no fallback, the error travels in the stream', async () => {
+    it('streaming: a connection that dies before any content is a plain error the app can answer with another model', async () => {
+      mode.cloud = 'cut-before-content';
+      const r = await h.raw('POST', '/v1/chat/completions', { model: 'cloud/fake-model', stream: true, messages: [{ role: 'user', content: 'hi' }] });
+      assert.equal(r.status, 502, 'nothing had gone out, so the status line can still say it failed');
+      const body = JSON.parse(await r.text()) as Json;
+      assert.equal(body.error.provider, 'cloud');
+      assert.equal(body.error.fallback, true);
+      assert.equal(chatCalls(backup), 0);
+    });
+
+    it('streaming: once content has reached the client the error travels in the stream and is not marked retryable', async () => {
       mode.cloud = 'cut-after-content';
-      const r = await h.raw('POST', '/v1/chat/completions', { model: 'smart', stream: true, messages: [{ role: 'user', content: 'hi' }] });
+      const r = await h.raw('POST', '/v1/chat/completions', { model: 'cloud/fake-model', stream: true, messages: [{ role: 'user', content: 'hi' }] });
       assert.equal(r.status, 200);
       const events = parseSse(await r.text());
       const err = events.find((e): e is Json => typeof e === 'object' && !!e.error);
       assert.ok(err, 'an error event is sent');
       assert.equal(err.error.code, 'upstream_stream_interrupted');
+      assert.equal(err.error.fallback, undefined, 'half an answer cannot be taken over by another model');
       assert.equal(events.at(-1), '[DONE]');
       assert.equal(chatCalls(backup), 0, 'a half-written answer is never continued by another model');
     });
 
-    it('a disabled provider is skipped; if nothing is left the answer is 503', async () => {
+    it('a disabled provider makes its models unavailable (503), the others are untouched', async () => {
       h.hub.providers.update('cloud', { enabled: false });
       try {
-        const r = await chat('smart');
-        assert.equal(r.status, 200);
-        assert.equal(r.json.model, 'backup/fake-model');
+        const r = await chat('cloud/fake-model');
+        assert.equal(r.status, 503);
+        assert.equal(r.json.error.code, 'no_available_model');
         assert.equal(chatCalls(cloud), 0);
-        h.hub.providers.update('backup', { enabled: false });
-        const none = await chat('smart');
-        assert.equal(none.status, 503);
-        assert.equal(none.json.error.code, 'no_available_model');
+        assert.equal((await chat('backup/fake-model')).status, 200);
       } finally {
         h.hub.providers.update('cloud', { enabled: true });
-        h.hub.providers.update('backup', { enabled: true });
-      }
-    });
-
-    it('a disabled alias does not exist for clients', async () => {
-      h.hub.aliases.update('cloud-only', { enabled: false });
-      try {
-        assert.equal((await chat('cloud-only')).status, 404);
-      } finally {
-        h.hub.aliases.update('cloud-only', { enabled: true });
       }
     });
   });
@@ -219,39 +194,12 @@ describe('routing, aliases, fallback and local-only', () => {
       assert.equal(r.status, 403);
     });
 
-    it('fallbacks are filtered too: a cloud first target is skipped, never called', async () => {
-      const r = await chat('private-first', {}, { 'X-MindGate-Local-Only': 'true' });
-      assert.equal(r.status, 200);
-      assert.equal(r.json.model, 'home/llama');
-      assert.equal(chatCalls(cloud), 0, 'no request may even be attempted against the cloud');
-    });
-
-    it('an alias that has only cloud targets is a violation, not an empty answer', async () => {
-      const r = await chat('cloud-only', {}, { 'X-MindGate-Local-Only': 'true' });
-      assert.equal(r.status, 403);
-      assert.equal(r.json.error.code, 'local_only_violation');
-    });
-
-    it('a failing local model does not escape to the cloud', async () => {
-      mode.local = 'boom';
-      const r = await chat('private-first', {}, { 'X-MindGate-Local-Only': 'true' });
-      assert.equal(r.status, 502);
-      assert.equal(chatCalls(cloud), 0);
-    });
-
-    it('without the restriction, the same alias uses the cloud first', async () => {
-      const r = await chat('private-first');
-      assert.equal(r.json.model, 'cloud/fake-model');
-    });
-
     it('the model list shows only what a local-only caller can reach', async () => {
       const k = h.hub.keys.create({ name: 'private3', localOnly: true }).key;
       const r = await h.api('GET', '/v1/models', undefined, {}, k);
       const ids = (r.json.data as Json[]).map(m => m.id);
       assert.ok(ids.includes('home/llama'));
       assert.ok(!ids.some(id => id.startsWith('cloud/') || id.startsWith('backup/')));
-      assert.ok(ids.includes('private-first'), 'an alias with a local target is listed');
-      assert.ok(!ids.includes('cloud-only'));
       const viaHeader = await h.api('GET', '/v1/models', undefined, { 'X-MindGate-Local-Only': 'true' });
       assert.deepEqual(
         (viaHeader.json.data as Json[]).map(m => m.id).sort(),
@@ -272,21 +220,15 @@ describe('routing, aliases, fallback and local-only', () => {
   });
 
   describe('which models a key may use', () => {
-    it('allowed_models accepts ids, alias names and provider wildcards', async () => {
-      const k = h.hub.keys.create({ name: 'narrow', allowedModels: ['home/*', 'smart'] }).key;
+    it('allowed_models accepts ids and provider wildcards', async () => {
+      const k = h.hub.keys.create({ name: 'narrow', allowedModels: ['home/*', 'backup/fake-model'] }).key;
       assert.equal((await chat('home/llama', {}, {}, k)).status, 200);
-      assert.equal((await chat('smart', {}, {}, k)).status, 200);
+      assert.equal((await chat('backup/fake-model', {}, {}, k)).status, 200);
       const denied = await chat('cloud/fake-model', {}, {}, k);
       assert.equal(denied.status, 403);
       assert.equal(denied.json.error.code, 'model_not_allowed');
       const listed = ((await h.api('GET', '/v1/models', undefined, {}, k)).json.data as Json[]).map(m => m.id).sort();
-      assert.deepEqual(listed, ['home/llama', 'smart']);
-    });
-
-    it('an alias allowed by name may use its targets even if the targets are not allowed on their own', async () => {
-      const k = h.hub.keys.create({ name: 'via-alias', allowedModels: ['smart'] }).key;
-      assert.equal((await chat('smart', {}, {}, k)).status, 200);
-      assert.equal((await chat('backup/fake-model', {}, {}, k)).status, 403);
+      assert.deepEqual(listed, ['backup/fake-model', 'home/llama']);
     });
   });
 
@@ -310,7 +252,7 @@ describe('routing, aliases, fallback and local-only', () => {
   });
 
   describe('GET /v1/models', () => {
-    it('lists models and aliases with the fields clients need', async () => {
+    it('lists models with the fields clients need', async () => {
       const r = await h.api('GET', '/v1/models');
       assert.equal(r.status, 200);
       assert.equal(r.json.object, 'list');
@@ -322,10 +264,7 @@ describe('routing, aliases, fallback and local-only', () => {
       assert.equal(m.kind, 'chat');
       assert.equal(byId.get('home/llama')!.locality, 'local');
       assert.equal(byId.get('cloud/text-embedding-3')!.kind, 'embedding');
-      const alias = byId.get('smart')!;
-      assert.deepEqual(alias.alias_of, ['cloud/fake-model', 'backup/fake-model']);
-      assert.equal(alias.locality, 'cloud');
-      assert.equal(byId.get('cloud-only')!.description, 'two clouds');
+      assert.ok(!(r.json.data as Json[]).some(x => 'alias_of' in x), 'there are no aliases to list');
     });
 
     it('a single model can be fetched by id, including ids with a slash', async () => {
@@ -367,17 +306,14 @@ describe('routing, aliases, fallback and local-only', () => {
       assert.equal(row.input_tokens, 10);
     });
 
-    it('failed requests are counted as errors, and the fallback chain is in the log', async () => {
+    it('failed requests are counted as errors, and the single attempt is in the log', async () => {
       const k = h.hub.keys.create({ name: 'errcount' });
       mode.cloud = 'boom';
-      await chat('smart', {}, {}, k.key);
+      await chat('cloud/fake-model', {}, {}, k.key);
       const u = await h.api('GET', '/v1/usage', undefined, {}, k.key);
       assert.equal(u.json.requests.today, 1);
       const row = h.hub.db.prepare('SELECT attempts FROM request_log WHERE key_id = ?').get(k.record.id) as Json;
-      assert.deepEqual(JSON.parse(row.attempts), [
-        { model: 'cloud/fake-model', outcome: 'upstream_error' },
-        { model: 'backup/fake-model', outcome: 'ok' },
-      ]);
+      assert.deepEqual(JSON.parse(row.attempts), [{ model: 'cloud/fake-model', outcome: 'upstream_error' }]);
     });
   });
 });

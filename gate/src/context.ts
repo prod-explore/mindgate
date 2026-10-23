@@ -7,7 +7,6 @@ import { NodeManager, type NodeDeps } from './node.js';
 import { relaySender } from './wol.js';
 import { Registry } from './registry.js';
 import { Router } from './routing.js';
-import { AliasStore } from './store/aliases.js';
 import { KeyStore } from './store/keys.js';
 import { ModelStore } from './store/models.js';
 import { ProviderStore } from './store/providers.js';
@@ -30,7 +29,6 @@ export interface Hub {
   box: SecretBox;
   providers: ProviderStore;
   models: ModelStore;
-  aliases: AliasStore;
   keys: KeyStore;
   usage: UsageStore;
   registry: Registry;
@@ -57,14 +55,13 @@ export function createHub(config: HubConfig, log: Logger = silentLogger, overrid
   const box = new SecretBox(config.masterKey);
   const providers = new ProviderStore(db, box);
   const models = new ModelStore(db, providers);
-  const aliases = new AliasStore(db, models);
   const keys = new KeyStore(db);
   const usage = new UsageStore(db);
   const registry = new Registry(providers, config);
-  const router = new Router(models, aliases, providers);
+  const router = new Router(models, providers);
   const limits = new Limits(usage, config.usageTz, clock);
   const nodes = new NodeManager(providers, registry, { log, ...(config.wolRelay ? { sendMagic: relaySender(config.wolRelay.url, config.wolRelay.token) } : {}), ...overrides.node });
   const sync = new ModelSync(providers, models, registry, nodes, log);
   const nodeClient = new NodeClient(providers, registry, nodes, sync, log, overrides.nodePullPollMs);
-  return { config, db, box, providers, models, aliases, keys, usage, registry, router, limits, nodes, nodeClient, sync, log, clock };
+  return { config, db, box, providers, models, keys, usage, registry, router, limits, nodes, nodeClient, sync, log, clock };
 }

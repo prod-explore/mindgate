@@ -39,12 +39,12 @@ describe('requests', () => {
   });
 
   it('puts a body in as JSON, and only then names a content type', async () => {
-    const { api, fetchImpl } = setup(() => reply(201, { name: 'smart' }));
-    await api.aliases.create({ name: 'smart', targets: ['a/b'] });
+    const { api, fetchImpl } = setup(() => reply(201, { id: 'k1', name: 'smart' }));
+    await api.keys.create({ name: 'smart', allowed_models: ['a/b'] });
     const { init } = lastCall(fetchImpl);
     expect(init.method).toBe('POST');
     expect(init.headers['Content-Type']).toBe('application/json');
-    expect(JSON.parse(init.body as string)).toEqual({ name: 'smart', targets: ['a/b'] });
+    expect(JSON.parse(init.body as string)).toEqual({ name: 'smart', allowed_models: ['a/b'] });
   });
 
   it('builds the query from what is set and skips the rest', async () => {

@@ -8,9 +8,9 @@
 //
 // What is faked, and nothing else: the model runtime (the Ollama stand-in the agent's tests use), `nvidia-smi` (a shell
 // script that prints one GPU), the machine's own figures (CPU, memory, disk), and the two cloud providers (a server
-// that lists models). Providers, models, aliases and
+// that lists models). Providers, models and
 // keys are created through the administrator API; the usage history and the request log are written with the hub's own
-// store, thirty days of requests that are routed the way the hub routes them (aliases, fallback, errors, queues).
+// store, thirty days of requests that look the way the hub's log does (errors, queues).
 //
 // Environment: OUT (default docs/img), CHROME (default: Playwright's Chromium).
 import { randomBytes } from 'node:crypto';
@@ -132,7 +132,7 @@ for (const id of ['anthropic/claude-sonnet-4.5', 'anthropic/claude-haiku-4.5', '
 }
 await api('PATCH', `/models/${encodeURIComponent('desktop/llama3.2:3b')}`, { enabled: false });
 
-// aliases: the only place where fallback happens
+// what each app asks for: the hub has no aliases, so these are only the models an app picks (used to simulate traffic below)
 const aliases = [
   ['smart', 'Hard problems, long context. Cloud first, the PC when the cloud is down.', ['reasoning'], ['openrouter/anthropic/claude-sonnet-4.5', 'gemini/gemini-2.5-pro', 'desktop/qwen3:14b']],
   ['fast', 'Cheap and quick, for pipelines.', [], ['gemini/gemini-2.5-flash', 'openrouter/openai/gpt-5-mini', 'desktop/qwen3:4b']],
@@ -140,14 +140,13 @@ const aliases = [
   ['vision', 'Describes images.', [], ['gemini/gemini-2.5-flash', 'desktop/gemma3:12b']],
   ['embed', 'Embeddings for search over notes.', [], ['desktop/nomic-embed-text:latest', 'gemini/text-embedding-004']],
 ];
-for (const [name, description, tags, targets] of aliases) await api('POST', '/aliases', { name, description, tags, targets });
 
 // client keys
 const keyDefs = [
   { name: 'everything-app', default_priority: 3, rpm: 120, tokens_per_day: 4_000_000, tokens_per_month: 60_000_000 },
-  { name: 'n8n', default_priority: 4, min_priority: 3, max_priority: 5, rpm: 60, rpd: 5000, allowed_models: ['fast', 'embed', 'private'] },
-  { name: 'obsidian-mcp', default_priority: 2, local_only: true, rpm: 30, allowed_models: ['private', 'embed'] },
-  { name: 'phone-shortcuts', default_priority: 1, max_priority: 2, rpm: 10, rpd: 200, allowed_models: ['fast'] },
+  { name: 'n8n', default_priority: 4, min_priority: 3, max_priority: 5, rpm: 60, rpd: 5000, allowed_models: ['gemini/*', 'desktop/*'] },
+  { name: 'obsidian-mcp', default_priority: 2, local_only: true, rpm: 30, allowed_models: ['desktop/*'] },
+  { name: 'phone-shortcuts', default_priority: 1, max_priority: 2, rpm: 10, rpd: 200, allowed_models: ['gemini/gemini-2.5-flash'] },
 ];
 const keys = {};
 for (const def of keyDefs) {
@@ -203,18 +202,18 @@ function simulate(keyName, aliasName, at, forced) {
   } else if (forced === 'asleep' || (keyName === 'obsidian-mcp' && aliasName === 'private' && roll > 0.996)) {
     attempts.push({ model: targets[0], outcome: 'node_asleep' });
     status = 503; errorCode = 'node_asleep';
-  } else if (forced === 'down' || roll > 0.996) {
-    for (const target of targets) attempts.push({ model: target, outcome: isLocal(target) ? 'node_connection_lost' : 'upstream_timeout' });
-    status = 504; errorCode = 'upstream_timeout';
   } else {
-    for (const target of targets) {
-      const trouble = forced === 'fallback' && target === targets[0]
-        ? 'upstream_timeout'
-        : !isLocal(target) && rnd() < 0.045 ? pick(['upstream_timeout', 'upstream_overloaded', 'upstream_rate_limited']) : null;
-      if (trouble) { attempts.push({ model: target, outcome: trouble }); continue; }
+    const target = targets[0];
+    const trouble = forced === 'fallback' || forced === 'down' || roll > 0.996
+      ? 'upstream_timeout'
+      : !isLocal(target) && rnd() < 0.02 ? pick(['upstream_timeout', 'upstream_overloaded', 'upstream_rate_limited']) : null;
+    if (trouble) {
+      attempts.push({ model: target, outcome: isLocal(target) && trouble === 'upstream_timeout' ? 'node_connection_lost' : trouble });
+      status = trouble === 'upstream_overloaded' ? 503 : trouble === 'upstream_rate_limited' ? 429 : 504;
+      errorCode = trouble;
+    } else {
       attempts.push({ model: target, outcome: 'ok' });
       served = target;
-      break;
     }
   }
 
@@ -269,7 +268,7 @@ for (const p of planned) {
     keyId: key.id,
     keyName: e.keyName,
     endpoint: e.embedding ? '/v1/embeddings' : '/v1/chat/completions',
-    requestedModel: e.aliasName,
+    requestedModel: aliasTargets[e.aliasName][0],
     modelId: e.status === 429 ? null : e.finalModel,
     providerId: e.status === 429 || !e.finalModel ? null : provOf(e.finalModel),
     status: e.status,
@@ -322,7 +321,6 @@ const { page, ctx } = await open('light');
 await shoot(page, '#/', 'overview');
 await shoot(page, '#/providers/desktop', 'machine');
 await shoot(page, '#/models', 'models');
-await shoot(page, '#/aliases', 'aliases');
 await shoot(page, '#/keys', 'keys');
 await shoot(page, '#/usage', 'usage');
 await shoot(page, '#/log', 'log');

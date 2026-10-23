@@ -14,10 +14,10 @@ import { isPlainObject } from './util.js';
 /**
  * One client request, from authentication to the last byte.
  *
- *   resolve model/alias -> admit against the key's limits -> for each target in order:
+ *   resolve the model -> admit against the key's limits ->
  *     wake the node if needed -> wait for a free slot -> call the upstream -> relay the answer
- *   a target that fails BEFORE the client has seen any of its answer may be replaced by the next target of an alias.
- *   Nothing is retried silently: no alias, no fallback.
+ *   Nothing is retried on another model: when a call fails the client gets the error (with `fallback: true` when it failed
+ *   before any of the answer went out, so the app may pick another model by its tags) and decides for itself.
  *
  * What gets stored about a request is who, what model, how long, how many tokens and what went wrong — never the text.
  */
@@ -211,26 +211,17 @@ export async function runRequest({ hub, req, reply, key, endpoint }: RunParams):
       keepalive.unref();
     }
 
-    // ── Try the targets in order ────────────────────────────────────────────
-    let lastError: HubError | null = null;
-    for (let i = 0; i < resolution.candidates.length; i++) {
-      const c = resolution.candidates[i]!;
-      finalCandidate = c;
-      try {
-        await attempt(c);
-        lastError = null;
-        break;
-      } catch (e) {
-        if (e instanceof ClientAbort || ac.signal.aborted) throw new ClientAbort();
-        const he = withContext(toHubError(e, hub, requestId), c);
-        attempts.push({ model: c.model.id, outcome: he.code });
-        lastError = he;
-        const more = i < resolution.candidates.length - 1;
-        if (!(he.fallback && more && !sink.contentStarted)) break;
-        hub.log.warn({ requestId, model: c.model.id, code: he.code, next: resolution.candidates[i + 1]!.model.id }, 'target failed, trying the next one of the alias');
-      }
+    // ── Call the model ──────────────────────────────────────────────────────
+    const c = resolution.candidate;
+    finalCandidate = c;
+    try {
+      await attempt(c);
+    } catch (e) {
+      if (e instanceof ClientAbort || ac.signal.aborted) throw new ClientAbort();
+      const he = withContext(toHubError(e, hub, requestId), c);
+      attempts.push({ model: c.model.id, outcome: he.code });
+      throw he;
     }
-    if (lastError) throw lastError;
 
     // ── The answer is out; account for it ───────────────────────────────────
     async function attempt(c: Candidate): Promise<void> {
@@ -371,7 +362,6 @@ export async function runRequest({ hub, req, reply, key, endpoint }: RunParams):
         'X-Request-Id': requestId,
         'X-MindGate-Model': c.model.id,
         'X-MindGate-Provider': c.provider.id,
-        ...(attempts.some(a => a.outcome !== 'ok') ? { 'X-MindGate-Fallback': attempts.filter(a => a.outcome !== 'ok').map(a => a.model).join(',') } : {}),
       };
     }
   } catch (e) {
@@ -387,7 +377,10 @@ export async function runRequest({ hub, req, reply, key, endpoint }: RunParams):
         // The status line has gone out already; the error travels inside the stream, as the OpenAI API does it.
         status = 200;
         try {
-          await sink.data(he.payload());
+          const payload = he.payload();
+          // Half an answer has gone out, so another model cannot simply take over: the app must not read this as "try again elsewhere".
+          if (sink.contentStarted) delete payload.error['fallback'];
+          await sink.data(payload);
           await sink.data('[DONE]');
         } catch {
           /* client gone */

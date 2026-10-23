@@ -114,19 +114,7 @@ describe('providers', () => {
       expect(api.providers.remove).not.toHaveBeenCalled();
     });
 
-    it('names the aliases that lost a model', async () => {
-      const user = userEvent.setup();
-      const api = fakeApi();
-      api.providers.remove.mockResolvedValue({ deleted: true, id: 'openrouter', aliases_affected: ['smart', 'cheap'] });
-      renderPage(<Providers />, api);
-      await user.click(within(await rowOf('OpenRouter')).getByRole('button', { name: 'Delete' }));
-      await user.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Delete' }));
-      expect(await screen.findByText('Provider deleted. These aliases lost a model: smart, cheap.')).toBeInTheDocument();
-      expect(api.providers.remove).toHaveBeenCalledWith('openrouter');
-      await waitFor(() => expect(api.providers.list).toHaveBeenCalledTimes(2));
-    });
-
-    it('is plain when no alias was touched', async () => {
+    it('says so once the provider is gone, and reloads the list', async () => {
       const user = userEvent.setup();
       renderPage(<Providers />);
       await user.click(within(await rowOf('OpenRouter')).getByRole('button', { name: 'Delete' }));

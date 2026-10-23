@@ -14,7 +14,7 @@ MindGate is a self-hosted **hub**: clients (IDEs, chat UIs, scripts, your own ap
 It exists for three things a plain proxy does not give you:
 
 - **Control over where data goes.** A key (or a single request) can be *local-only*: nothing is sent to the cloud, fallbacks included.
-- **No surprises in routing.** A model is only ever replaced by another one if *you* wrote that into an alias, and the response says which one answered.
+- **No surprises in routing.** A model is never replaced by another one behind your back: the response says which one answered, and when it fails the error says whether the app may try another (`fallback: true`).
 - **A GPU that costs nothing while idle.** The compute machine is woken with Wake-on-LAN when a request needs it and asked to shut down when it has been idle.
 
 ```mermaid
@@ -23,7 +23,7 @@ graph LR
 
     subgraph Hub["MindGate hub — Fastify + SQLite (Raspberry Pi / Docker)"]
         direction TB
-        Auth["Client keys<br>limits · priorities · local-only"] --> Router["Models and aliases<br>explicit fallback"]
+        Auth["Client keys<br>limits · priorities · local-only"] --> Router["Models<br>no silent fallback"]
         Router --> Queue["Priority queue<br>per provider"]
     end
 
@@ -45,7 +45,6 @@ graph LR
 <table>
   <tr>
     <td width="50%"><img src="docs/img/machine.png" alt="A GPU machine: hardware, the model in memory, installed models with load and delete"><br><b>A machine with a GPU</b> — its hardware, what sits in VRAM, and every installed model. Load, unload, download or delete from here.</td>
-    <td width="50%"><img src="docs/img/aliases.png" alt="Aliases: ordered lists of models, local ones in orange and cloud ones in blue"><br><b>Aliases</b> — the only place where fallback happens, and the colours show at once where a request may end up.</td>
   </tr>
   <tr>
     <td><img src="docs/img/models.png" alt="The model catalogue with search, filters and switches"><br><b>Models</b> — everything the hub can serve, synced from the providers, switchable one by one.</td>
@@ -65,13 +64,13 @@ graph LR
 
 - **OpenAI-compatible API** — chat completions (streaming, tools, images, JSON mode), embeddings, `/v1/models`. Works with Cursor, Continue, Open WebUI and any OpenAI SDK by changing the base URL.
 - **Providers** — OpenAI-compatible servers (passed through untouched) and the native **Anthropic Messages API** (translated both ways: tools, images, extended thinking with signatures, cache usage, streaming).
-- **Models and aliases** — canonical ids `provider/model`; model lists are synced from the providers, with owner overrides for names, tags, context length and locality. An alias is an ordered list of models and is the *only* place where fallback happens.
+- **Models** — canonical ids `provider/model`; model lists are synced from the providers, with owner overrides for names, tags (`free`, `coder`, `vision`… — apps choose a fallback by them), context length and locality.
 - **Local-only mode** — on a key or per request (`X-MindGate-Local-Only`); cloud targets are skipped without being contacted, and the model list shows only what such a caller can reach.
 - **Client keys** — stored as hashes, shown once; per key: requests per minute/day, token budgets per day/month (reset at local midnight in your time zone), allowed models, priority range. `GET /v1/usage` tells a client where it stands. Limits answer `429` with distinct codes (`rate_limited` vs `budget_exhausted`).
 - **Priority queue** — 5 → 1, first come first served within a level, for providers that can do only one thing at a time (one GPU). Clients that disconnect leave the line.
-- **Wake-on-LAN and idle shutdown** — low-priority requests do not wake the machine (and fall back through an alias); the connection is kept alive with SSE comments while it boots; a machine that vanishes mid-request is noticed and woken again. In Docker a small relay container on the host's network sends the broadcast (a bridge cannot).
+- **Wake-on-LAN and idle shutdown** — low-priority requests do not wake the machine (they fail fast with `node_asleep`, so the app can ask another model); the connection is kept alive with SSE comments while it boots; a machine that vanishes mid-request is noticed and woken again. In Docker a small relay container on the host's network sends the broadcast (a bridge cannot).
 - **Models on your own machines, managed from the hub** — the agent on a GPU machine exposes a small authenticated API: list what is installed (size, quantisation, capabilities, what sits in VRAM), download models (including `hf.co/…` GGUF repositories, with progress), delete, load and unload them, read CPU/RAM/GPU/disk, shut the machine down. Finished downloads appear in the hub's catalog by themselves; uncensored/abliterated models are tagged and stay local. No model list lives in a config file on the node.
-- **Admin panel** — a web UI served by the hub at `/admin/` (React, no CDN or external requests, strict content security policy): providers, models, aliases, client keys, usage charts, the request log, and the models on each machine — download, load, unload, delete, shut down — with the hub never waking a machine just to look at it. Light and dark.
+- **Admin panel** — a web UI served by the hub at `/admin/` (React, no CDN or external requests, strict content security policy): providers, models, client keys, usage charts, the request log, and the models on each machine — download, load, unload, delete, shut down — with the hub never waking a machine just to look at it. Light and dark.
 - **Private by construction** — the request log holds who, which model, how long, how many tokens, what failed. Never prompts or answers. Provider keys are encrypted at rest (AES-256-GCM, key from the environment); admin and client credentials are separate; failed logins are throttled.
 - **Operations** — one SQLite file, `backup` and `check` commands, a hardened Docker setup (read-only root filesystem, no capabilities), 500+ tests: the hub against fake upstreams, the agent against a fake Ollama, the panel's screens, and a hub-to-agent end-to-end chain. CI also runs `npm audit`, CodeQL and a secret scan, and Dependabot keeps the dependencies current.
 
@@ -79,9 +78,9 @@ graph LR
 
 ## Key decisions
 
-- **Why no automatic fallback between models?** A silent substitution changes quality, cost and — worst — *where your data goes*. Fallback is therefore explicit (an alias lists its targets in order), conservative (only for provider failures, never for bad requests, never after the first byte of an answer reached the client) and visible (`X-MindGate-Fallback`, `mindgate.attempts`).
+- **Why no automatic fallback between models?** A silent substitution changes quality, cost and — worst — *where your data goes*. Fallback is therefore the calling app's decision: the hub only says whether it is sensible (`fallback: true` in the error — provider failures only, never bad requests, never after the first byte of an answer reached the client).
 - **Why does local-only filter fallbacks too?** The guarantee has to hold for the whole path, or it is not a guarantee. A cloud target is not skipped *after* an attempt — it is never attempted.
-- **Why SQLite and not a config file?** Providers, models, aliases and keys change while the hub runs (and are edited from the admin panel). A single file with versioned migrations is easy to back up and needs no extra service on a Raspberry Pi.
+- **Why SQLite and not a config file?** Providers, models and keys change while the hub runs (and are edited from the admin panel). A single file with versioned migrations is easy to back up and needs no extra service on a Raspberry Pi.
 - **Why a hub and a separate agent?** The always-on part (a Pi) must be cheap and small; the GPU machine should be off most of the time. The hub is the first, the agent and tray the second. The agent runs next to Ollama and does what only the machine can: start the runtime, report its hardware and models, download and delete models, and decide whether it is safe to power the PC off. It does no routing and holds no model list of its own — the hub is the one place where models, names and keys are managed.
 - **Why priorities instead of a FIFO queue?** An IDE autocomplete must not wait behind a script summarising fifty documents, and a script should not wake the GPU at 3 a.m.
 
@@ -126,7 +125,7 @@ curl http://localhost:3000/v1/chat/completions \
   -d '{"model": "smart", "messages": [{"role": "user", "content": "Explain transformer attention."}]}'
 ```
 
-`model` is an alias (`smart`) or a provider model (`openrouter/deepseek/deepseek-chat`). The response carries `X-MindGate-Model` / `X-MindGate-Provider` — who actually answered — and, if an alias had to move on, `X-MindGate-Fallback`.
+`model` is a provider model (`openrouter/deepseek/deepseek-chat`). The response carries `X-MindGate-Model` / `X-MindGate-Provider` — who actually answered.
 
 | Header | Meaning |
 |---|---|

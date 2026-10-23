@@ -160,7 +160,7 @@ describe('models', () => {
     const manual = await rowOf('home/nomic-embed-text');
     await user.click(within(manual).getByRole('button', { name: 'Delete' }));
     dialog = await screen.findByRole('dialog', { name: 'Remove this model?' });
-    expect(within(dialog).getByText(/aliases lose it as a target/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/It is deleted\./)).toBeInTheDocument();
     await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
     await waitFor(() => expect(api.models.remove).toHaveBeenCalledWith('home/nomic-embed-text'));
   });

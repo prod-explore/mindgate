@@ -135,7 +135,6 @@ export function Log() {
 function LogLine({ row: r, open, onToggle }: { row: LogRow; open: boolean; onToggle: () => void }) {
   const t = useT();
   const tokens = r.input_tokens === null && r.output_tokens === null ? null : (r.input_tokens ?? 0) + (r.output_tokens ?? 0);
-  const rerouted = r.requested_model && r.model && r.requested_model !== r.model;
   const detailId = `log-${r.id}`;
   return (
     <>
@@ -144,7 +143,6 @@ function LogLine({ row: r, open, onToggle }: { row: LogRow; open: boolean; onTog
         <td>{r.key ?? dash}</td>
         <td>
           {r.model ? <ModelId id={r.model} /> : r.requested_model ? <span className="mono">{r.requested_model}</span> : <span className="cell-sub">{r.endpoint}</span>}
-          {rerouted ? <div className="cell-sub">{t('log.via', { name: r.requested_model ?? '' })}</div> : null}
         </td>
         <td>
           <Badge tone={statusTone(r.status)}>{r.status}</Badge> {r.error_code ? <span className="mono">{r.error_code}</span> : null}

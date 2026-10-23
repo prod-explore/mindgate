@@ -231,21 +231,18 @@ describe('managing the models on a node from the hub', () => {
   });
 
   describe('removing a model', () => {
-    it('deletes it on the machine (names with slashes and colons intact), forgets it, and says which aliases lost a target', async () => {
+    it('deletes it on the machine (names with slashes and colons intact) and forgets it', async () => {
       const name = 'hf.co/mlabonne/gemma-3-4b-it-abliterated-GGUF:Q4_K_M';
       agent.state.models.push({ id: name, object: 'model', kind: 'chat', tags: ['uncensored'], locality: 'local' });
       await h.hub.sync.syncOne('pc');
       assert.deepEqual(h.hub.models.list('pc').find(m => m.upstreamId === name)?.tags, ['uncensored']);
-      h.hub.aliases.create({ name: 'free', targets: [`pc/${name}`] });
 
       const r = await h.admin('DELETE', `/providers/pc/node/models/${name}`);
       assert.equal(r.status, 200);
       assert.equal(r.json.id, `pc/${name}`);
-      assert.deepEqual(r.json.aliases_affected, ['free']);
       assert.equal(agent.state.calls.find(c => c.method === 'DELETE')?.path, `/node/models/hf.co/mlabonne/gemma-3-4b-it-abliterated-GGUF%3AQ4_K_M`);
       assert.ok(!agent.state.models.some(m => m['id'] === name));
       assert.equal(h.hub.models.getRecord(`pc/${name}`), undefined, 'gone from the catalog too, not left as a ghost');
-      h.hub.aliases.delete('free');
     });
 
     it('a model that is not on the machine is a 404 and the catalog is left alone', async () => {

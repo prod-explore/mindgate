@@ -3,7 +3,7 @@ import type { ReactElement } from 'react';
 import { vi } from 'vitest';
 import { ApiProvider } from '../api/context';
 import type { Api } from '../api/client';
-import type { Alias, AliasInput, AgentStatus, ApiKey, HubStatus, KeyInput, LogRow, Model, ModelFields, ModelPatch, NodeInfo, NodeModel, Preset, Provider, ProviderInput, PullJob, UsageResponse } from '../api/types';
+import type { AgentStatus, ApiKey, HubStatus, KeyInput, LogRow, Model, ModelFields, ModelPatch, NodeInfo, NodeModel, Preset, Provider, ProviderInput, PullJob, UsageResponse } from '../api/types';
 import { ConfirmProvider } from '../ui/Confirm';
 import { Toasts } from '../ui/Toasts';
 
@@ -61,17 +61,6 @@ export const model = (over: Partial<Model> = {}): Model => ({
   ...over,
 });
 
-export const alias = (over: Partial<Alias> = {}): Alias => ({
-  name: 'smart',
-  description: '',
-  tags: [],
-  targets: ['home/qwen3:4b', 'openrouter/deepseek/deepseek-chat'],
-  enabled: true,
-  locality: 'local',
-  missing_targets: [],
-  ...over,
-});
-
 export const apiKey = (over: Partial<ApiKey> = {}): ApiKey => ({
   id: 'key_1',
   name: 'open-webui',
@@ -96,7 +85,7 @@ export const hubStatus = (over: Partial<HubStatus> = {}): HubStatus => ({
   version: '2.0.0',
   uptime_seconds: 4000,
   providers: [],
-  counts: { providers: 2, models: 5, aliases: 1, keys: 1 },
+  counts: { providers: 2, models: 5, keys: 1 },
   time_zone: 'UTC',
   ...over,
 });
@@ -107,7 +96,7 @@ export const logRow = (over: Partial<LogRow> = {}): LogRow => ({
   request_id: 'req_0123456789abcdef',
   key: 'open-webui',
   endpoint: '/v1/chat/completions',
-  requested_model: 'smart',
+  requested_model: 'home/qwen3:4b',
   model: 'home/qwen3:4b',
   provider: 'home',
   status: 200,
@@ -206,7 +195,7 @@ export function fakeApi() {
       list: vi.fn(async () => [provider(), cloud()]),
       create: vi.fn(async (_input: ProviderInput) => ({ ...provider(), sync: null })),
       update: vi.fn(async (_id: string, _input: ProviderInput) => provider()),
-      remove: vi.fn(async (id: string) => ({ deleted: true as const, id, aliases_affected: [] as string[] })),
+      remove: vi.fn(async (id: string) => ({ deleted: true as const, id })),
       test: vi.fn(async (_id: string) => ({ ok: true, latency_ms: 40, models: 3 })),
       sync: vi.fn(async (id: string) => ({ provider: id, added: 0, updated: 0, absent: 0 })),
       wake: vi.fn(async (_id: string) => ({ status: 'waking' })),
@@ -219,7 +208,7 @@ export function fakeApi() {
       cancelPull: vi.fn(async (_id: string, _pull: string) => ({})),
       load: vi.fn(async (_id: string, _name: string, _keepAlive?: string | number) => ({})),
       unload: vi.fn(async (_id: string, _name: string) => ({})),
-      remove: vi.fn(async (_id: string, name: string) => ({ id: `home/${name}`, aliases_affected: [] as string[] })),
+      remove: vi.fn(async (_id: string, name: string) => ({ id: `home/${name}` })),
       shutdown: vi.fn(async (_id: string, _force: boolean) => ({ allow: true, reason: 'shutdown_initiated' })),
     },
     models: {
@@ -227,12 +216,6 @@ export function fakeApi() {
       create: vi.fn(async (_input: { provider: string; id: string } & ModelFields) => model()),
       update: vi.fn(async (_id: string, _patch: ModelPatch) => model()),
       remove: vi.fn(async (id: string) => ({ id })),
-    },
-    aliases: {
-      list: vi.fn(async () => [alias()]),
-      create: vi.fn(async (_input: AliasInput) => alias()),
-      update: vi.fn(async (_name: string, _input: AliasInput) => alias()),
-      remove: vi.fn(async (name: string) => ({ deleted: true as const, name })),
     },
     keys: {
       list: vi.fn(async () => [apiKey()]),

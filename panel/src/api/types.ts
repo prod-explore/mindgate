@@ -131,24 +131,6 @@ export interface Model {
 /** PATCH /models/{id}: `null` puts back what the provider reports. */
 export type ModelPatch = { [K in keyof ModelFields]?: ModelFields[K] | null } & { enabled?: boolean };
 
-export interface Alias {
-  name: string;
-  description: string;
-  tags: string[];
-  targets: string[];
-  enabled: boolean;
-  locality: Locality;
-  missing_targets: string[];
-}
-
-export interface AliasInput {
-  name?: string;
-  description?: string;
-  tags?: string[];
-  targets?: string[];
-  enabled?: boolean;
-}
-
 export interface ApiKey {
   id: string;
   name: string;
@@ -185,7 +167,7 @@ export interface HubStatus {
   version: string;
   uptime_seconds: number;
   providers: Array<{ id: string; status: ProviderStatus; queue: QueueState }>;
-  counts: { providers: number; models: number; aliases: number; keys: number };
+  counts: { providers: number; models: number; keys: number };
   time_zone: string;
 }
 
@@ -337,6 +319,5 @@ export interface ShutdownVerdict {
 
 export interface DeleteNodeModelResult {
   id: string;
-  aliases_affected: string[];
   [key: string]: unknown;
 }

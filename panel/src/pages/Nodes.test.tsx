@@ -102,10 +102,9 @@ describe('one machine', () => {
     expect(within(await rowOf('qwen3:4b')).getByRole('button', { name: 'Delete' })).toBeDisabled();
   });
 
-  it('deletes a model only after confirmation, and names the aliases that lost it', async () => {
+  it('deletes a model only after confirmation', async () => {
     const user = userEvent.setup();
     const api = fakeApi();
-    api.nodes.remove.mockResolvedValue({ id: 'home/qwen3:4b', aliases_affected: ['smart', 'fast'] });
     renderPage(<NodeDetail id="home" />, api);
     await user.click(within(await rowOf('qwen3:4b')).getByRole('button', { name: 'Delete' }));
     const ask = screen.getByRole('dialog');
@@ -117,8 +116,8 @@ describe('one machine', () => {
     await user.click(within(await rowOf('qwen3:4b')).getByRole('button', { name: 'Delete' }));
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }));
     await waitFor(() => expect(api.nodes.remove).toHaveBeenCalledWith('home', 'qwen3:4b'));
-    const toast = await screen.findByText(/qwen3:4b deleted\. These aliases lost a model: smart, fast\./);
-    expect(toast.closest('.toast')).toHaveClass('toast-warn');
+    const toast = await screen.findByText('qwen3:4b deleted.');
+    expect(toast.closest('.toast')).toHaveClass('toast-ok');
   });
 
   it('refreshes the model list after a delete', async () => {

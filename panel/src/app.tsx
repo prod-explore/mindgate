@@ -7,7 +7,6 @@ import { HubContext } from './lib/hub';
 import { href, replaceQuery, useRoute } from './lib/router';
 import { useQuery } from './lib/query';
 import { signOut, useSession } from './lib/session';
-import { Aliases } from './pages/Aliases';
 import { Keys } from './pages/Keys';
 import { Log } from './pages/Log';
 import { Login } from './pages/Login';
@@ -26,13 +25,12 @@ import { Empty } from './ui/bits';
 interface NavItem {
   page: string;
   label: Key;
-  count?: 'providers' | 'models' | 'aliases' | 'keys';
+  count?: 'providers' | 'models' | 'keys';
 }
 
 const NAV: Array<{ group: Key; items: NavItem[] }> = [
   { group: 'nav.group.setup', items: [
     { page: 'providers', label: 'nav.providers', count: 'providers' },
-    { page: 'aliases', label: 'nav.aliases', count: 'aliases' },
     { page: 'keys', label: 'nav.keys', count: 'keys' },
   ] },
   { group: 'nav.group.traffic', items: [
@@ -46,7 +44,6 @@ const PAGES: Record<string, () => ReactNode> = {
   providers: () => <ProvidersRoute />,
   nodes: () => <Moved />,
   models: () => <Models />,
-  aliases: () => <Aliases />,
   keys: () => <Keys />,
   usage: () => <Usage />,
   log: () => <Log />,
@@ -57,7 +54,6 @@ const TITLE: Record<string, Key> = {
   providers: 'nav.providers',
   nodes: 'nav.providers',
   models: 'nav.models',
-  aliases: 'nav.aliases',
   keys: 'nav.keys',
   usage: 'nav.usage',
   log: 'nav.log',

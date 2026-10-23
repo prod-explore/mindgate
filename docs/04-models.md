@@ -1,22 +1,22 @@
 # Models — Ollama and managing it from the hub
 
-The models on the GPU machine are managed **from the hub**. There is no file with a list of models and no "profiles" baked into the agent: what is installed is shown by the machine, and the names under which clients see the models are **aliases** in the hub. This page says how to download and delete models, how many fit, and how to treat uncensored models.
+The models on the GPU machine are managed **from the hub**. There is no file with a list of models and no "profiles" baked into the agent: what is installed is shown by the machine, and clients see the models by their `provider/model` ids (tags tell them apart). This page says how to download and delete models, how many fit, and how to treat uncensored models.
 
 ---
 
 ## How it works
 
 - A **model** is something installed in Ollama (`qwen3:4b`). In the hub it has the identifier `provider/model`, for example `pc/qwen3:4b`.
-- An **alias** is a name for clients (`flash`, `smart`) with a list of models in fallback order. You change what is behind it without touching the clients.
+- A **tag** (`free`, `coder`, `vision`, `fast`…) is a label on a model. Apps that want "some free model" read the tags from `GET /v1/models` and choose themselves; the hub has no aliases.
 - The **machine** reports to the hub what each model can do (tools, images, "thinking", the real context length, whether it is an embedding model), and the hub remembers it. Manual corrections (name, tags, context) take precedence and survive a sync.
 
-Changing a model = downloading a new one and repointing the alias. Clients know nothing about it.
+Changing a model = downloading a new one and giving it the tags the old one had. Apps that choose by tag need no change.
 
 ---
 
 ## Managing models from the hub
 
-Everything below is in the API too ([08 - API](08-api.md)); the [panel](09-panel.md) shows the same (the "Nodes" screen for machines, "Models" and "Aliases" for the catalogue). Replace `pc` with the identifier of your provider.
+Everything below is in the API too ([08 - API](08-api.md)); the [panel](09-panel.md) shows the same (the "Providers" screen for machines, "Models" for the catalogue). Replace `pc` with the identifier of your provider.
 
 ```bash
 H=http://localhost:3000/admin/api ; A="Authorization: Bearer $MINDGATE_ADMIN_TOKEN"
@@ -45,17 +45,13 @@ When a download finishes, **the model appears in the hub's catalogue by itself**
 
 A model name can be anything Ollama understands: `hf.co/user/repo:Q4_K_M` (a Hugging Face model in GGUF format), see below.
 
-Aliases:
+Tags:
 
 ```bash
-curl -X POST -H "$A" -H 'Content-Type: application/json' $H/aliases -d '{
-  "name": "flash",
-  "description": "fast answers",
-  "targets": ["pc/qwen3:4b", "openrouter/google/gemini-2.0-flash-001"]
-}'
+curl -X PATCH -H "$A" -H 'Content-Type: application/json' $H/models/pc/qwen3:4b -d '{"tags": ["fast", "free"]}'
 ```
 
-The first target is local, the second is an explicit cloud fallback (a key with `local_only` skips it). A model installed by hand on the machine (`ollama pull` in a terminal, `ollama create`) shows up in the hub at the next sync (`POST …/providers/pc/sync`, or automatically after a start and once a day).
+A model installed by hand on the machine (`ollama pull` in a terminal, `ollama create`) shows up in the hub at the next sync (`POST …/providers/pc/sync`, or automatically after a start and once a day).
 
 ---
 
@@ -75,7 +71,7 @@ An example machine: **4 GB VRAM + 16 GB RAM**
 | 20–32B (≈ 12–19 GB) | does not fit sensibly in 16 GB of RAM | not worth it |
 | 70B+ | no | — |
 
-Big models (32B, 70B) need a card with 24 GB of VRAM or more, or several cards; on weaker hardware it is better to take a smaller model or send those queries to the cloud through an alias with a fallback.
+Big models (32B, 70B) need a card with 24 GB of VRAM or more, or several cards; on weaker hardware it is better to take a smaller model or send those queries to a cloud model (the app chooses it).
 
 ### Ollama settings that help on a small card
 
@@ -136,7 +132,7 @@ These are models whose refusal safeguards were removed or weakened. MindGate tre
 
 2. The agent marks such a model with the tag **`uncensored`** if its name contains "abliterated" or "uncensored". For other names add the tag by hand: `PATCH /admin/api/models/pc/<name> {"tags":["uncensored"]}`.
 3. The model sits on your machine, so its `locality` is `local`: a request to it does not leave for the cloud, and a key with `local_only` can use it without restrictions.
-4. **Do not attach such a model to an alias that has a cloud target**, unless you want the same questions to go to a cloud provider after the machine fails. An alias with local targets only (`"targets": ["pc/…-abliterated"]`) will simply return an error on a failure, and will not send the question anywhere else.
+4. **The hub never moves such a question to another model**: when the machine fails, the client gets an error. Make sure the *app* does not fall back to a cloud model for these requests (a key with `local_only` guarantees it).
 5. Such models are sometimes less coherent than the originals (removing refusals is not free). Check them on your own tasks.
 
 Responsibility for what such a model generates and for what you use it for is yours.
@@ -165,4 +161,4 @@ PARAMETER top_p 0.9
 ollama create analyst -f Modelfile
 ```
 
-After the hub syncs (`POST /admin/api/providers/pc/sync`) it appears as `pc/analyst:latest` and you can point an alias at it.
+After the hub syncs (`POST /admin/api/providers/pc/sync`) it appears as `pc/analyst:latest` and you can use it.

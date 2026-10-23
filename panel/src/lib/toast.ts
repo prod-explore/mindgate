@@ -18,7 +18,7 @@ function push(kind: ToastItem['kind'], text: string, ms: number): void {
 export const dismiss = (id: number): void => toasts.set(list => list.filter(t => t.id !== id));
 export const toast = {
   ok: (text: string): void => push('ok', text, 4000),
-  /** Worked, but there is something to read afterwards (an alias lost a target). */
+  /** Worked, but there is something to read afterwards. */
   warn: (text: string): void => push('warn', text, 9000),
   error: (text: string): void => push('error', text, 9000),
 };

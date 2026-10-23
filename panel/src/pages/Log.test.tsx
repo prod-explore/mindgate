@@ -15,7 +15,7 @@ describe('request log', () => {
     const api = fakeApi();
     api.log.mockResolvedValue([
       logRow({ id: 3 }),
-      logRow({ id: 2, status: 429, error_code: 'rate_limited', model: null, requested_model: 'smart', input_tokens: null, output_tokens: null, latency_ms: 3 }),
+      logRow({ id: 2, status: 429, error_code: 'rate_limited', model: null, requested_model: 'cloud/ghost', input_tokens: null, output_tokens: null, latency_ms: 3 }),
       logRow({ id: 1, status: 502, error_code: 'upstream_error', attempts: 2 }),
     ]);
     renderPage(<Log />, api);
@@ -28,8 +28,8 @@ describe('request log', () => {
     expect(within(rows[2]!).getByText('rate_limited')).toBeInTheDocument();
     expect(within(rows[3]!).getByText('502')).toHaveClass('badge-bad');
     expect(within(rows[3]!).getByText('2 attempts')).toBeInTheDocument();
-    // routed through an alias: both names are visible
-    expect(within(ok).getByText('asked for smart')).toBeInTheDocument();
+    // a request that never reached a model still shows which one it asked for
+    expect(within(rows[2]!).getByText('cloud/ghost')).toBeInTheDocument();
   });
 
   it('opens the details of one request', async () => {

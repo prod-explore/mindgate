@@ -1,7 +1,7 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
-import { alias, apiKey, cloud, FULL_KEY, fakeApi, provider, renderPage } from '../test/fixtures';
+import { apiKey, cloud, FULL_KEY, fakeApi, provider, renderPage } from '../test/fixtures';
 import { Keys } from './Keys';
 
 
@@ -83,7 +83,6 @@ describe('client keys', () => {
   it('restricting to certain models needs at least one, and sends them', async () => {
     const user = userEvent.setup();
     const api = fakeApi();
-    api.aliases.list.mockResolvedValue([alias({ name: 'smart' })]);
     api.providers.list.mockResolvedValue([provider(), cloud()]);
     renderPage(<Keys />, api);
     await screen.findByText('open-webui');
@@ -95,11 +94,11 @@ describe('client keys', () => {
     expect(await within(form).findByText('Add at least one entry, or turn the limit off.')).toBeInTheDocument();
     expect(api.keys.create).not.toHaveBeenCalled();
 
-    await user.type(within(form).getByLabelText('Allowed models and aliases'), 'smart{Enter}');
+    await user.type(within(form).getByLabelText('Allowed models'), 'home/qwen3:4b{Enter}');
     await user.click(within(form).getByRole('switch', { name: 'Local models only' }));
     await user.click(within(form).getByRole('button', { name: 'Create' }));
     await waitFor(() => expect(api.keys.create).toHaveBeenCalled());
-    expect(api.keys.create.mock.calls[0]![0]).toMatchObject({ name: 'private', local_only: true, allowed_models: ['smart'] });
+    expect(api.keys.create.mock.calls[0]![0]).toMatchObject({ name: 'private', local_only: true, allowed_models: ['home/qwen3:4b'] });
   });
 
   it('turns an emptied limit into "no limit", not zero', async () => {

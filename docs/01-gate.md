@@ -26,7 +26,7 @@ The hub **will not start** with the placeholders from `.env.example`, or with a 
 - `MINDGATE_MASTER_KEY` encrypts the providers' API keys stored in the database (AES-256-GCM). **Keep a copy separate from the database backups**: without it the stored provider keys cannot be read and have to be entered again.
 - `MINDGATE_ADMIN_TOKEN` protects `/admin`. It must differ from the master key.
 
-Once the hub is running, the **panel** is waiting at `http://localhost:3000/admin/` (sign in with that token): providers, models, aliases, keys, usage, the log and the GPU machines — everything you do with `curl` below can be clicked there. Details: [09 - Panel](09-panel.md).
+Once the hub is running, the **panel** is waiting at `http://localhost:3000/admin/` (sign in with that token): providers, models, keys, usage, the log and the GPU machines — everything you do with `curl` below can be clicked there. Details: [09 - Panel](09-panel.md).
 
 ### Without Docker
 
@@ -57,47 +57,43 @@ curl -X POST $HUB/admin/api/providers -H "$ADMIN" -H 'Content-Type: application/
 # the hub fetches the model list right away; OpenRouter has hundreds, so they stay disabled until you enable them:
 curl -X PATCH $HUB/admin/api/models/openrouter/deepseek/deepseek-chat -H "$ADMIN" -H 'Content-Type: application/json' -d '{"enabled": true}'
 
-# 2. An alias with an explicit fallback: the cheaper model first, and if it fails — the second one
-curl -X PATCH $HUB/admin/api/models/openrouter/google/gemini-2.5-flash -H "$ADMIN" -H 'Content-Type: application/json' -d '{"enabled": true}'
-curl -X POST $HUB/admin/api/aliases -H "$ADMIN" -H 'Content-Type: application/json' -d '{
-  "name": "smart", "targets": ["openrouter/deepseek/deepseek-chat", "openrouter/google/gemini-2.5-flash"]
-}'
+# 2. A second model, for an app that wants a backup of its own (the hub never switches models for it)
+curl -X PATCH $HUB/admin/api/models/openrouter/google/gemini-2.5-flash -H "$ADMIN" -H 'Content-Type: application/json' -d '{"enabled": true, "tags": ["fast"]}'
 
 # 3. A key for a client (the full key is shown ONLY NOW)
 docker compose exec gate node dist/cli.js keys create laptop --rpm 30 --tokens-day 500000
 ```
 
-In the client: address `http://<hub-ip>:3000/v1`, key `mg-…`, model `smart` or `openrouter/deepseek/deepseek-chat`.
+In the client: address `http://<hub-ip>:3000/v1`, key `mg-…`, model `openrouter/deepseek/deepseek-chat`.
 
 ---
 
 ## How the hub handles a request
 
 ```
-key → model/alias → limits → [for each target in turn:] wake the machine → wait for a free slot → provider → response
+key → model → limits → wake the machine → wait for a free slot → provider → response
 ```
 
 1. **Key.** Only a hash (SHA-256) is stored; the client shows `mg-…` and the hub compares hashes.
-2. **Model.** `provider/model` (for example `openrouter/deepseek/deepseek-chat`) is one provider's model. A name without `/` is an alias. Nothing else is guessed.
+2. **Model.** `provider/model` (for example `openrouter/deepseek/deepseek-chat`) is one provider's model. There are no other names (no aliases): a name without a provider is a `404 model_not_found`. Nothing is guessed.
 3. **Key limits** — see below. A rejected request never reaches a model and costs nothing.
-4. **Target.** If the provider is a machine that sleeps, the hub wakes it and waits. If the provider handles one request at a time, the request waits in a queue ordered by priority.
-5. **Response** comes back in the OpenAI format (from Anthropic too — the hub translates tools, images, thinking and the stream). The `X-MindGate-Model` and `X-MindGate-Provider` headers say who answered; the body also has a `mindgate` object with the list of attempts.
+4. **Provider.** If the provider is a machine that sleeps, the hub wakes it and waits. If the provider handles one request at a time, the request waits in a queue ordered by priority.
+5. **Response** comes back in the OpenAI format (from Anthropic too — the hub translates tools, images, thinking and the stream). The `X-MindGate-Model` and `X-MindGate-Provider` headers say who answered; the body also has a `mindgate` object (`requested`, `model`, `provider`, `attempts`).
 
-### Aliases and fallback — no silent substitution
+### No silent substitution — fallback is the app's job
 
-- A model given explicitly (`provider/model`) **never** falls over to another one. A provider error is an error for the client.
-- An alias has an ordered list of targets. When the first one fails *before the client has seen a single byte of the answer*, the hub takes the next one — and says so: the header `X-MindGate-Fallback: <the model that failed>`, and the full history in `mindgate.attempts`.
-- Fallback covers provider failures: 5xx, a provider-side rate limit, a timeout, no connection, a sleeping or unreachable machine, a full queue. It does **not** cover request errors (for example a context that is too long): the same request would fail everywhere, and a substitution would hide the problem.
-- When an answer is already streaming and the provider breaks off, the stream ends with an error event — the hub does not finish someone else's sentence with another model.
+- The hub **never** answers with another model than the one asked for. A provider error is an error for the client.
+- When a failure is one that another model could fix (5xx, a provider-side rate limit, a timeout, no connection, a sleeping or unreachable machine, a full queue), the error body carries `"fallback": true`. The app then picks another model itself — typically by the **tags** it finds in `GET /v1/models` (`free`, `coder`, `vision`, … set per model in the panel) — and asks again. Request errors (for example a context that is too long) never carry the flag: the same request would fail everywhere.
+- When an answer is already streaming and the provider breaks off, the stream ends with an error event without the flag — nobody finishes someone else's sentence with another model.
 
 ### Local-only mode
 
-Private data must not reach the cloud, so `local_only` applies to the whole path, fallbacks included:
+Private data must not reach the cloud, so `local_only` is enforced by the hub on every request:
 
 - on a key: `keys create name --local-only` (the client cannot switch it off),
 - on a request: the header `X-MindGate-Local-Only: true`.
 
-A model is local if its provider is marked `locality: local` (Ollama, a GPU machine) — and the owner can override this per model. A cloud target is skipped *without sending it anything*; an alias with no local target at all returns `403 local_only_violation`. `/v1/models` shows such a call only what is reachable for it.
+A model is local if its provider is marked `locality: local` (Ollama, a GPU machine) — and the owner can override this per model. A cloud model is refused *without sending it anything*: `403 local_only_violation`. `/v1/models` shows such a call only what is reachable for it.
 
 ### Client keys and limits
 
@@ -125,7 +121,7 @@ The token budget counts finished requests; requests that are still running may g
 A provider with `node` set is a computer the hub wakes:
 
 - a request with priority `>= min_wake_priority` (3 by default) sends a magic packet and waits (up to `boot_timeout_ms`), and while streaming, when it gets quiet, sends SSE comments (`MINDGATE_KEEPALIVE_*`) so that nginx and the client do not drop the connection;
-- a request with a lower priority **does not wake** the machine: it gets `503 node_asleep` — and if it is an alias, the hub moves on to the next target at once (for example the cloud);
+- a request with a lower priority **does not wake** the machine: it gets `503 node_asleep` with `"fallback": true`, so the app can ask a cloud model instead at once;
 - many requests waiting for the same machine are one wake-up;
 - after `idle_shutdown_minutes` without requests the hub asks the agent to shut down (`POST <control_url>/node/power/shutdown-request`, or your own `shutdown_url`); the agent decides whether to actually do it (a request or download is running, someone is working at the computer). A refusal or an error means a 5-minute pause before the hub asks again;
 - when the machine disappears mid-request (power), the hub checks it again, wakes it if needed and retries **once**; after that, `502 node_connection_lost`.
@@ -209,7 +205,7 @@ server {
 gate/src/
 ├── index.ts, server.ts       process start, the Fastify server, error handling
 ├── routes-v1.ts              /v1/models, /v1/chat/completions, /v1/embeddings, /v1/usage
-├── routes-admin.ts           /admin/api/* (providers, models, aliases, keys, usage, log)
+├── routes-admin.ts           /admin/api/* (providers, models, keys, usage, log)
 ├── panel.ts                  the panel files under /admin/ (GET/HEAD only, content policy, path protection)
 ├── chat.ts                   one request from the key to the last byte (fallback, SSE, accounting)
 ├── routing.ts                name → list of targets; local_only, allowed_models
@@ -218,7 +214,7 @@ gate/src/
 ├── wol.ts                    the magic packet, and the client of the relay
 ├── wol-relay.ts              the relay: sends the packet from the host's network (own container)
 ├── adapters/                 openai (transparent), anthropic (translation both ways)
-├── store/                    providers, models, aliases, keys, usage (SQLite)
+├── store/                    providers, models, keys, usage (SQLite)
 ├── crypto.ts, db.ts, …       secret encryption, database migrations
 └── cli.ts                    keys, backup, check
 ```

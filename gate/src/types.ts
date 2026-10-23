@@ -126,15 +126,6 @@ export interface ResolvedModel {
   present: boolean;
 }
 
-export interface AliasRecord {
-  name: string;
-  description: string;
-  tags: string[];
-  /** Canonical model ids in fallback order: the first is tried first, the next only when it fails. */
-  targets: string[];
-  enabled: boolean;
-}
-
 export interface ApiKeyRecord {
   id: string;
   name: string;
@@ -145,7 +136,7 @@ export interface ApiKeyRecord {
   maxPriority: number;
   /** Everything this key sends stays on local models, fallbacks included. */
   localOnly: boolean;
-  /** Model ids, alias names or `provider/*`; null = everything. */
+  /** Model ids or `provider/*`; null = everything. */
   allowedModels: string[] | null;
   rpm: number | null;
   rpd: number | null;

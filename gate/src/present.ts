@@ -1,5 +1,5 @@
 import type { Hub } from './context.js';
-import type { ApiKeyRecord, ModelFields, ModelOverrides, ProviderRecord, ResolvedModel, ModelRecord, AliasRecord } from './types.js';
+import type { ApiKeyRecord, ModelFields, ModelOverrides, ProviderRecord, ResolvedModel, ModelRecord } from './types.js';
 
 /** The admin API speaks snake_case JSON; the code inside uses camelCase. These two convert, shallowly. */
 const snake = (k: string): string => k.replace(/[A-Z]/g, c => `_${c.toLowerCase()}`);
@@ -67,19 +67,6 @@ export function modelView(m: ResolvedModel, rec?: ModelRecord): Record<string, u
     ...(rec ? { reported: fieldsView(rec.reported), overrides: fieldsView(rec.overrides) } : {}),
   };
 }
-
-export const aliasView = (a: AliasRecord, hub: Hub): Record<string, unknown> => {
-  const targets = a.targets.map(id => hub.models.get(id));
-  return {
-    name: a.name,
-    description: a.description,
-    tags: a.tags,
-    targets: a.targets,
-    enabled: a.enabled,
-    locality: targets.length && targets.every(t => t?.locality === 'local') ? 'local' : 'cloud',
-    missing_targets: a.targets.filter((_, i) => !targets[i]),
-  };
-};
 
 export function keyView(hub: Hub, k: ApiKeyRecord): Record<string, unknown> {
   const snap = hub.limits.snapshot(k);

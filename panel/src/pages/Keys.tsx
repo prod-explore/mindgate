@@ -18,7 +18,6 @@ export function Keys() {
   const api = useApi();
   const confirm = useConfirm();
   const keys = useQuery(s => api.keys.list(s), [], { every: 10_000 });
-  const aliases = useQuery(s => api.aliases.list(s), []);
   const providers = useQuery(s => api.providers.list(s), []);
   const [editing, setEditing] = useState<ApiKey | 'new' | null>(null);
   const [created, setCreated] = useState<{ name: string; secret: string } | null>(null);
@@ -35,7 +34,7 @@ export function Keys() {
     if (ok && (await remove.run(k))) void keys.reload();
   };
 
-  const suggestions = [...(aliases.data ?? []).map(a => a.name), ...(providers.data ?? []).map(p => `${p.id}/*`)];
+  const suggestions = (providers.data ?? []).map(p => `${p.id}/*`);
 
   return (
     <>

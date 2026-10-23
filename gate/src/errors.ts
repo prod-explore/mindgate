@@ -2,8 +2,9 @@
  * Errors the hub reports to clients, in the OpenAI error format:
  *   { "error": { "message", "type", "code", "param"?, ...extra } }
  *
- * `fallback` says whether a failure may be answered by the next target of an alias. It is a property of the failure,
- * not of the caller: a bad request fails the same way everywhere, so retrying it elsewhere only hides the mistake.
+ * `fallback` says whether the app may try another model after this failure (it is sent to the client as `fallback: true`).
+ * It is a property of the failure, not of the caller: a bad request fails the same way everywhere, so retrying it
+ * elsewhere only hides the mistake.
  */
 
 export type ErrorType =
@@ -60,6 +61,7 @@ export class HubError extends Error {
     const error: Record<string, unknown> = { message: this.message, type: this.type, code: this.code };
     if (this.param) error['param'] = this.param;
     Object.assign(error, this.extra);
+    if (this.fallback) error['fallback'] = true;
     return { error };
   }
 }

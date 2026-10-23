@@ -165,17 +165,14 @@ describe('admin API', () => {
       await call('DELETE', '/providers/preset-pc');
     });
 
-    it('deleting a provider removes its models and says which aliases lost a target', async () => {
+    it('deleting a provider removes its models', async () => {
       await makeProvider('temp');
-      await call('POST', '/aliases', { name: 'uses-temp', targets: ['temp/fake-model', 'alpha/fake-model'] });
+      assert.equal((await call('GET', '/models?provider=temp')).json.data.length > 0, true);
       const r = await call('DELETE', '/providers/temp');
       assert.equal(r.status, 200);
-      assert.deepEqual(r.json.aliases_affected, ['uses-temp']);
+      assert.equal(r.json.aliases_affected, undefined);
       assert.equal((await call('GET', '/providers/temp')).status, 404);
       assert.equal((await call('GET', '/models?provider=temp')).json.data.length, 0);
-      const alias = (await call('GET', '/aliases')).json.data.find((a: Json) => a.name === 'uses-temp');
-      assert.deepEqual(alias.missing_targets, ['temp/fake-model'], 'the alias shows that one of its targets is gone');
-      await call('DELETE', '/aliases/uses-temp');
     });
   });
 
@@ -236,25 +233,11 @@ describe('admin API', () => {
     });
   });
 
-  describe('aliases', () => {
-    it('creates, reorders and deletes an alias', async () => {
-      const created = await call('POST', '/aliases', { name: 'best', description: 'the good one', tags: ['smart'], targets: ['alpha/fake-model', 'alpha/other'] });
-      assert.equal(created.status, 201);
-      assert.deepEqual(created.json.targets, ['alpha/fake-model', 'alpha/other']);
-      const reordered = await call('PATCH', '/aliases/best', { targets: ['alpha/other', 'alpha/fake-model'] });
-      assert.deepEqual(reordered.json.targets, ['alpha/other', 'alpha/fake-model']);
-      assert.equal((await h.api('GET', '/v1/models/best')).json.alias_of[0], 'alpha/other', 'clients see the new order at once');
-      assert.equal((await call('DELETE', '/aliases/best')).status, 200);
-      assert.equal((await call('DELETE', '/aliases/best')).status, 404);
-    });
-
-    it('refuses bad names and unknown targets', async () => {
-      assert.equal((await call('POST', '/aliases', { name: 'a/b', targets: ['alpha/fake-model'] })).json.error.code, 'invalid_alias_name');
-      assert.equal((await call('POST', '/aliases', { name: 'x', targets: ['alpha/ghost'] })).json.error.code, 'unknown_target');
-      assert.equal((await call('POST', '/aliases', { name: 'x', targets: [] })).json.error.code, 'invalid_targets');
-      await call('POST', '/aliases', { name: 'dup', targets: ['alpha/fake-model'] });
-      assert.equal((await call('POST', '/aliases', { name: 'dup', targets: ['alpha/fake-model'] })).status, 409);
-      await call('DELETE', '/aliases/dup');
+  describe('aliases are gone', () => {
+    it('the admin API has no alias endpoints and clients get no alias entries', async () => {
+      assert.equal((await call('GET', '/aliases')).status, 404);
+      assert.equal((await call('POST', '/aliases', { name: 'best', targets: ['alpha/fake-model'] })).status, 404);
+      assert.equal((await h.api('GET', '/v1/models/best')).status, 404);
     });
   });
 

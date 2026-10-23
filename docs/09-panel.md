@@ -1,6 +1,6 @@
 # The admin panel
 
-The panel is a web page for managing the hub without `curl`: providers, models, aliases, client keys, usage, the request log and the models on GPU machines. It does exactly what the [administrator API](08-api.md) does — it has no path of its own to the database.
+The panel is a web page for managing the hub without `curl`: providers, models, client keys, usage, the request log and the models on GPU machines. It does exactly what the [administrator API](08-api.md) does — it has no path of its own to the database.
 
 - **Address:** `http://<hub>:3000/admin/` (`/admin` redirects to `/admin/`).
 - **Sign-in:** the value of `MINDGATE_ADMIN_TOKEN` from the hub's environment — the same token that protects `/admin/api`.
@@ -48,9 +48,8 @@ You enter the token once on the sign-in screen; the panel checks it against the 
 | Menu | What is there |
 |---|---|
 | **Overview** | the state of providers (online / asleep / waking, queue "running / waiting", the last problem), today's numbers (requests, tokens, errors, the share of tokens served on your own hardware), a 14-day chart, recent errors |
-| **Providers** | adding from presets (OpenRouter, Gemini, Anthropic, a machine with an agent…), editing, connection test, model list sync, enabling / disabling, waking a machine, deleting (with the list of aliases that lost a model) |
+| **Providers** | adding from presets (OpenRouter, Gemini, Anthropic, a machine with an agent…), editing, connection test, model list sync, enabling / disabling, waking a machine, deleting |
 | **Models** | everything the hub can serve: search and filters (provider, kind, where it runs, state, tag), enabling one by one or in bulk, editing the name / tags / context / capabilities, adding a model by hand |
-| **Aliases** | an ordered list of models under one name — the only place where fallback happens; you can see at once whether the chain is entirely local |
 | **Client keys** | creating, limits (requests per minute / day, tokens per day / month), priority range, "local only", allowed models, usage against limits, revoking and deleting |
 | **Usage** | 7 / 30 / 90 days, requests / tokens / errors, local vs cloud split, tables per model and per key; the key and model filters work in the browser, with no refetch |
 | **Request log** | who, which model, how it went, how long it took; details of one request; "Load older"; auto-refresh every 5 s (can be turned off). Never the content of prompts or answers — same as in the hub |

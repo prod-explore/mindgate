@@ -29,7 +29,7 @@ async function main(): Promise<void> {
 
   await app.listen({ host: config.host, port: config.port });
   log.info(
-    { port: config.port, providers: hub.providers.list().length, models: hub.models.list().length, aliases: hub.aliases.list().length, keys: hub.keys.list().filter(k => !k.revokedAt).length, tz: config.usageTz },
+    { port: config.port, providers: hub.providers.list().length, models: hub.models.list().length, keys: hub.keys.list().filter(k => !k.revokedAt).length, tz: config.usageTz },
     'MindGate is up',
   );
   if (!hub.keys.list().some(k => !k.revokedAt)) {

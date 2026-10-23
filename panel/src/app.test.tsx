@@ -30,7 +30,7 @@ describe('the app', () => {
     const nav = await screen.findByRole('navigation', { name: 'Main' });
     expect(within(nav).getByRole('link', { name: 'Overview' })).toHaveAttribute('aria-current', 'page');
     expect(within(nav).getByRole('link', { name: /Providers/ })).toHaveTextContent('2');
-    expect(within(nav).getByRole('link', { name: /^Aliases/ })).toBeInTheDocument();
+    expect(within(nav).queryByRole('link', { name: /^Aliases/ })).not.toBeInTheDocument();
     // machines and models live under their provider now
     expect(within(nav).queryByRole('link', { name: 'Nodes' })).not.toBeInTheDocument();
     expect(within(nav).queryByRole('link', { name: /^Models/ })).not.toBeInTheDocument();

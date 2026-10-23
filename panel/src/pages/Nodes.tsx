@@ -311,8 +311,7 @@ function ModelRow({ id, model: m, agent, onChanged }: { id: string; model: NodeM
     if (!ok) return;
     const r = await remove.run();
     if (!r) return;
-    if (r.aliases_affected.length) toast.warn(t('nodes.deleted_aliases', { name: m.id, aliases: r.aliases_affected.join(', ') }));
-    else toast.ok(t('nodes.deleted', { name: m.id }));
+    toast.ok(t('nodes.deleted', { name: m.id }));
     onChanged();
   };
 

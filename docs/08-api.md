@@ -31,9 +31,8 @@ Compatible with OpenAI Chat Completions, including `stream: true`, tools (`tools
 | Response header | Meaning |
 |---|---|
 | `X-MindGate-Model`, `X-MindGate-Provider` | who really answered |
-| `X-MindGate-Fallback` | the models that failed before the last one answered (only when a fallback was used) |
 
-The response (not the stream) also has a `mindgate` object: `{ requested, model, provider, attempts: [{model, outcome}], usage_estimated? }`. `model` in the body is always the canonical identifier `provider/model`.
+The response (not the stream) also has a `mindgate` object: `{ requested, model, provider, attempts: [{model, outcome}], usage_estimated? }` (`attempts` has one entry: the hub tries one model). `model` in the body is always the canonical identifier `provider/model`.
 
 Streaming: `stream_options.include_usage` works as in OpenAI (the hub asks the provider for usage itself, to count it, but shows it only when the client asked). When an answer takes long, comments `: waiting for the model` appear in the stream. An error after the stream has started arrives as a `data: {"error": …}` event and `data: [DONE]` (the HTTP status has already been sent by then).
 
@@ -71,16 +70,16 @@ It works for a key that has used up its limit as well.
 |---|---|---|
 | 400 | `missing_model`, `invalid_messages`, `invalid_request`, `invalid_json`, `invalid_priority` | a malformed request |
 | 400 | `unsupported_content`, `unsupported_parameter`, `unsupported_endpoint` | the provider cannot do this: a content type or parameter the Anthropic translation does not support (`n > 1`), embeddings on a provider that does not offer them |
-| 400 / 404 / 409 | `invalid_*`, `*_not_found`, `*_exists` | (administrator API only) validation of what you sent — `invalid_provider_id`, `invalid_base_url`, `invalid_targets`, `invalid_key_name`…; an unknown `provider` / `alias` / `key` / `model`; a duplicate. `param` names the field |
+| 400 / 404 / 409 | `invalid_*`, `*_not_found`, `*_exists` | (administrator API only) validation of what you sent — `invalid_provider_id`, `invalid_base_url`, `invalid_key_name`…; an unknown `provider` / `key` / `model`; a duplicate. `param` names the field |
 | 400 | `wrong_model_kind` | an embedding model in a chat, or the other way round |
-| 400 | `context_length_exceeded` and other provider codes | the provider rejected the content of the request — passed on unchanged, **with no fallback** |
+| 400 | `context_length_exceeded` and other provider codes | the provider rejected the content of the request — passed on unchanged, **without** `fallback: true` |
 | 400 | `upstream_bad_request` | as above, when the provider gave no recognisable code |
 | 400 | `not_a_node`, `no_agent`, `agent_rejected` | (administrator API only) the provider has no `node` settings / no `node.control_url` / the agent rejected the command (for example a wrong model name) |
 | 401 | `missing_auth_header`, `invalid_auth_format`, `invalid_api_key` | authentication |
 | 401 | `invalid_admin_token` | (administrator API) a missing or wrong `MINDGATE_ADMIN_TOKEN` |
 | 403 | `model_not_allowed` | the key does not have this model in its `allowed_models` list |
-| 403 | `local_only_violation` | `local_only`, and the model/alias has no local target |
-| 404 | `model_not_found`, `unknown_endpoint` | an unknown model, alias (or a disabled one) / path |
+| 403 | `local_only_violation` | `local_only`, and the model is not local |
+| 404 | `model_not_found`, `unknown_endpoint` | an unknown model (a bare name such as an old alias is one) / path |
 | 413 | `request_too_large` | above `MINDGATE_BODY_LIMIT_MB` |
 | 429 | `rate_limited` | too many requests per minute; the `Retry-After` header, the `retry_after` field |
 | 429 | `budget_exhausted` | the daily/monthly limit; the `limit` field (`requests_per_day`, `tokens_per_day`, `tokens_per_month`) and `reset_at` |
@@ -92,14 +91,14 @@ It works for a key that has used up its limit as well.
 | 502 | `node_connection_lost` | the machine disappeared mid-request, and the retry failed too |
 | 502 | `node_auth_failed`, `agent_missing`, `agent_invalid_response`, `agent_error` | machine management (`/admin/api/providers/{id}/node*`): the agent rejected the secret / there is no MindGate agent at `control_url` / it answered with something that is not JSON / it reported an error on its side |
 | 502 | `provider_secret_unreadable` | `MINDGATE_MASTER_KEY` was changed — enter the provider's key again |
-| 503 | `no_available_model` | no target of the alias is available (providers disabled) |
+| 503 | `no_available_model` | the model's provider or the model itself is disabled |
 | 503 | `node_asleep` | the machine sleeps, and the request's priority is too low to wake it |
 | 503 | `node_unavailable`, `wol_failed` | the machine did not come up in time / the packet could not be sent |
 | 503 | `queue_full`, `upstream_overloaded` | the provider's queue is full / the provider is overloaded |
 | 504 | `queue_timeout`, `upstream_timeout` | waiting for too long |
 | in the stream | `upstream_stream_interrupted` | the provider broke off the answer midway |
 
-An alias falls back on provider failures: `upstream_error`, `upstream_unreachable`, `upstream_overloaded`, `upstream_timeout`, `upstream_rate_limited`, `upstream_quota_exhausted`, `upstream_empty_response`, `upstream_invalid_response`, `upstream_auth_failed`, `upstream_stream_interrupted`, when the provider does not know the model (`model_not_found` from the provider), `node_*`, `wol_failed`, `queue_full`, `queue_timeout` — and only before the client has received the first content. Errors of the request itself (`400`, `403`, a key's `429`) never trigger a fallback.
+The hub itself never retries on another model. Errors that another model could fix carry `"fallback": true` in the `error` object, so the calling app can choose: `upstream_error`, `upstream_unreachable`, `upstream_overloaded`, `upstream_timeout`, `upstream_rate_limited`, `upstream_quota_exhausted`, `upstream_empty_response`, `upstream_invalid_response`, `upstream_auth_failed`, `upstream_stream_interrupted` (not when the stream had already produced content), a provider that does not know the model (`model_not_found` from the provider), `node_*`, `wol_failed`, `queue_full`, `queue_timeout`. Errors of the request itself (`400`, `403`, a key's `429`) never carry it.
 
 ---
 
@@ -114,7 +113,7 @@ An alias falls back on provider failures: `upstream_error`, `upstream_unreachabl
 | `GET /providers`, `GET /providers/{id}` | the list / one provider |
 | `POST /providers` | add: `id`, `type` (`openai` / `anthropic`), `base_url`, `api_key`, `locality`, `auth_scheme` (`bearer` / `header` / `none`) + `auth_header`, `extra_headers`, `options`, `max_concurrency`, `node`, `enabled`. It fetches the model list right away (`"sync": false` turns that off) |
 | `PATCH /providers/{id}` | change any of the fields; `api_key: null` removes the key, a missing field leaves it alone |
-| `DELETE /providers/{id}` | removes the provider with its models; the response lists the aliases that lost a target (`aliases_affected`) |
+| `DELETE /providers/{id}` | removes the provider with its models |
 | `POST /providers/{id}/test` | checks the connection without changing anything (`ok`, latency, number of models) |
 | `POST /providers/{id}/sync` | refreshes the model list |
 | `POST /providers/{id}/wake` | wakes the machine (a provider with `node`) and waits |
@@ -123,13 +122,12 @@ An alias falls back on provider failures: `upstream_error`, `upstream_unreachabl
 | `POST /providers/{id}/node/pulls` | download a model: `{"name":"qwen3:4b"}` or `hf.co/…`; `202` + a job with an `id`. When it finishes, the model goes into the hub's catalogue by itself |
 | `GET /providers/{id}/node/pulls`, `GET …/pulls/{pull}`, `DELETE …/pulls/{pull}` | download jobs, progress (`status`, `percent`, `completed`, `total`), cancelling |
 | `POST /providers/{id}/node/models/load`, `…/unload` | load into the card (`name`, optionally `keep_alive`: `"30m"`, `-1`) / free it |
-| `DELETE /providers/{id}/node/models/{name}` | delete from the machine's disk and from the hub's catalogue; the response lists the aliases that lost a target (`aliases_affected`) |
+| `DELETE /providers/{id}/node/models/{name}` | delete from the machine's disk and from the hub's catalogue |
 | `POST /providers/{id}/node/shutdown` | shut the machine down; `{"force":true}` skips the checks that protect a busy computer from being shut down |
 | `GET /models[?provider=]` | the models with the fields `reported` (what the provider said) and `overrides` (what the owner set) |
 | `POST /models` | add a model by hand (`provider`, `id`, optionally `name`, `kind`, `context_length`, …) |
 | `PATCH /models/{id}` | override `name`, `description`, `kind`, `tags`, `context_length`, `max_output_tokens`, `supports`, `locality`, `enabled`; `null` restores the provider's value |
 | `DELETE /models/{id}` | a manual model disappears; a synced one is disabled |
-| `GET /aliases`, `POST /aliases`, `PATCH /aliases/{name}`, `DELETE /aliases/{name}` | aliases: `name` (without `/`), `targets` (the order = the fallback order, up to 8), `description`, `tags`, `enabled` |
 | `GET /keys`, `POST /keys` | client keys; `POST` returns the full key in the `key` field **once** |
 | `PATCH /keys/{id}`, `POST /keys/{id}/revoke`, `DELETE /keys/{id}` | changing limits and restrictions, revoking (the history stays), deleting |
 | `GET /usage[?from=&to=&key=&model=]` | daily totals (30 days by default) |

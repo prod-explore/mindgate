@@ -1,6 +1,4 @@
 import type {
-  Alias,
-  AliasInput,
   ApiKey,
   DeleteNodeModelResult,
   HubStatus,
@@ -129,7 +127,7 @@ export function createApi(options: ClientOptions) {
       list: (signal?: AbortSignal) => get<{ data: Provider[] }>('/providers', undefined, signal).then(r => r.data),
       create: (input: ProviderInput) => send<Provider & { sync: unknown }>('POST', '/providers', input),
       update: (id: string, input: ProviderInput) => send<Provider>('PATCH', p(id), input),
-      remove: (id: string) => send<{ deleted: true; id: string; aliases_affected: string[] }>('DELETE', p(id)),
+      remove: (id: string) => send<{ deleted: true; id: string }>('DELETE', p(id)),
       test: (id: string) => send<TestResult>('POST', `${p(id)}/test`),
       sync: (id: string) => send<SyncResult>('POST', `${p(id)}/sync`),
       wake: (id: string) => send<{ status: string }>('POST', `${p(id)}/wake`),
@@ -152,13 +150,6 @@ export function createApi(options: ClientOptions) {
       create: (input: { provider: string; id: string } & ModelFields) => send<Model>('POST', '/models', input),
       update: (id: string, patch: ModelPatch) => send<Model>('PATCH', `/models/${idPath(id)}`, patch),
       remove: (id: string) => send<{ id: string; [k: string]: unknown }>('DELETE', `/models/${idPath(id)}`),
-    },
-
-    aliases: {
-      list: (signal?: AbortSignal) => get<{ data: Alias[] }>('/aliases', undefined, signal).then(r => r.data),
-      create: (input: AliasInput) => send<Alias>('POST', '/aliases', input),
-      update: (name: string, input: AliasInput) => send<Alias>('PATCH', `/aliases/${encodeURIComponent(name)}`, input),
-      remove: (name: string) => send<{ deleted: true; name: string }>('DELETE', `/aliases/${encodeURIComponent(name)}`),
     },
 
     keys: {

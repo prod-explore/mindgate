@@ -2,12 +2,9 @@
 
 MindGate exposes an OpenAI-compatible API. Configuring any client comes down to three things: the URL, the API key, the model name.
 
-The **model name** is one of two things:
+The **model name** is a provider model — `provider/model`, for example `openrouter/deepseek/deepseek-chat`. There are no aliases and the hub never switches to another model by itself; an app that wants a backup picks one from `GET /v1/models` (models have `tags` such as `free`, `coder`, `vision`) and retries when the error says `"fallback": true`.
 
-- an **alias** — a short name that you set in the hub (`smart`, `flash`, `coding-hard`), with an explicit list of backup models; you change what is behind it without touching the clients,
-- a **provider model** — `provider/model`, for example `openrouter/deepseek/deepseek-chat`; with no fallback at all.
-
-`GET /v1/models` shows what is available (clients show this list themselves). Every client should have **its own key** (`keys create <name>`): separate limits, priority and, if needed, `--local-only`. Aliases, keys and limits are described in [01 - Hub](01-gate.md); all endpoints and error codes in [08 - API](08-api.md).
+`GET /v1/models` shows what is available (clients show this list themselves). Every client should have **its own key** (`keys create <name>`): separate limits, priority and, if needed, `--local-only`. Keys and limits are described in [01 - Hub](01-gate.md); all endpoints and error codes in [08 - API](08-api.md).
 
 Client settings and file formats change from version to version. The values to enter are always the same — base URL `https://hub.example.com/v1`, key `mg-…`, model name — and where they go is in the client's own documentation. The sections below are examples that were current when they were written.
 
@@ -73,7 +70,7 @@ models:
 
 ## Cursor
 
-Cursor accepts a custom OpenAI endpoint: in **Settings** → **Models**, enter your key as the OpenAI API key, turn on the base-URL override and set it to `https://hub.example.com/v1`, then add the alias (for example `coding-hard`) as a custom model name.
+Cursor accepts a custom OpenAI endpoint: in **Settings** → **Models**, enter your key as the OpenAI API key, turn on the base-URL override and set it to `https://hub.example.com/v1`, then add a model id (for example `openrouter/deepseek/deepseek-chat`) as a custom model name.
 
 ---
 
@@ -162,7 +159,7 @@ sudo tailscale up
 
 ## The model list — the /v1/models endpoint
 
-The hub returns the models and aliases available to a given key through the standard endpoint:
+The hub returns the models available to a given key through the standard endpoint:
 
 ```bash
 curl https://hub.example.com/v1/models \
@@ -174,10 +171,9 @@ curl https://hub.example.com/v1/models \
   "object": "list",
   "data": [
     {
-      "id": "smart", "object": "model", "owned_by": "mindgate",
-      "name": "smart", "description": "", "kind": "chat", "tags": [],
-      "locality": "cloud", "alias_of": ["openrouter/deepseek/deepseek-chat", "openrouter/google/gemini-2.5-flash"],
-      "context_length": 64000, "status": "online"
+      "id": "openrouter/deepseek/deepseek-chat", "object": "model", "owned_by": "openrouter",
+      "name": "DeepSeek Chat", "description": "", "kind": "chat", "tags": ["free"],
+      "locality": "cloud", "context_length": 64000, "status": "online"
     },
     {
       "id": "pc/qwen3:4b", "object": "model", "owned_by": "pc",

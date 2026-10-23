@@ -78,7 +78,7 @@ function allowList(v: unknown): string[] | null | undefined {
   if (v === undefined) return undefined;
   if (v === null) return null;
   if (!Array.isArray(v) || v.some(x => typeof x !== 'string' || !x || x.length > 250)) {
-    throw badRequest('invalid_allowed_models', 'allowed_models must be an array of model ids, alias names or "provider/*", or null for everything', 'allowed_models');
+    throw badRequest('invalid_allowed_models', 'allowed_models must be an array of model ids or "provider/*", or null for everything', 'allowed_models');
   }
   return [...new Set(v as string[])];
 }

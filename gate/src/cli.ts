@@ -226,7 +226,6 @@ async function checkCommand(hub: Hub, p: Parsed, io: CliIo): Promise<number> {
   }
   const keys = hub.keys.list().filter(k => !k.revokedAt);
   io.out(`keys       ${keys.length} active${keys.length ? '' : ' — create one: keys create <name>'}`);
-  io.out(`aliases    ${hub.aliases.list().length}`);
   io.out(problems ? `${problems} problem${problems === 1 ? '' : 's'} found.` : 'No problems found.');
   return problems ? 1 : 0;
 }
