@@ -50,4 +50,8 @@ async function main(): Promise<void> {
   process.on('SIGTERM', () => void shutdown('SIGTERM'));
 }
 
-void main();
+// A start that fails (port taken, database not writable) is an operator's problem: one line, no stack trace.
+main().catch((e: unknown) => {
+  console.error(`[mindgate-agent] could not start: ${e instanceof Error ? e.message : String(e)}`);
+  process.exit(1);
+});
