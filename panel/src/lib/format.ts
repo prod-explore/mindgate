@@ -88,13 +88,6 @@ export function dateTime(iso: string | null | undefined): string {
   return new Intl.DateTimeFormat(locale(), { dateStyle: 'medium', timeStyle: 'medium' }).format(d);
 }
 
-export function time(iso: string | null | undefined): string {
-  if (!iso) return dash;
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return dash;
-  return new Intl.DateTimeFormat(locale(), { hour: '2-digit', minute: '2-digit', second: '2-digit' }).format(d);
-}
-
 export function relative(iso: string | null | undefined, now: number = Date.now()): string {
   if (!iso) return dash;
   const then = new Date(iso).getTime();

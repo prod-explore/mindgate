@@ -195,5 +195,3 @@ export function migrate(db: Db, upTo: number = LATEST_SCHEMA_VERSION): void {
     })();
   }
 }
-
-export const nowIso = (): string => new Date().toISOString();

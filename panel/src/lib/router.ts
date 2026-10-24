@@ -31,10 +31,6 @@ export function href(segments: string[], query?: Record<string, string | undefin
   return `#/${segments.map(encodeURIComponent).join('/')}${s ? `?${s}` : ''}`;
 }
 
-export const navigate = (segments: string[], query?: Record<string, string | undefined>): void => {
-  globalThis.location.hash = href(segments, query);
-};
-
 /** Change the query without adding a history entry for every keystroke in a filter box. */
 export function replaceQuery(segments: string[], query: Record<string, string | undefined>): void {
   globalThis.history.replaceState(null, '', href(segments, query));

@@ -3,7 +3,7 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import { adapterFor } from './adapters/index.js';
 import { usageOf, type Json, type StreamItem } from './adapters/types.js';
 import type { Hub } from './context.js';
-import { estimateInput, estimated, roughTokens } from './estimate.js';
+import { estimateInput, estimated } from './estimate.js';
 import { HubError, badRequest, isHubError } from './errors.js';
 import type { Candidate } from './routing.js';
 import { dayKey } from './time.js';
@@ -438,5 +438,3 @@ function toHubError(e: unknown, hub: Hub, requestId: string): HubError {
   hub.log.error({ requestId, err: e instanceof Error ? (e.stack ?? e.message) : String(e) }, 'unexpected error');
   return new HubError({ status: 500, code: 'internal_error', message: 'Internal error in the hub (see its log)' });
 }
-
-export { roughTokens };

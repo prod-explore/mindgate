@@ -23,5 +23,3 @@ export function describeError(e: unknown): string {
   if (isApiError(e)) return describeCode(e.code, e.message);
   return e instanceof Error ? e.message : String(e);
 }
-
-export const errorCode = (e: unknown): string | null => (isApiError(e) ? e.code : null);
