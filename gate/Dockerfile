@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 # The build context is the repository root, because the image holds the hub and the admin panel it serves:
 #   docker build -f gate/Dockerfile -t mindgate-hub .
-FROM node:22-bookworm-slim AS panel
+FROM node:26-bookworm-slim AS panel
 WORKDIR /panel
 COPY panel/package.json panel/package-lock.json ./
 RUN npm ci
@@ -10,7 +10,7 @@ COPY panel/public ./public
 COPY panel/src ./src
 RUN npm run build
 
-FROM node:22-bookworm-slim AS build
+FROM node:26-bookworm-slim AS build
 WORKDIR /app
 COPY gate/package.json gate/package-lock.json ./
 # better-sqlite3 is a native module: a prebuilt binary is used when there is one for this platform, otherwise it is
@@ -25,7 +25,7 @@ RUN npm run build \
  && rm -rf dist/__tests__ \
  && npm prune --omit=dev
 
-FROM node:22-bookworm-slim
+FROM node:26-bookworm-slim
 ENV NODE_ENV=production \
     MINDGATE_HOST=0.0.0.0 \
     MINDGATE_PORT=3000 \
