@@ -59,7 +59,7 @@ export function Usage() {
   const nameOf = (id: string) => keyName.get(id) ?? t('usage.deleted_key');
   const localityOf = useMemo(() => localityResolver(providers.data ?? []), [providers.data]);
 
-  const keyOptions = useMemo(() => [...new Set(all.map(r => r.key_id))].sort((a, b) => nameOf(a).localeCompare(nameOf(b))), [all, keyName]); // eslint-disable-line react-hooks/exhaustive-deps
+  const keyOptions = useMemo(() => [...new Set(all.map(r => r.key_id))].sort((a, b) => nameOf(a).localeCompare(nameOf(b))), [all, keyName]); // eslint-disable-line react-hooks/exhaustive-deps -- nameOf is rebuilt on every render and reads only keyName
   const modelOptions = useMemo(() => [...new Set(all.map(r => r.model))].sort(), [all]);
 
   const rows = useMemo(() => all.filter((r: UsageRow) => (!f.key || r.key_id === f.key) && (!f.model || r.model === f.model)), [all, f.key, f.model]);

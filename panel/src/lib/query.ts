@@ -59,7 +59,7 @@ export function useQuery<T>(fetcher: (signal: AbortSignal) => Promise<T>, deps: 
         }
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reads the fetcher and its own state through refs, so it never has to change
   }, []);
 
   useEffect(() => {
@@ -86,7 +86,7 @@ export function useQuery<T>(fetcher: (signal: AbortSignal) => Promise<T>, deps: 
       busy.current = false;
       seq.current++;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the caller's deps are spread in, which the rule cannot check
   }, [enabled, every, run, ...deps]);
 
   const reload = useCallback(async () => {

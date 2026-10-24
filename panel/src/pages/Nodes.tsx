@@ -51,7 +51,7 @@ export function NodeDetail({ id }: { id: string }) {
       void info.reload();
     }
     primed.current = true;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs when the job list changes; models and info are new objects on every render and only their reload is used
   }, [pulls.data]);
 
   const reloadAll = () => {
