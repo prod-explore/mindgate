@@ -1,3 +1,6 @@
 # The fixed fake keys the test suite uses (gate/src/__tests__/helpers.ts). This commit spelled them out inline in a test;
 # the next commit takes them from helpers.ts instead. They protect nothing.
 8a33897e2aca2cd85b896d3a0b565948eaa38959:gate/src/__tests__/wol.test.ts:generic-api-key:110
+
+# docs/07-clients.md: the example request uses the placeholder key "mg-your-key", not a credential.
+f1d40cf70a1eec9c7e4ee76ddc62e368bb48dfc1:docs/07-clients.md:curl-auth-header:168
