@@ -157,6 +157,27 @@ describe('failed logins', () => {
   });
 });
 
+describe('the auth throttle under a flood of addresses', () => {
+  it('stays bounded without lifting the block of an address that keeps guessing', () => {
+    const t = new AuthThrottle(3, 60_000, 100);
+    for (const at of [0, 1, 2]) t.fail('6.6.6.6', at);
+    for (let i = 0; i < 500; i++) t.fail(`10.1.${i >> 8}.${i & 255}`, 10 + i);
+    assert.ok(t.size <= 100, 'memory stays bounded');
+    for (const at of [600, 601, 602]) t.fail('6.6.6.6', at); // it keeps guessing, so it stays among the newest
+    for (let i = 0; i < 90; i++) t.fail(`10.2.0.${i}`, 700 + i);
+    assert.throws(() => t.check('6.6.6.6', 800), /Too many/, 'the flood did not reset the blocked address');
+  });
+
+  it('drops expired entries before it drops live ones', () => {
+    const t = new AuthThrottle(3, 1000, 10);
+    for (let i = 0; i < 10; i++) t.fail(`10.3.0.${i}`, 0);
+    for (const at of [5000, 5001, 5002]) t.fail('6.6.6.6', at);
+    t.fail('10.3.1.1', 5003); // the ten old ones have expired by now; the blocked address is live
+    assert.throws(() => t.check('6.6.6.6', 5004), /Too many/);
+    assert.ok(t.size <= 10);
+  });
+});
+
 describe('a database on disk', () => {
   const dir = mkdtempSync(join(tmpdir(), 'mindgate-db-'));
   after(() => rmSync(dir, { recursive: true, force: true }));

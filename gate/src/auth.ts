@@ -14,6 +14,7 @@ export class AuthThrottle {
   constructor(
     private readonly maxFailures = 20,
     private readonly windowMs = 60_000,
+    private readonly maxTracked = 5000,
   ) {}
 
   check(ip: string, now = Date.now()): void {
@@ -32,13 +33,28 @@ export class AuthThrottle {
   fail(ip: string, now = Date.now()): void {
     const arr = this.recent(ip, now);
     arr.push(now);
+    // Re-inserting moves the address to the back of the map, so the front is always the one that failed longest ago.
+    this.failures.delete(ip);
     this.failures.set(ip, arr);
-    if (this.failures.size > 5000) this.failures.clear(); // a flood of addresses must not become a memory problem
+    if (this.failures.size > this.maxTracked) this.evict(now);
   }
 
   /** How many addresses have failures inside the window. */
   get size(): number {
     return this.failures.size;
+  }
+
+  /**
+   * A flood of addresses must not become a memory problem, and must not wipe the memory of who is blocked either:
+   * clearing the whole map would let an attacker with enough addresses lift its own block. Expired entries go first,
+   * then the addresses that failed longest ago.
+   */
+  private evict(now: number): void {
+    for (const ip of [...this.failures.keys()]) this.recent(ip, now);
+    for (const ip of this.failures.keys()) {
+      if (this.failures.size <= this.maxTracked) break;
+      this.failures.delete(ip);
+    }
   }
 
   /** The address's failures inside the window; an address with none is not kept. */
