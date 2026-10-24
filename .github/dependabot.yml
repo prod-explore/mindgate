@@ -1,28 +1,40 @@
 version: 2
+# Weekly; minor and patch updates of each ecosystem come as one pull request, majors one by one.
 updates:
   - package-ecosystem: npm
     directory: /gate
     schedule: { interval: weekly }
+    open-pull-requests-limit: 5
     groups:
       minor-and-patch: { update-types: [minor, patch] }
   - package-ecosystem: npm
     directory: /agent
     schedule: { interval: weekly }
+    open-pull-requests-limit: 5
     groups:
       minor-and-patch: { update-types: [minor, patch] }
   - package-ecosystem: npm
     directory: /panel
     schedule: { interval: weekly }
+    open-pull-requests-limit: 5
     groups:
       minor-and-patch: { update-types: [minor, patch] }
   - package-ecosystem: npm
     directory: /tray
     schedule: { interval: weekly }
+    open-pull-requests-limit: 5
     groups:
       minor-and-patch: { update-types: [minor, patch] }
+  # the node base image of gate/Dockerfile
   - package-ecosystem: docker
     directory: /gate
     schedule: { interval: weekly }
+    open-pull-requests-limit: 2
+    groups:
+      minor-and-patch: { update-types: [minor, patch] }
   - package-ecosystem: github-actions
     directory: /
     schedule: { interval: weekly }
+    open-pull-requests-limit: 5
+    groups:
+      minor-and-patch: { update-types: [minor, patch] }
