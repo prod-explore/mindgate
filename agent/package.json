@@ -1,7 +1,7 @@
 {
   "name": "mindgate-agent",
   "version": "2.0.0",
-  "description": "MindGate node agent \u2014 lets the hub manage and use the models on a machine with a GPU",
+  "description": "MindGate node agent — lets the hub manage and use the models on a machine with a GPU",
   "type": "module",
   "main": "dist/index.js",
   "engines": {
@@ -17,8 +17,8 @@
   },
   "dependencies": {
     "fastify": "^5.12.7",
-    "pino": "^9.14.0",
-    "undici": "^7.8.0"
+    "pino": "^10.4.0",
+    "undici": "^8.12.3"
   },
   "devDependencies": {
     "@types/node": "^22.15.0",
