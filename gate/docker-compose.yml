@@ -1,5 +1,8 @@
 services:
   gate:
+    # Published by CI for amd64 and arm64: `docker compose pull` fetches it (scripts/deploy.sh does that and checks health).
+    # MINDGATE_IMAGE_TAG picks another tag, e.g. sha-1a2b3c4 to go back. `docker compose build` builds it from this checkout instead.
+    image: ghcr.io/prod-explore/mindgate-hub:${MINDGATE_IMAGE_TAG:-latest}
     build:
       # the image holds the hub and the panel, so it is built from the repository root
       context: ..
@@ -26,7 +29,6 @@ services:
         max-file: "3"
     networks:
       - mindgate_net
-    image: mindgate-hub
 
   # Sends the Wake-on-LAN broadcast for a machine that sleeps. A container on a Docker bridge cannot broadcast onto the LAN,
   # so this one runs on the host's own network (same image, different command). It is off unless the profile is on:
@@ -34,8 +36,7 @@ services:
   #                           MINDGATE_WOL_RELAY_URL — see .env.example and docs/06-wol.md)
   wol-relay:
     profiles: [wol]
-    image: mindgate-hub
-    pull_policy: never
+    image: ghcr.io/prod-explore/mindgate-hub:${MINDGATE_IMAGE_TAG:-latest}
     command: ["node", "dist/wol-relay.js"]
     container_name: mindgate-wol-relay
     restart: unless-stopped

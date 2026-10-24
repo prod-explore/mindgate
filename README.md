@@ -19,8 +19,10 @@ Try it with Docker; the admin panel is then at `http://localhost:3000/admin/` ([
 git clone https://github.com/prod-explore/mindgate.git && cd mindgate/gate
 printf 'MINDGATE_MASTER_KEY=%s\nMINDGATE_ADMIN_TOKEN=%s\n' "$(openssl rand -hex 32)" "$(openssl rand -hex 32)" > .env
 docker network create mindgate_net
-docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build
+docker compose -f docker-compose.yml -f docker-compose.local.yml up -d
 ```
+
+The image comes from the GitHub Container Registry (amd64 and arm64, built by CI on every push to `main`), so this takes seconds; add `--build` to build it from your checkout instead.
 
 ```mermaid
 graph LR
@@ -137,6 +139,17 @@ curl http://localhost:3000/v1/chat/completions \
 | `X-MindGate-Tag: my-app` | label stored in the request log |
 
 ---
+
+## Updating
+
+CI publishes `ghcr.io/prod-explore/mindgate-hub` with two tags, `latest` and `sha-<commit>`. On the host:
+
+```bash
+scripts/deploy.sh               # pull latest, restart the hub, wait for it to be healthy
+scripts/deploy.sh sha-1a2b3c4   # a specific build; the same command rolls back
+```
+
+If the new image does not become healthy within 90 seconds, the script puts the previous one back and exits with an error. Nothing is compiled on the host, and the data volume is not touched.
 
 ## Development
 
