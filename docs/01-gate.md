@@ -21,12 +21,18 @@ docker compose up -d --build
 docker compose logs -f gate
 ```
 
+`docker-compose.yml` does not publish the hub's port: a reverse proxy in the same Docker network reaches it as `mindgate-gate:3000` ([below](#reverse-proxy-nginx)). With nothing in front — trying it out, or a hub used only from this machine — add the file that publishes it on the loopback interface:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build
+```
+
 The hub **will not start** with the placeholders from `.env.example`, or with a short or repetitive secret — on purpose.
 
 - `MINDGATE_MASTER_KEY` encrypts the providers' API keys stored in the database (AES-256-GCM). **Keep a copy separate from the database backups**: without it the stored provider keys cannot be read and have to be entered again.
 - `MINDGATE_ADMIN_TOKEN` protects `/admin`. It must differ from the master key.
 
-Once the hub is running, the **panel** is waiting at `http://localhost:3000/admin/` (sign in with that token): providers, models, keys, usage, the log and the GPU machines — everything you do with `curl` below can be clicked there. Details: [09 - Panel](09-panel.md).
+Once the hub is running, the **panel** is waiting at `http://localhost:3000/admin/` with the port published as above, or at your proxy's address (sign in with that token): providers, models, keys, usage, the log and the GPU machines — everything you do with `curl` below can be clicked there. Details: [09 - Panel](09-panel.md).
 
 ### Without Docker
 
@@ -64,7 +70,7 @@ curl -X PATCH $HUB/admin/api/models/openrouter/google/gemini-2.5-flash -H "$ADMI
 docker compose exec gate node dist/cli.js keys create laptop --rpm 30 --tokens-day 500000
 ```
 
-In the client: address `http://<hub-ip>:3000/v1`, key `mg-…`, model `openrouter/deepseek/deepseek-chat`.
+In the client: the hub's address with `/v1` (for example `https://hub.example.com/v1` behind a proxy, or `http://localhost:3000/v1` with the local port), key `mg-…`, model `openrouter/deepseek/deepseek-chat`.
 
 ---
 
@@ -106,7 +112,7 @@ Every client has its own key with settings:
 | `tokens_per_day`, `tokens_per_month` | token budget (input + output) → `429 budget_exhausted` + `reset_at` |
 | `min_/default_/max_priority` | the 1–5 priority range a client may ask for |
 | `local_only` | see above |
-| `allowed_models` | a list: `smart`, `home/*`, `openrouter/deepseek/deepseek-chat`; `null` = everything |
+| `allowed_models` | a list of model ids and `provider/*` patterns: `pc/*`, `openrouter/deepseek/deepseek-chat`; `null` = everything |
 
 A "day" and a "month" start at midnight in the `MINDGATE_USAGE_TZ` time zone (for example `Europe/Warsaw`), including on daylight-saving days. A client checks its own usage at `GET /v1/usage`.
 
@@ -132,7 +138,7 @@ Wake-on-LAN setup on the computer and the router: [06 - Wake-on-LAN](06-wol.md).
 
 ### What the hub stores
 
-In the request log: when, which key, which model and provider, the response code, timings (queue, first byte, total), the token counts, the successive fallback attempts. **Never the content of a conversation** — neither the question nor the answer. The log is purged after `MINDGATE_LOG_RETENTION_DAYS` (30). The daily totals used for limits stay.
+In the request log: when, which key, which model and provider, the response code, timings (queue, first byte, total), the token counts, how the attempt ended. **Never the content of a conversation** — neither the question nor the answer. The log is purged after `MINDGATE_LOG_RETENTION_DAYS` (30). The daily totals used for limits stay.
 
 ---
 

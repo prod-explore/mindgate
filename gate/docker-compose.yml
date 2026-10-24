@@ -18,7 +18,7 @@ services:
     security_opt:
       - no-new-privileges:true
     # The port is not published: the reverse proxy (nginx, Caddy) reaches the hub inside the Docker network.
-    # With nothing in front, publish it on the loopback only:  ports: ["127.0.0.1:3000:3000"]
+    # With nothing in front, add docker-compose.local.yml, which publishes it on the loopback only.
     logging:
       driver: json-file
       options:

@@ -1,0 +1,7 @@
+# For a hub with nothing in front of it (trying MindGate out, or a hub used only from this machine):
+# publishes the hub's port on the loopback interface only. Behind nginx or Caddy you do not need this file.
+#   docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build
+services:
+  gate:
+    ports:
+      - "127.0.0.1:3000:3000"

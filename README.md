@@ -7,15 +7,20 @@
   [![License](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 </div>
 
-## Overview
-
-MindGate is a self-hosted **hub**: clients (IDEs, chat UIs, scripts, your own apps) talk to one OpenAI-compatible endpoint with one key, and the hub decides where each request goes — a local model on a PC that sleeps until it is needed, OpenRouter, Gemini, Anthropic, an Ollama on the LAN, anything that speaks HTTP.
-
-It exists for three things a plain proxy does not give you:
+MindGate is a self-hosted **hub** (TypeScript, Fastify, SQLite; small enough for a Raspberry Pi): your IDE, chat UI, scripts and apps talk to one OpenAI-compatible endpoint with one key, and the hub sends each request to a local model on a PC that sleeps until it is needed, or to OpenRouter, Gemini, Anthropic, an Ollama on the LAN — anything that speaks HTTP. It gives you three things a plain proxy does not:
 
 - **Control over where data goes.** A key (or a single request) can be *local-only*: nothing is sent to the cloud, fallbacks included.
 - **No surprises in routing.** A model is never replaced by another one behind your back: the response says which one answered, and when it fails the error says whether the app may try another (`fallback: true`).
 - **A GPU that costs nothing while idle.** The compute machine is woken with Wake-on-LAN when a request needs it and asked to shut down when it has been idle.
+
+Try it with Docker; the admin panel is then at `http://localhost:3000/admin/` ([next steps](#getting-started)):
+
+```bash
+git clone https://github.com/prod-explore/mindgate.git && cd mindgate/gate
+printf 'MINDGATE_MASTER_KEY=%s\nMINDGATE_ADMIN_TOKEN=%s\n' "$(openssl rand -hex 32)" "$(openssl rand -hex 32)" > .env
+docker network create mindgate_net
+docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build
+```
 
 ```mermaid
 graph LR
@@ -70,9 +75,10 @@ graph LR
 - **Priority queue** — 5 → 1, first come first served within a level, for providers that can do only one thing at a time (one GPU). Clients that disconnect leave the line.
 - **Wake-on-LAN and idle shutdown** — low-priority requests do not wake the machine (they fail fast with `node_asleep`, so the app can ask another model); the connection is kept alive with SSE comments while it boots; a machine that vanishes mid-request is noticed and woken again. In Docker a small relay container on the host's network sends the broadcast (a bridge cannot).
 - **Models on your own machines, managed from the hub** — the agent on a GPU machine exposes a small authenticated API: list what is installed (size, quantisation, capabilities, what sits in VRAM), download models (including `hf.co/…` GGUF repositories, with progress), delete, load and unload them, read CPU/RAM/GPU/disk, shut the machine down. Finished downloads appear in the hub's catalog by themselves; uncensored/abliterated models are tagged and stay local. No model list lives in a config file on the node.
+- **Tray app on the GPU machine** (`/tray`, Windows; Linux best-effort) — shows what the agent is doing, notices that someone is using the PC, and has the final say before the agent powers it off; it also holds a manual Windows shutdown back while a request or a download is running.
 - **Admin panel** — a web UI served by the hub at `/admin/` (React, no CDN or external requests, strict content security policy): providers, models, client keys, usage charts, the request log, and the models on each machine — download, load, unload, delete, shut down — with the hub never waking a machine just to look at it. Light and dark.
 - **Private by construction** — the request log holds who, which model, how long, how many tokens, what failed. Never prompts or answers. Provider keys are encrypted at rest (AES-256-GCM, key from the environment); admin and client credentials are separate; failed logins are throttled.
-- **Operations** — one SQLite file, `backup` and `check` commands, a hardened Docker setup (read-only root filesystem, no capabilities), 500+ tests: the hub against fake upstreams, the agent against a fake Ollama, the panel's screens, and a hub-to-agent end-to-end chain. CI also runs `npm audit`, CodeQL and a secret scan, and Dependabot keeps the dependencies current.
+- **Operations** — one SQLite file, `backup` and `check` commands, a hardened Docker setup (read-only root filesystem, no capabilities, an unprivileged user), 530+ tests as node:test and Vitest count them (hub 220+, panel 200+, agent 80+, end-to-end 10, tray 7): the hub against fake upstreams, the agent against a fake Ollama, the panel's screens, and a hub-to-agent end-to-end chain. CI builds and tests every package, builds the Docker image and checks that it serves `/health` and the panel, and runs `npm audit`, CodeQL and a gitleaks secret scan; Dependabot keeps the dependencies current.
 
 ---
 
@@ -88,13 +94,10 @@ graph LR
 
 ## Getting started
 
-```bash
-git clone https://github.com/prod-explore/mindgate.git
-cd mindgate/gate
+After the four commands at the top the hub runs in Docker, listening on `127.0.0.1:3000` only (`docker-compose.local.yml` publishes the port; behind nginx or Caddy you leave that file out, see [01 Hub](docs/01-gate.md)). `.env.example` lists every other setting. Still in `gate/`:
 
-cp .env.example .env            # put two different secrets in it:  openssl rand -hex 32
-docker network create mindgate_net
-docker compose up -d --build
+```bash
+MINDGATE_ADMIN_TOKEN=$(grep '^MINDGATE_ADMIN_TOKEN=' .env | cut -d= -f2-)
 
 # a provider (the admin API; see docs/08-api.md) …
 curl -X POST http://localhost:3000/admin/api/providers \
@@ -107,7 +110,7 @@ docker compose exec gate node dist/cli.js keys create laptop --rpm 30
 
 Then open `http://localhost:3000/admin/` and sign in with `MINDGATE_ADMIN_TOKEN`: everything above can be done there too.
 
-Without Docker: Node 22, `cd panel && npm ci && npm run build`, then `npm ci && npm run build && npm start` in `gate/`.
+Without Docker: Node 22, `cd panel && npm ci && npm run build`, then `npm ci && npm run build && npm start` in `gate/` (it reads `gate/.env`).
 
 Setup guides are in [`docs/`](docs):
 [01 Hub](docs/01-gate.md) · [02 Agent](docs/02-agent.md) · [03 Tray](docs/03-tray.md) · [04 Ollama](docs/04-models.md) · [05 Nodes](docs/05-nodes.md) · [06 Wake-on-LAN](docs/06-wol.md) · [07 Clients](docs/07-clients.md) · [08 API](docs/08-api.md) · [09 Panel](docs/09-panel.md)
@@ -122,10 +125,10 @@ curl http://localhost:3000/v1/chat/completions \
   -H "X-MindGate-Priority: 4" \
   -H "X-MindGate-Local-Only: true" \
   -H "Content-Type: application/json" \
-  -d '{"model": "smart", "messages": [{"role": "user", "content": "Explain transformer attention."}]}'
+  -d '{"model": "pc/qwen3:4b", "messages": [{"role": "user", "content": "Explain transformer attention."}]}'
 ```
 
-`model` is a provider model (`openrouter/deepseek/deepseek-chat`). The response carries `X-MindGate-Model` / `X-MindGate-Provider` — who actually answered.
+`model` is always `provider/model` (`pc/qwen3:4b` on your own machine, `openrouter/deepseek/deepseek-chat` in the cloud); there are no aliases. The response carries `X-MindGate-Model` / `X-MindGate-Provider` — who actually answered.
 
 | Header | Meaning |
 |---|---|
@@ -144,7 +147,8 @@ npm test            # builds and runs the contract tests against fake OpenAI/Ant
 npm run dev         # rebuild on change, restart on change
 
 cd ../agent && npm ci && npm test      # the node agent against a fake Ollama
-cd ../panel && npm ci && npm test      # the admin panel (Vitest + Testing Library); npm run dev for development
+cd ../panel && npm ci && npm test      # the admin panel (Vitest + Testing Library); npm run build type-checks it, npm run dev for development
+cd ../tray && npm ci && npm test       # the tray's state logic
 cd .. && node --test e2e/*.test.mjs    # hub + agent + fake Ollama, after building both packages
 ```
 
@@ -156,7 +160,7 @@ The tests start real servers (the hub and fake upstreams, including a "machine" 
 - `/panel` — the admin panel (Vite, React, TypeScript), built to static files that the hub serves under `/admin/`
 - `/agent` — compute-machine service (TypeScript, Fastify): authenticated node API, Ollama runtime and model management, OpenAI passthrough, power guard
 - `/e2e` — end-to-end tests: hub, agent and a fake Ollama together
-- `/tray` — desktop tray app: idle detection and shutdown guard for the compute machine
+- `/tray` — desktop tray app (JavaScript, `systray2`) for the compute machine: agent status in the tray, idle detection, the last word on shutdown
 - `/docs` — setup guides
 - `/scripts/windows` — helpers for a Windows compute machine (restart the agent and the tray after an update, start the hub without a window)
 - `/tools` — `screenshots.mjs`, which regenerates the pictures above from a seeded stack
