@@ -8,7 +8,7 @@ The panel is a web page for managing the hub without `curl`: providers, models, 
 
 ## Running it
 
-**Docker** — the image contains the hub and the built panel; there is nothing else to do. The only thing that changed is where the image is built from: **the build context is the repository root**, because `panel/` goes into the image too. `docker compose up -d --build` in `gate/` does the same as before (`docker-compose.yml` already has `context: ..`). By hand:
+**Docker** — the image contains the hub and the built panel; there is nothing else to do. **The build context is the repository root**, because `panel/` goes into the image too; `docker-compose.yml` in `gate/` sets `context: ..`, so `docker compose up -d --build` there is all it takes. By hand:
 
 ```bash
 docker build -f gate/Dockerfile -t mindgate-hub .      # from the repository root

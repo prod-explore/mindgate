@@ -2,7 +2,7 @@
   "name": "mindgate-panel",
   "version": "2.0.0",
   "private": true,
-  "description": "MindGate admin panel: providers, models, aliases, keys, usage, log and the models on your nodes",
+  "description": "MindGate admin panel: providers, models, keys, usage, log and the models on your nodes",
   "type": "module",
   "engines": {
     "node": ">=22"

@@ -52,15 +52,15 @@ name: MindGate
 version: 1.0.0
 schema: v1
 models:
-  - name: MindGate Smart
+  - name: DeepSeek (MindGate)
     provider: openai
-    model: smart
+    model: openrouter/deepseek/deepseek-chat
     apiBase: https://hub.example.com/v1
     apiKey: mg-your-key
     roles: [chat, edit, apply]
-  - name: MindGate Fast
+  - name: Local coder (MindGate)
     provider: openai
-    model: coding-fast
+    model: pc/qwen2.5-coder:3b
     apiBase: https://hub.example.com/v1
     apiKey: mg-your-key
     roles: [autocomplete]
@@ -89,7 +89,7 @@ client = OpenAI(
 )
 
 response = client.chat.completions.create(
-    model="smart",
+    model="pc/qwen3:4b",   # a model on your own machine, so the local-only header below allows it
     messages=[
         {"role": "user", "content": "Explain quicksort to me"}
     ],
@@ -98,7 +98,7 @@ response = client.chat.completions.create(
         "X-MindGate-Local-Only": "true",   # optional: local models only, fallbacks too
     }
 )
-print(response.model)   # who really answered, for example "openrouter/deepseek/deepseek-chat"
+print(response.model)   # who really answered: always the model asked for, here "pc/qwen3:4b"
 print(response.choices[0].message.content)
 ```
 
@@ -116,7 +116,7 @@ const client = new OpenAI({
 })
 
 const response = await client.chat.completions.create({
-  model: 'flash',
+  model: 'openrouter/deepseek/deepseek-chat',
   messages: [{ role: 'user', content: 'Hello!' }],
   stream: true
 })

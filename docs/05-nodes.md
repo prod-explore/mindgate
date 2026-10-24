@@ -81,7 +81,7 @@ The full picture of the machine.
 
 ## The OpenAI-compatible API: `/v1/*`
 
-The agent passes `GET|POST /v1/*` to the engine unchanged (the request body byte for byte, the SSE stream without buffering). When the client (the hub) disconnects, the agent aborts the request to the engine, so nothing is generated "into the void". If the engine is not running, the agent tries to start it, and when that fails it answers `503 runtime_unavailable` (the hub treats it as a provider failure, after which an alias may move on to the next target).
+The agent passes `GET|POST /v1/*` to the engine unchanged (the request body byte for byte, the SSE stream without buffering). When the client (the hub) disconnects, the agent aborts the request to the engine, so nothing is generated "into the void". If the engine is not running, the agent tries to start it, and when that fails it answers `503 runtime_unavailable` (the hub reports it to the client as a provider failure with `"fallback": true`, so the app may pick another model).
 
 The one exception is **`GET /v1/models`**. The agent answers it itself, in the OpenAI format extended with fields the hub understands without special code for the agent:
 
