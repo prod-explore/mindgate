@@ -145,6 +145,16 @@ describe('failed logins', () => {
     assert.doesNotThrow(() => t.check('1.2.3.4', 61_001), 'the first failure aged out');
     assert.doesNotThrow(() => t.check('9.9.9.9', 3000), 'other addresses are unaffected');
   });
+
+  it('remembers only addresses that failed, and lets them go once their failures age out', () => {
+    const t = new AuthThrottle(3, 60_000);
+    for (let i = 0; i < 100; i++) t.check(`10.0.0.${i}`, 1000);
+    assert.equal(t.size, 0, 'a client that only ever signs in correctly leaves nothing behind');
+    t.fail('1.2.3.4', 1000);
+    assert.equal(t.size, 1);
+    t.check('1.2.3.4', 61_001);
+    assert.equal(t.size, 0);
+  });
 });
 
 describe('a database on disk', () => {

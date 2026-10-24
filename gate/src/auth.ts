@@ -30,14 +30,23 @@ export class AuthThrottle {
   }
 
   fail(ip: string, now = Date.now()): void {
-    this.recent(ip, now).push(now);
+    const arr = this.recent(ip, now);
+    arr.push(now);
+    this.failures.set(ip, arr);
     if (this.failures.size > 5000) this.failures.clear(); // a flood of addresses must not become a memory problem
   }
 
+  /** How many addresses have failures inside the window. */
+  get size(): number {
+    return this.failures.size;
+  }
+
+  /** The address's failures inside the window; an address with none is not kept. */
   private recent(ip: string, now: number): number[] {
-    const arr = this.failures.get(ip) ?? [];
+    const arr = this.failures.get(ip);
+    if (!arr) return [];
     while (arr.length && arr[0]! <= now - this.windowMs) arr.shift();
-    this.failures.set(ip, arr);
+    if (!arr.length) this.failures.delete(ip);
     return arr;
   }
 }
