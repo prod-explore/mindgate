@@ -1,7 +1,10 @@
 # The default rules, plus: the examples in the documentation use obvious placeholders for client keys.
+# "mg-twoj-klucz" is the Polish placeholder from the documentation's early history.
+# The single [allowlist] table is the form every gitleaks 8 release reads (checked with 8.17 to 8.30);
+# the newer [[allowlists]] array is ignored by the releases before 8.25, which gitleaks-action may still use.
 [extend]
 useDefault = true
 
-[[allowlists]]
+[allowlist]
 description = "Placeholder client keys in curl examples"
 regexes = ['''mg-(your-key|twoj-klucz)''']

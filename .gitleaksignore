@@ -1,6 +1,9 @@
-# The fixed fake keys the test suite uses (gate/src/__tests__/helpers.ts). This commit spelled them out inline in a test;
-# the next commit takes them from helpers.ts instead. They protect nothing.
+# Findings that are not secrets, pinned by fingerprint (commit:file:rule:line). The commits are in history for good.
+
+# gate/src/__tests__/wol.test.ts in 8a33897 spelled out the fixed fake keys the test suite uses
+# (now in gate/src/__tests__/helpers.ts); the next commit takes them from helpers.ts instead. They protect nothing.
 8a33897e2aca2cd85b896d3a0b565948eaa38959:gate/src/__tests__/wol.test.ts:generic-api-key:110
 
-# docs/07-clients.md: the example request uses the placeholder key "mg-your-key", not a credential.
+# docs/07-clients.md in f1d40cf: the curl example uses the placeholder key "mg-your-key", not a credential.
+# .gitleaks.toml allows that placeholder too; this entry keeps the finding quiet for a gitleaks that reads the config differently.
 f1d40cf70a1eec9c7e4ee76ddc62e368bb48dfc1:docs/07-clients.md:curl-auth-header:168
