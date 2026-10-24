@@ -3,6 +3,7 @@ import type { ProviderRuntime } from '../upstream.js';
 import type { ResolvedModel, Usage } from '../types.js';
 
 /** Loosely typed on purpose: the hub passes unknown fields through instead of whitelisting the OpenAI schema. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- loosely typed on purpose, see above
 export type Json = Record<string, any>;
 
 export interface ChatCall {

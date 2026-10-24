@@ -47,7 +47,7 @@ export function ModelsView({ scope }: { scope?: string }) {
   const [shown, setShown] = useState(PAGE);
   const [bulk, setBulk] = useState<{ done: number; total: number } | null>(null);
 
-  const all = models.data ?? [];
+  const all = useMemo(() => models.data ?? [], [models.data]);
   const filtered = useMemo(() => filterModels(all, filters), [all, filters.q, filters.provider, filters.kind, filters.locality, filters.state, filters.tag]); // eslint-disable-line react-hooks/exhaustive-deps -- `filters` is a new object on every render; its fields are the inputs
   const tags = useMemo(() => allTags(all), [all]);
   const visible = filtered.slice(0, shown);

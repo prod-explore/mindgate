@@ -309,7 +309,7 @@ async function open(theme) {
 }
 
 async function shoot(page, hash, name, ready) {
-  await page.evaluate(h => { location.hash = h; }, hash);
+  await page.evaluate(h => { globalThis.location.hash = h; }, hash);
   if (ready) await page.waitForSelector(ready, { timeout: 15_000 });
   await page.waitForLoadState('networkidle');
   await page.waitForTimeout(700);

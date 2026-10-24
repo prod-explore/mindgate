@@ -4,6 +4,7 @@ import { AgentError } from './errors.js';
 import { findOllamaBinary, killProcess, spawnOllama } from './ollama-process.js';
 import type { LoadedModel, PullProgress, Runtime, RuntimeHealth, RuntimeModel } from './runtime.js';
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- loosely typed on purpose
 type Json = Record<string, any>;
 
 export interface OllamaOptions {

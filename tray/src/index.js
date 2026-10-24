@@ -141,7 +141,7 @@ function initTray() {
       icon: getCurrentIcon(),
       title: 'MindGate',
       tooltip: buildTooltip(),
-      items: menuItems.map((item, index) => ({
+      items: menuItems.map(item => ({
         title: item.title,
         tooltip: item.title,
         checked: item.checked || false,

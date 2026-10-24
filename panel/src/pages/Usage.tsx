@@ -54,7 +54,7 @@ export function Usage() {
   const keys = useQuery(s => api.keys.list(s), []);
   const providers = useQuery(s => api.providers.list(s), []);
 
-  const all = usage.data?.data ?? [];
+  const all = useMemo(() => usage.data?.data ?? [], [usage.data]);
   const keyName = useMemo(() => new Map((keys.data ?? []).map(k => [k.id, k.name])), [keys.data]);
   const nameOf = (id: string) => keyName.get(id) ?? t('usage.deleted_key');
   const localityOf = useMemo(() => localityResolver(providers.data ?? []), [providers.data]);

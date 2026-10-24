@@ -150,6 +150,7 @@ cd ../agent && npm ci && npm test      # the node agent against a fake Ollama
 cd ../panel && npm ci && npm test      # the admin panel (Vitest + Testing Library); npm run build type-checks it, npm run dev for development
 cd ../tray && npm ci && npm test       # the tray's state logic
 cd .. && node --test e2e/*.test.mjs    # hub + agent + fake Ollama, after building both packages
+npm ci && npm run lint                 # ESLint over every component (one config at the repository root)
 ```
 
 The tests start real servers (the hub and fake upstreams, including a "machine" that sleeps) and cover streaming, tool calls, error mapping, fallback rules, local-only, limits with a fake clock across daylight-saving changes, the queue, Wake-on-LAN, the admin API and secret handling. The agent's tests run a fake Ollama (and a fake binary to start) and cover the authenticated API, model pulls with progress and cancellation, the passthrough proxy and the shutdown guard; the end-to-end chain checks that hub, agent and tray agree on every path.

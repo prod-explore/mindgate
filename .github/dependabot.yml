@@ -2,6 +2,12 @@ version: 2
 # Weekly; minor and patch updates of each ecosystem come as one pull request, majors one by one.
 updates:
   - package-ecosystem: npm
+    directory: /
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 5
+    groups:
+      minor-and-patch: { update-types: [minor, patch] }
+  - package-ecosystem: npm
     directory: /gate
     schedule: { interval: weekly }
     open-pull-requests-limit: 5

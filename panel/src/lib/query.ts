@@ -59,7 +59,6 @@ export function useQuery<T>(fetcher: (signal: AbortSignal) => Promise<T>, deps: 
         }
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- reads the fetcher and its own state through refs, so it never has to change
   }, []);
 
   useEffect(() => {
@@ -84,6 +83,7 @@ export function useQuery<T>(fetcher: (signal: AbortSignal) => Promise<T>, deps: 
       document.removeEventListener('visibilitychange', onVisible);
       abortRef.current?.abort();
       busy.current = false;
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- `seq` counts requests; it is not a DOM node, so its current value is the one wanted here
       seq.current++;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the caller's deps are spread in, which the rule cannot check

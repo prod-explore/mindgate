@@ -21,7 +21,6 @@ async function main(): Promise<void> {
 
   const log = pino({ level: config.logLevel, redact: ['req.headers.authorization'] });
   let closing = false;
-  let agent: Awaited<ReturnType<typeof buildAgent>>;
 
   const shutdown = async (why: string, stopService = false): Promise<void> => {
     if (closing) return;
@@ -39,7 +38,7 @@ async function main(): Promise<void> {
     process.exit(0);
   };
 
-  agent = await buildAgent(config, { logger: log, onExit: () => void shutdown('exit requested', true) });
+  const agent = await buildAgent(config, { logger: log, onExit: () => void shutdown('exit requested', true) });
   await agent.app.listen({ host: config.host, port: config.port });
   log.info({ node: config.nodeId, port: config.port, ollama: config.ollama.url, manage: config.ollama.manage, tray: config.trayUrl }, 'MindGate agent is up');
 

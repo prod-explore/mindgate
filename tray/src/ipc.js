@@ -24,7 +24,7 @@ export function startIpcServer() {
    * POST /shutdown-check — the agent asks whether the machine may be shut down
    */
   app.post('/shutdown-check', (req, res) => {
-    const decision = evaluateShutdown(req.body?.idle_minutes)
+    const decision = evaluateShutdown()
     log.info(decision, 'Shutdown check')
     res.json(decision)
   })
@@ -49,7 +49,7 @@ export function startIpcServer() {
  * Decides whether a shutdown is allowed.
  * Checks every condition of the shutdown guard.
  */
-function evaluateShutdown(idleMinutes) {
+function evaluateShutdown() {
   // 1. The "I'm using this PC" toggle
   if (userToggleActive) {
     return { allow: false, reason: 'user_toggle_active' }

@@ -1,4 +1,4 @@
-import { execSync, execFileSync } from 'child_process'
+import { execSync } from 'child_process'
 import { writeFileSync } from 'fs'
 import { resolve, dirname } from 'path'
 import { fileURLToPath } from 'url'

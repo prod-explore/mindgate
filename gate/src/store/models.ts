@@ -34,6 +34,7 @@ export interface ModelPatch {
 export const canonicalId = (providerId: string, upstreamId: string): string => `${providerId}/${upstreamId}`;
 
 export function validUpstreamId(id: unknown): id is string {
+  // eslint-disable-next-line no-control-regex -- control characters are exactly what is rejected here
   return typeof id === 'string' && id.length > 0 && id.length <= 200 && !/[\s\u0000-\u001f]/.test(id);
 }
 
