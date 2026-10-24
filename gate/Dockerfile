@@ -13,7 +13,12 @@ RUN npm run build
 FROM node:22-bookworm-slim AS build
 WORKDIR /app
 COPY gate/package.json gate/package-lock.json ./
-RUN npm ci
+# better-sqlite3 is a native module: a prebuilt binary is used when there is one for this platform, otherwise it is
+# compiled here (this stage only; the runtime stage gets the result without the toolchain).
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends python3 make g++ \
+ && rm -rf /var/lib/apt/lists/* \
+ && npm ci
 COPY gate/tsconfig.json ./
 COPY gate/src ./src
 RUN npm run build \
