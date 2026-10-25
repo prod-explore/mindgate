@@ -15,17 +15,17 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 const log = pino({ name: 'mindgate-tray' })
 
 /**
- * MindGate Tray — main entry point.
- * An icon in the system tray plus the IPC server.
+ * Entry point of the tray app: an icon in the system tray that shows the agent's state, and a small HTTP server on
+ * 127.0.0.1 that the agent asks before an automatic shutdown (ipc.js).
  */
 
-// Load the icons (base64-encoded .ico)
+/** An icon file as the base64 string systray2 expects. */
 function loadIcon(name) {
   try {
     const iconPath = resolve(__dirname, 'icons', `${name}.ico`)
     return readFileSync(iconPath).toString('base64')
   } catch {
-    // Fallback — an empty icon (1x1 transparent .ico)
+    // a missing icon file leaves the tray without an icon instead of stopping it
     return ''
   }
 }
@@ -38,16 +38,10 @@ const icons = {
   gray: loadIcon('gray')
 }
 
-/**
- * Picks the icon for the agent's state.
- */
 function getCurrentIcon() {
   return icons[describeState(getAgentState()).icon] ?? icons.gray
 }
 
-/**
- * Refreshes the tray UI (icon, tooltip and menu items).
- */
 function refreshMenuUI() {
   if (!systrayInstance || !systrayReady) return
 
@@ -55,7 +49,7 @@ function refreshMenuUI() {
     const newItems = buildMenuItems()
     const confItems = systrayInstance._conf.menu.items
 
-    // Mutate existing items to preserve __id added by systray2 and send update-item
+    // update the existing items in place: systray2 identifies them by the __id it added to each
     newItems.forEach((newItem, i) => {
       // a separator never changes, so there is nothing to send
       if (confItems[i] && newItem.title !== SEPARATOR) {
@@ -87,9 +81,7 @@ function refreshMenuUI() {
   }
 }
 
-/**
- * Fetches the agent's status (polling).
- */
+/** Reads the agent's /health, refreshes the icon and menu, and holds a Windows shutdown back while the agent is busy. */
 async function pollAgentStatus() {
   try {
     const res = await fetch(`${config.agent.url}/health`, {
@@ -107,7 +99,6 @@ async function pollAgentStatus() {
         runtime: data.runtime
       })
 
-      // Block the Windows shutdown while the agent is working
       updateShutdownBlock(busy)
     } else {
       updateAgentState({ status: 'error', busy: 0, httpStatus: res.status })
@@ -118,21 +109,13 @@ async function pollAgentStatus() {
     updateShutdownBlock(0)
   }
 
-  // Check for user activity — switch the "in use" toggle on when the mouse moves
   checkUserActivity()
-
-  // Update the tray UI after fetching the status or detecting activity
   refreshMenuUI()
 }
 
-// The one systray instance
 let systrayInstance = null
-
 let systrayReady = false
 
-/**
- * Sets up the system tray.
- */
 function initTray() {
   const menuItems = buildMenuItems()
 
@@ -156,7 +139,7 @@ function initTray() {
   systrayInstance = new SysTray(systrayConfig)
 
   systrayInstance.onClick(action => {
-    // Take the item from the newest menu so the current handler is used
+    // the click handlers close over the state they were built with, so take them from a fresh menu
     const currentItems = buildMenuItems()
     const item = currentItems[action.seq_id]
     
@@ -178,24 +161,17 @@ function initTray() {
   })
 }
 
-// --- Start ---
-
 log.info('Starting MindGate Tray...')
 
-// 1. IPC server (answers the agent's shutdown-check)
 startIpcServer()
 
-// 2. Poll the agent's status
 pollAgentStatus()
 setInterval(pollAgentStatus, config.agent.poll_interval_ms)
 
-// 3. Report to the agent
 startAgentReporting()
 
-// 4. System tray
 initTray()
 
-// Graceful shutdown
 process.on('SIGINT', () => {
   log.info('Shutting down the tray...')
   if (systrayInstance) systrayInstance.kill(false)

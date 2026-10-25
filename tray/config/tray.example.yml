@@ -12,7 +12,8 @@ agent:
 hub:
   url: "http://hub-address"
 
-# IPC server — a small HTTP server on localhost
+# IPC server — a small HTTP server on 127.0.0.1 that the agent asks before an automatic shutdown
+# (the agent's MINDGATE_TRAY_URL points here).
 ipc:
   port: 3002
 

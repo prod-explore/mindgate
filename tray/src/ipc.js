@@ -6,16 +6,13 @@ import pino from 'pino'
 const log = pino({ name: 'ipc' })
 
 /**
- * IPC server — a small HTTP server on localhost.
- * Handles the conversation with the agent.
+ * The tray's side of the conversation with the agent: a small HTTP server on 127.0.0.1 that answers the agent's
+ * shutdown check, and the "I'm using this PC" toggle, which is reported to the agent.
  */
 
-// Tray state
 let userToggleActive = false // "I'm using this PC — don't shut it down"
 
-/**
- * Starts the IPC server on the configured port.
- */
+/** Listens on 127.0.0.1 only: its caller is the agent on this machine. */
 export function startIpcServer() {
   const app = express()
   app.use(express.json())
@@ -50,18 +47,15 @@ export function startIpcServer() {
  * Checks every condition of the shutdown guard.
  */
 function evaluateShutdown() {
-  // 1. The "I'm using this PC" toggle
   if (userToggleActive) {
     return { allow: false, reason: 'user_toggle_active' }
   }
 
-  // 2. Idle threshold
   const idleSeconds = getIdleSeconds()
   if (idleSeconds < config.shutdown_guard.idle_threshold_seconds) {
     return { allow: false, reason: 'user_recently_active', idle_seconds: idleSeconds }
   }
 
-  // All conditions met — shutting down is fine
   return { allow: true, reason: 'all_checks_passed' }
 }
 
@@ -71,21 +65,14 @@ function evaluateShutdown() {
 export function setUserToggle(active) {
   userToggleActive = active
   log.info({ active }, '"In use" toggle changed')
-
-  // Tell the agent
   reportToAgent()
 }
 
-/**
- * Returns the toggle state.
- */
 export function getUserToggle() {
   return userToggleActive
 }
 
-/**
- * Reports the status to the agent.
- */
+/** Tells the agent whether someone is using the PC: the toggle, and the seconds since the last input. */
 async function reportToAgent() {
   try {
     await fetch(`${config.agent.url}/node/user-active`, {
@@ -101,7 +88,7 @@ async function reportToAgent() {
       signal: AbortSignal.timeout(3000)
     })
   } catch {
-    // The agent may be unreachable — ignore
+    // the agent may be down; the next periodic report tries again
   }
 }
 
@@ -111,7 +98,7 @@ async function reportToAgent() {
  * The toggle stays on until it is switched off by hand in the tray menu.
  */
 export function checkUserActivity() {
-  if (userToggleActive) return false // already on — nothing to do
+  if (userToggleActive) return false
 
   const idleSeconds = getIdleSeconds()
   if (idleSeconds < config.shutdown_guard.idle_threshold_seconds) {
@@ -123,9 +110,6 @@ export function checkUserActivity() {
   return false
 }
 
-/**
- * Starts the periodic report to the agent.
- */
 export function startAgentReporting() {
   setInterval(reportToAgent, config.agent.poll_interval_ms)
 }

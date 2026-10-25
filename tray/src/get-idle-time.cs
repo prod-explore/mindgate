@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Runtime.InteropServices;
 
+// Prints the whole seconds since the last keyboard or mouse input (GetLastInputInfo). idle.js compiles it on first use.
 public class IdleTimeFinder {
     public struct LASTINPUTINFO {
         public uint cbSize;

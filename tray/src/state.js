@@ -1,4 +1,4 @@
-// Turns the agent's state into what a person sees. No dependencies, so it can be tested without the tray or Windows.
+/** Turns the agent's state into what a person sees. No dependencies, so it can be tested without the tray or Windows. */
 
 /** 1 task, 2 tasks */
 export function tasks(n) {

@@ -10,10 +10,10 @@ const __dirname = dirname(__filename)
 const log = pino({ name: 'shutdown-block' })
 
 /**
- * Blocks the system shutdown while the agent is processing requests.
- * Uses a small C# WinForms EXE to handle WM_QUERYENDSESSION.
- * When the user picks "Shut down" in the Start menu, Windows shows a dialog:
- *   "This app is preventing shutdown: MindGate is processing AI requests"
+ * Holds a Windows shutdown back while the agent is busy (requests in flight or downloads running).
+ * Uses a small C# WinForms EXE (blocker.cs) that handles WM_QUERYENDSESSION.
+ * When someone picks "Shut down" in the Start menu, Windows lists it among the apps that prevent shutdown,
+ * with the reason blocker.cs gives.
  *
  * On Linux, shutdown is controlled by systemd/polkit — nothing is blocked there.
  */

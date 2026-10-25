@@ -3,6 +3,11 @@ import { resolve, dirname } from 'path'
 import { fileURLToPath } from 'url'
 import yaml from 'js-yaml'
 
+/**
+ * The tray's configuration: config/tray.yml (or the file MINDGATE_TRAY_CONFIG names) with defaults filled in. A missing
+ * file or a missing agent secret stops the tray with a message.
+ */
+
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
 function loadConfig() {
@@ -20,13 +25,12 @@ function loadConfig() {
 
   const cfg = yaml.load(raw)
 
-  // Defaults
   cfg.agent = {
     url: 'http://localhost:3001',
     poll_interval_ms: 5000,
     ...cfg.agent
   }
-  // the same secret as MINDGATE_NODE_SECRET in agent/.env
+  // the same secret as MINDGATE_NODE_SECRET in agent/.env; set in the environment, it wins over the file
   const envSecret = process.env.MINDGATE_NODE_SECRET
   if (envSecret) {
     cfg.agent.secret = envSecret

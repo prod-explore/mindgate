@@ -21,12 +21,11 @@ try {
   const pkg = JSON.parse(readFileSync(resolve(__dirname, '..', 'package.json'), 'utf8'))
   TRAY_VERSION = pkg.version || '?'
 } catch {
-  // fallback — package.json is missing or cannot be parsed
+  // the tooltip then shows "v?"
 }
 
 export const SEPARATOR = '<SEPARATOR>'
 
-// Current state
 let agentState = {
   status: 'unknown',
   busy: 0,
@@ -51,9 +50,6 @@ export function buildTooltip() {
   return `MindGate v${TRAY_VERSION} — ${describeState(agentState).title}`
 }
 
-/**
- * Builds the items of the context menu.
- */
 export function buildMenuItems() {
   const toggle = getUserToggle()
   const state = describeState(agentState)

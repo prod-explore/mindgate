@@ -19,12 +19,10 @@ const trayDir = resolve(__dirname, '..')
 const regKey = 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run'
 const regName = 'MindGateTray'
 
-// Absolute paths for this installation
 const nodePath = process.execPath
 const scriptPath = resolve(trayDir, 'src', 'index.js')
 const vbsPath = resolve(trayDir, 'start-tray.vbs')
 
-// Generate a VBS that fits this machine
 const vbsContent = `' MindGate Tray — autostart (generated automatically, do not edit by hand)
 ' Generated: ${new Date().toISOString()}
 Set objShell = CreateObject("WScript.Shell")
@@ -35,7 +33,6 @@ objShell.Run """${nodePath.replace(/\\/g, '\\\\')}""" & " " & """${scriptPath.re
 writeFileSync(vbsPath, vbsContent, 'utf8')
 console.log(`Generated: ${vbsPath}`)
 
-// Register wscript.exe with the generated VBS in the registry
 const command = `wscript.exe "${vbsPath}"`
 
 try {
