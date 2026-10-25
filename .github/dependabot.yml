@@ -1,5 +1,7 @@
 version: 2
-# Weekly; minor and patch updates of each ecosystem come as one pull request, majors one by one.
+# Weekly; minor and patch updates of each ecosystem come as one pull request. Major versions (a new TypeScript, a new
+# Node typings line, a new Node base image) are chosen by hand, together with `engines` and CI, so they are ignored here;
+# `npm audit` and CI still force an earlier bump when an advisory needs it.
 updates:
   - package-ecosystem: npm
     directory: /
@@ -7,30 +9,45 @@ updates:
     open-pull-requests-limit: 5
     groups:
       minor-and-patch: { update-types: [minor, patch] }
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: npm
     directory: /gate
     schedule: { interval: weekly }
     open-pull-requests-limit: 5
     groups:
       minor-and-patch: { update-types: [minor, patch] }
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: npm
     directory: /agent
     schedule: { interval: weekly }
     open-pull-requests-limit: 5
     groups:
       minor-and-patch: { update-types: [minor, patch] }
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: npm
     directory: /panel
     schedule: { interval: weekly }
     open-pull-requests-limit: 5
     groups:
       minor-and-patch: { update-types: [minor, patch] }
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: npm
     directory: /tray
     schedule: { interval: weekly }
     open-pull-requests-limit: 5
     groups:
       minor-and-patch: { update-types: [minor, patch] }
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
   # the node base image of gate/Dockerfile
   - package-ecosystem: docker
     directory: /gate
@@ -38,6 +55,9 @@ updates:
     open-pull-requests-limit: 2
     groups:
       minor-and-patch: { update-types: [minor, patch] }
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions
     directory: /
     schedule: { interval: weekly }
