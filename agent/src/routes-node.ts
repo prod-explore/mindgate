@@ -83,8 +83,7 @@ export function registerNodeRoutes(app: FastifyInstance, d: NodeRouteDeps): void
     };
   });
 
-  // ─── models ────────────────────────────────────────────────────────────────
-
+  // Models
   app.get('/node/models', async () => {
     await runtime.ensureRunning();
     const [models, now] = await Promise.all([runtime.listModels(), loaded()]);
@@ -115,8 +114,7 @@ export function registerNodeRoutes(app: FastifyInstance, d: NodeRouteDeps): void
     return { ok: true, name };
   });
 
-  // ─── downloads ─────────────────────────────────────────────────────────────
-
+  // Downloads
   app.get('/node/pulls', async () => ({ object: 'list', data: pulls.list() }));
 
   app.post('/node/pulls', async (req, reply) => {
@@ -132,8 +130,7 @@ export function registerNodeRoutes(app: FastifyInstance, d: NodeRouteDeps): void
 
   app.delete('/node/pulls/:id', async req => pulls.cancel((req.params as { id: string }).id));
 
-  // ─── power and the person at the keyboard ──────────────────────────────────
-
+  // Power, and the person at the keyboard
   app.post('/node/power/shutdown-request', async req => {
     const idle = Number(body(req)['idle_minutes']);
     return power.shutdown({ idleMinutes: Number.isFinite(idle) && idle > 0 ? idle : 0 });

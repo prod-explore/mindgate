@@ -4,7 +4,7 @@ import { AgentError } from './errors.js';
 import { findOllamaBinary, killProcess, spawnOllama } from './ollama-process.js';
 import type { LoadedModel, PullProgress, Runtime, RuntimeHealth, RuntimeModel } from './runtime.js';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- loosely typed on purpose
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Ollama's JSON is read field by field, each one checked at runtime
 type Json = Record<string, any>;
 
 export interface OllamaOptions {
@@ -26,6 +26,7 @@ const isObj = (v: unknown): v is Json => typeof v === 'object' && v !== null && 
 /** "abliterated" and "uncensored" are how such models announce themselves in their names. */
 export const UNCENSORED = /abliterat|uncensor/i;
 
+/** The Runtime for Ollama: adopts a running server or starts one, and speaks its native API (/api/*). */
 export class OllamaRuntime implements Runtime {
   readonly name = 'ollama';
   readonly url: string;
@@ -41,8 +42,6 @@ export class OllamaRuntime implements Runtime {
     this.openaiBase = `${this.url}/v1`;
     this.log = opts.log ?? quiet;
   }
-
-  // ─── process ───────────────────────────────────────────────────────────────
 
   private async reachable(timeoutMs = 2000): Promise<{ ok: boolean; version: string | null }> {
     try {
@@ -121,8 +120,6 @@ export class OllamaRuntime implements Runtime {
     return { ok: r.ok, version: r.version, managed: this.child !== null, error: r.ok ? null : this.lastError ?? `no answer at ${this.url}` };
   }
 
-  // ─── HTTP ──────────────────────────────────────────────────────────────────
-
   private async call(method: 'GET' | 'POST' | 'DELETE', path: string, body?: Json, opts: { timeoutMs?: number; signal?: AbortSignal; stream?: boolean } = {}): Promise<Response> {
     const signals = [AbortSignal.timeout(opts.timeoutMs ?? 30_000)];
     if (opts.signal) signals.push(opts.signal);
@@ -165,8 +162,6 @@ export class OllamaRuntime implements Runtime {
     if (status === 404) return new AgentError(404, 'model_not_found', message || 'model not found');
     return new AgentError(status >= 500 ? 502 : 400, 'runtime_error', message || `Ollama answered ${status}`);
   }
-
-  // ─── models ────────────────────────────────────────────────────────────────
 
   async listModels(): Promise<RuntimeModel[]> {
     const tags = await this.json('GET', '/api/tags');

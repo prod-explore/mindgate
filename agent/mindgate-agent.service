@@ -4,6 +4,7 @@ After=network-online.target ollama.service
 Wants=network-online.target ollama.service
 
 [Service]
+# Replace your-user with the account that owns the checkout.
 Type=simple
 User=your-user
 WorkingDirectory=/home/your-user/mindgate/agent
@@ -13,7 +14,6 @@ Restart=always
 RestartSec=5
 Environment=NODE_ENV=production
 
-# Log to journald
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=mindgate-agent

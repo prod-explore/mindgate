@@ -12,7 +12,7 @@ import type { Runtime } from './runtime.js';
 
 export interface AgentDeps {
   logger?: FastifyBaseLogger;
-  /** Replace the runtime (tests do; later another engine would be chosen here). */
+  /** Replaces the Ollama runtime (the tests pass a fake). */
   runtime?: Runtime;
   exec?: PowerOptions['exec'];
   fetch?: typeof fetch;

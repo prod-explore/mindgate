@@ -1,8 +1,8 @@
 /**
  * What the agent needs from the program that actually runs models.
  *
- * Today that is Ollama (ollama.ts). The rest of the agent only talks to this interface, so another runtime
- * (llama.cpp server, a speech or image engine) is one more file that implements it — not a rewrite.
+ * Ollama implements it (ollama.ts). The rest of the agent only talks to this interface, so another runtime
+ * (llama.cpp server, a speech or image engine) is one more file that implements it, not a rewrite.
  */
 
 export type RuntimeModelKind = 'chat' | 'embedding';

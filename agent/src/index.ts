@@ -6,6 +6,11 @@ import { pino } from 'pino';
 import { loadConfig } from './config.js';
 import { buildAgent } from './server.js';
 
+/**
+ * Entry point of the agent: loads agent/.env, serves the node API and the model proxy, brings the model runtime up
+ * and shuts down cleanly on SIGINT, SIGTERM or the tray's "quit".
+ */
+
 // agent/.env, wherever the process was started from (a Windows service does not start in this folder)
 const envFile = process.env['MINDGATE_ENV_FILE'] ?? resolve(fileURLToPath(new URL('..', import.meta.url)), '.env');
 if (existsSync(envFile)) process.loadEnvFile(envFile);
@@ -49,7 +54,7 @@ async function main(): Promise<void> {
   process.on('SIGTERM', () => void shutdown('SIGTERM'));
 }
 
-// A start that fails (port taken, database not writable) is an operator's problem: one line, no stack trace.
+// A start that fails (the port is taken, say) is an operator's problem: one line, no stack trace.
 main().catch((e: unknown) => {
   console.error(`[mindgate-agent] could not start: ${e instanceof Error ? e.message : String(e)}`);
   process.exit(1);
