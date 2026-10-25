@@ -1,3 +1,4 @@
+' Builds and starts the hub from this checkout without a console window.
 Set objFSO = CreateObject("Scripting.FileSystemObject")
 ' The script lives in scripts\windows; the hub is in <repository>\gate
 strPath = objFSO.BuildPath(objFSO.GetParentFolderName(objFSO.GetParentFolderName(objFSO.GetParentFolderName(WScript.ScriptFullName))), "gate")

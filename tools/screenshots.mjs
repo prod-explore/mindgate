@@ -1,18 +1,20 @@
-// Regenerates docs/img/*.png: the real hub, the real agent and the real panel, filled with demo data.
-//
-//   cd gate  && npm ci && npm run build
-//   cd agent && npm ci && npm run build
-//   cd panel && npm ci && npm run build
-//   npm i --no-save playwright-core        (in the repository root; it is not a dependency of the project)
-//   node tools/screenshots.mjs
-//
-// What is faked, and nothing else: the model runtime (the Ollama stand-in the agent's tests use), `nvidia-smi` (a shell
-// script that prints one GPU), the machine's own figures (CPU, memory, disk), and the two cloud providers (a server
-// that lists models). Providers, models and
-// keys are created through the administrator API; the usage history and the request log are written with the hub's own
-// store, thirty days of requests that look the way the hub's log does (errors, queues).
-//
-// Environment: OUT (default docs/img), CHROME (default: Playwright's Chromium).
+/**
+ * Regenerates docs/img/*.png: the real hub, the real agent and the real panel, filled with demo data.
+ *
+ *   cd gate  && npm ci && npm run build
+ *   cd agent && npm ci && npm run build
+ *   cd panel && npm ci && npm run build
+ *   npm i --no-save playwright-core        (in the repository root; it is not a dependency of the project)
+ *   node tools/screenshots.mjs
+ *
+ * What is faked, and nothing else: the model runtime (the Ollama stand-in the agent's tests use), `nvidia-smi` (a shell
+ * script that prints one GPU), the machine's own figures (CPU, memory, disk), and the two cloud providers (a server
+ * that lists models). Providers, models and keys are created through the administrator API; the usage history and
+ * the request log are written with the hub's own store, thirty days of requests that look the way the hub's log
+ * does (errors, queues).
+ *
+ * Environment: OUT (default docs/img), CHROME (default: Playwright's Chromium).
+ */
 import { randomBytes } from 'node:crypto';
 import { chmodSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import fsp from 'node:fs/promises';
@@ -26,7 +28,7 @@ const root = new URL('../', import.meta.url);
 const OUT = process.env.OUT ?? fileURLToPath(new URL('docs/img/', root));
 mkdirSync(OUT, { recursive: true });
 
-// ─── a GPU for the agent to find ─────────────────────────────────────────────
+// A GPU for the agent to find
 const bin = mkdtempSync(join(os.tmpdir(), 'mindgate-shots-'));
 writeFileSync(join(bin, 'nvidia-smi'), '#!/bin/sh\necho "NVIDIA GeForce RTX 4070 Ti, 12282, 3512, 11"\n');
 chmodSync(join(bin, 'nvidia-smi'), 0o755);
@@ -55,7 +57,7 @@ const ADMIN = hex(32);
 const NODE_SECRET = hex(32);
 const TZ = 'Europe/Warsaw';
 
-// ─── the machine: a PC with a GPU ────────────────────────────────────────────
+// The machine: a PC with a GPU
 const GB = 1_000_000_000;
 const ollama = await startFakeOllama([
   { name: 'qwen3:14b', size: 9.3 * GB, family: 'qwen3', parameterSize: '14.8B', quantization: 'Q4_K_M', contextLength: 40960, capabilities: ['completion', 'tools', 'thinking'] },
@@ -72,7 +74,7 @@ const agent = await buildAgent(
 await agent.app.listen({ host: '127.0.0.1', port: 3001 }).catch(() => agent.app.listen({ host: '127.0.0.1', port: 0 }));
 const agentUrl = `http://127.0.0.1:${agent.app.server.address().port}`;
 
-// ─── two cloud providers that only list their models ─────────────────────────
+// Two cloud providers that only list their models
 const entry = (id, name, ctx, extra = {}) => ({ id, name, context_length: ctx, supported_parameters: ['tools', 'reasoning'], architecture: { input_modalities: ['text', 'image'] }, ...extra });
 const catalogs = {
   '/openrouter/v1/models': [
@@ -99,7 +101,7 @@ const cloud = createServer((req, res) => {
 await new Promise(r => cloud.listen(0, '127.0.0.1', r));
 const cloudUrl = `http://127.0.0.1:${cloud.address().port}`;
 
-// ─── the hub ─────────────────────────────────────────────────────────────────
+// The hub
 const hub = createHub(
   loadHubConfig({ MINDGATE_MASTER_KEY: MASTER, MINDGATE_ADMIN_TOKEN: ADMIN, MINDGATE_DB: ':memory:', MINDGATE_USAGE_TZ: TZ, MINDGATE_PANEL_DIR: fileURLToPath(new URL('panel/dist', root)) }, () => undefined),
   silentLogger,
@@ -156,7 +158,7 @@ for (const def of keyDefs) {
 const retired = await api('POST', '/keys', { name: 'old-laptop' });
 await api('POST', `/keys/${retired.id ?? retired.record?.id}/revoke`);
 
-// ─── thirty days of requests ─────────────────────────────────────────────────
+// Thirty days of requests
 let seed = 20261022; // fixed, so the pictures are the same every time
 const rnd = () => {
   seed = (seed + 0x6d2b79f5) | 0;
@@ -294,7 +296,7 @@ await hub.nodes.tick();
 await api('PATCH', '/providers/openrouter', { base_url: 'https://openrouter.ai/api/v1', sync: false });
 await api('PATCH', '/providers/gemini', { base_url: 'https://generativelanguage.googleapis.com/v1beta/openai', sync: false });
 
-// ─── the pictures ────────────────────────────────────────────────────────────
+// The pictures
 const browser = await chromium.launch({ executablePath: process.env.CHROME || undefined, args: ['--no-sandbox'] });
 
 async function open(theme) {

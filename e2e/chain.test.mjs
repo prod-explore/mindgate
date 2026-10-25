@@ -1,7 +1,9 @@
-// End-to-end: the real hub -> the real agent -> a stand-in for Ollama.
-// Everything between the client and the model is the code that ships; only the model runtime is faked.
-//
-// Run from the repo root after building both packages:  node --test e2e/
+/**
+ * End-to-end: the real hub -> the real agent -> a stand-in for Ollama.
+ * Everything between the client and the model is the code that ships; only the model runtime is faked.
+ *
+ * Run from the repository root after building both packages:  node --test e2e/
+ */
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { after, before, describe, it } from 'node:test';

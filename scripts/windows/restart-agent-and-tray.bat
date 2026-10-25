@@ -1,4 +1,5 @@
 @echo off
+rem Pulls the latest code, rebuilds the agent, then restarts the agent's Windows service and the tray app.
 echo Running Restart script...
 rem The script lives in scripts\windows; the repository root is two levels up.
 for %%I in ("%~dp0..\..") do set "ROOT=%%~fI"

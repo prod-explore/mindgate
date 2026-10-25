@@ -4,7 +4,8 @@
 #   scripts/deploy.sh            # the newest image (the `latest` tag)
 #   scripts/deploy.sh sha-1a2b3c4   # a given tag: also how you roll back by hand
 #
-# Run it in gate/ (next to docker-compose.yml) as a user that may use Docker. Each deployment prints the tag it replaced.
+# It works in gate/ (next to docker-compose.yml) wherever it is started from; run it as a user that may use Docker.
+# Each deployment prints the image it replaced.
 set -euo pipefail
 
 cd "$(dirname "$0")/../gate"
