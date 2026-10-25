@@ -1,6 +1,6 @@
 /* Things the individual pages need. Colour keeps its meaning: amber is your own hardware, steel blue is a provider. */
 
-/* ── links that look like buttons, sidebar preferences ───────────────── */
+/* Links that look like buttons, sidebar preferences */
 a.btn {
   text-decoration: none;
 }
@@ -65,7 +65,7 @@ a.btn-primary:hover {
   color: var(--warn);
 }
 
-/* ── segmented choice (usage) ────────────────────────────────────────── */
+/* Segmented choice (usage) */
 .segmented {
   display: inline-flex;
   border: 1px solid var(--line-strong);
@@ -99,7 +99,7 @@ a.btn-primary:hover {
   color: var(--surface);
 }
 
-/* ── figures: a few numbers, no decoration ───────────────────────────── */
+/* Figures: a few numbers, no decoration */
 .figures {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
@@ -163,7 +163,7 @@ a.btn-primary:hover {
   }
 }
 
-/* ── charts ──────────────────────────────────────────────────────────── */
+/* Charts */
 .chart {
   margin: 0;
   padding: 14px 16px 10px;
@@ -326,7 +326,7 @@ a.btn-primary:hover {
   overflow: auto;
 }
 
-/* ── meters in tables ────────────────────────────────────────────────── */
+/* Meters in tables */
 .meter-local > span {
   background: var(--series-local);
 }
@@ -363,7 +363,7 @@ a.btn-primary:hover {
   font-variant-numeric: tabular-nums;
 }
 
-/* ── tags ────────────────────────────────────────────────────────────── */
+/* Tags */
 .chip-tag {
   background: var(--local-bg);
   color: var(--local);
@@ -391,7 +391,7 @@ a.btn-primary:hover {
   background: var(--local-bg);
 }
 
-/* ── models ──────────────────────────────────────────────────────────── */
+/* Models */
 .bulkbar {
   display: flex;
   flex-wrap: wrap;
@@ -466,7 +466,7 @@ a.btn-primary:hover {
   gap: 12px;
 }
 
-/* ── providers: the list of ready-made entries ───────────────────────── */
+/* Providers: the list of ready-made entries */
 .presets {
   display: grid;
   gap: 8px;
@@ -507,7 +507,7 @@ a.btn-primary:hover {
   font-size: 13px;
 }
 
-/* ── keys ────────────────────────────────────────────────────────────── */
+/* Keys */
 .secret {
   display: flex;
   align-items: stretch;
@@ -539,7 +539,7 @@ a.btn-primary:hover {
   overflow-x: auto;
 }
 
-/* ── log and other lists of facts ────────────────────────────────────── */
+/* Log and other lists of facts */
 .table-log tr.is-open td {
   background: var(--surface-2);
   border-bottom-color: transparent;
@@ -576,7 +576,7 @@ a.btn-primary:hover {
   overflow-wrap: anywhere;
 }
 
-/* ── nodes ───────────────────────────────────────────────────────────── */
+/* Nodes */
 .node-cards {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
@@ -711,7 +711,7 @@ a.btn-primary:hover {
   font-variant-numeric: tabular-nums;
 }
 
-/* ── toasts that ask to be read ──────────────────────────────────────── */
+/* Toasts that ask to be read */
 .toast-warn {
   border-left-color: var(--warn);
 }

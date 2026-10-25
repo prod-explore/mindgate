@@ -1,4 +1,4 @@
-/* ── buttons ─────────────────────────────────────────────────────────── */
+/* Buttons */
 .btn {
   display: inline-flex;
   align-items: center;
@@ -70,7 +70,7 @@
   color: var(--ink);
 }
 
-/* ── form controls ───────────────────────────────────────────────────── */
+/* Form controls */
 input:not([type='checkbox'], [type='radio']),
 select,
 textarea {
@@ -177,7 +177,7 @@ textarea:disabled {
   flex: 1 1 220px;
 }
 
-/* switch */
+/* Switch */
 .switch {
   position: relative;
   display: inline-flex;
@@ -246,7 +246,7 @@ textarea:disabled {
   margin-left: 42px;
 }
 
-/* tags */
+/* Tags */
 .tags-input {
   display: flex;
   flex-wrap: wrap;
@@ -310,7 +310,7 @@ textarea:disabled {
   padding: 1px 7px;
 }
 
-/* ── badges and states ───────────────────────────────────────────────── */
+/* Badges and states */
 .badge {
   display: inline-flex;
   align-items: center;
@@ -418,7 +418,7 @@ textarea:disabled {
   background: var(--ink-2);
 }
 
-/* ── notes, empty, loading ───────────────────────────────────────────── */
+/* Notes, empty, loading */
 .note {
   display: flex;
   align-items: center;
@@ -476,7 +476,7 @@ textarea:disabled {
   color: var(--ink-3);
 }
 
-/* ── tables ──────────────────────────────────────────────────────────── */
+/* Tables */
 .table-wrap {
   overflow-x: auto;
   border: 1px solid var(--line);
@@ -555,7 +555,7 @@ textarea:disabled {
   overflow-wrap: anywhere;
 }
 
-/* ── dialog ──────────────────────────────────────────────────────────── */
+/* Dialog */
 .dialog {
   width: min(560px, calc(100vw - 24px));
   max-height: calc(100vh - 32px);
@@ -609,7 +609,7 @@ textarea:disabled {
   border-radius: 0 0 var(--r-l) var(--r-l);
 }
 
-/* ── toasts ──────────────────────────────────────────────────────────── */
+/* Toasts */
 .toasts {
   position: fixed;
   right: 16px;

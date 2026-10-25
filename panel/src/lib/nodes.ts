@@ -36,5 +36,5 @@ export const SHUTDOWN_REASONS: Record<string, Key> = {
   all_checks_passed: 'nodes.reason.shutdown_initiated',
 };
 
-/** Ollama names: lower case, digits, `.`, `_`, `-`, `:` and `/` (for `hf.co/user/repo:Q4_K_M`), no spaces. */
+/** A model name to pull: letters, digits, `.`, `_`, `-`, `:` and `/` (for `hf.co/user/repo:Q4_K_M`), no spaces. */
 export const validPullName = (name: string): boolean => /^[A-Za-z0-9][\w.\-:/]{0,199}$/.test(name.trim());

@@ -1,4 +1,4 @@
-/** English is the source of truth: `pl.ts` must have exactly the same keys (the compiler checks it). */
+/** Every text the panel shows, in one place; components read it through `useT()` (index.ts). */
 export const en = {
   // @@common
   'common.close': 'Close',

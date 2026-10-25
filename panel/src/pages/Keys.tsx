@@ -258,8 +258,10 @@ function KeyEditor({ existing, suggestions, onClose, onSaved }: { existing: ApiK
   );
 }
 
-/** The one moment the full key exists in the browser: shown once, with a way to copy it. */
-/** (the prop is not called `key`: React keeps that name for itself and would never hand it on) */
+/**
+ * The one moment the full key exists in the browser: shown once, with a way to copy it.
+ * (The prop is not called `key`: React keeps that name for itself and would never hand it on.)
+ */
 function NewKey({ name, secret, onClose }: { name: string; secret: string; onClose: () => void }) {
   const t = useT();
   return (

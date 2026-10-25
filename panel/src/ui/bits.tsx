@@ -39,8 +39,10 @@ export function Status({ status, label }: { status: ProviderStatus; label?: stri
   );
 }
 
-/** `openrouter/deepseek/deepseek-chat`, with the provider part set back a little. */
-/** `short` leaves out the provider, for a list that is already about one provider. */
+/**
+ * `openrouter/deepseek/deepseek-chat`, with the provider part set back a little.
+ * `short` leaves out the provider, for a list that is already about one provider.
+ */
 export function ModelId({ id, className, short }: { id: string; className?: string; short?: boolean }) {
   const i = id.indexOf('/');
   return (
@@ -109,6 +111,7 @@ export function CopyButton({ text, label }: { text: string; label?: string }) {
     try {
       await navigator.clipboard.writeText(text);
     } catch {
+      // the Clipboard API exists only in a secure context (HTTPS or localhost); a hub reached over plain HTTP needs the old way
       const ta = document.createElement('textarea');
       ta.value = text;
       ta.setAttribute('readonly', '');

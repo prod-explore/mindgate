@@ -16,8 +16,6 @@ import { Badge, Empty, ErrorNote, Loading, LocalityBadge, Meter, ModelId, Note, 
 import { TextField } from '../ui/fields';
 import { ModelsView } from './Models';
 
-// ── one machine ───────────────────────────────────────────────────────────
-
 /** One machine: what it has, what runs on it, and its models in the hub. Reached from the provider's page. */
 export function NodeDetail({ id }: { id: string }) {
   const t = useT();

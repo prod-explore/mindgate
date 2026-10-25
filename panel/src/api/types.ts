@@ -228,7 +228,7 @@ export interface SyncResult {
   absent: number;
 }
 
-// ── nodes ──────────────────────────────────────────────────────────────────
+// Nodes: the machine behind a provider, as its agent describes it
 
 export interface LoadedModel {
   id: string;

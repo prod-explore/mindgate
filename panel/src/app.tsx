@@ -64,7 +64,7 @@ function ProvidersRoute() {
   return id ? <ProviderPage id={id} /> : <Providers />;
 }
 
-/** Machines used to have a page of their own; old addresses go to the provider's page. */
+/** Sends `#/nodes/…` addresses (bookmarks from when machines had a page of their own) to the provider's page. */
 function Moved() {
   const rest = useRoute().segments.slice(1);
   useEffect(() => replaceQuery(['providers', ...rest], {}));
