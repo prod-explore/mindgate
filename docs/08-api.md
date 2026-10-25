@@ -23,7 +23,7 @@ Compatible with OpenAI Chat Completions, including `stream: true`, tools (`tools
 | Request header | Meaning |
 |---|---|
 | `X-MindGate-Priority: 1–5` | priority in the queue and the threshold for waking a machine; clamped to the key's range |
-| `X-MindGate-Local-Only: true` | local models only (cloud targets, fallbacks included, are skipped) |
+| `X-MindGate-Local-Only: true` | local models only: a cloud model is refused with `403 local_only_violation` before anything is sent |
 | `X-MindGate-Model` | the model, when the `model` field is inconvenient (takes precedence over the field) |
 | `X-MindGate-Tag` | a label (`[\w.:@/-]{1,64}`) stored in the log, for example an application name |
 | `X-Request-Id` | your own request identifier |

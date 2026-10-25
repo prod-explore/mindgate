@@ -1,185 +1,262 @@
-<div align="center">
-  <h1>MindGate</h1>
-  <p><strong>One OpenAI-compatible API in front of your own GPU machine and every cloud model you use</strong></p>
+# MindGate
 
-  [![CI](https://github.com/prod-explore/mindgate/actions/workflows/ci.yml/badge.svg)](https://github.com/prod-explore/mindgate/actions)
-  [![Node.js](https://img.shields.io/badge/Node.js-22-green.svg)](https://nodejs.org/)
-  [![License](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-</div>
+[![CI](https://github.com/prod-explore/mindgate/actions/workflows/ci.yml/badge.svg)](https://github.com/prod-explore/mindgate/actions/workflows/ci.yml)
 
-MindGate is a self-hosted **hub** (TypeScript, Fastify, SQLite; small enough for a Raspberry Pi): your IDE, chat UI, scripts and apps talk to one OpenAI-compatible endpoint with one key, and the hub sends each request to a local model on a PC that sleeps until it is needed, or to OpenRouter, Gemini, Anthropic, an Ollama on the LAN — anything that speaks HTTP. It gives you three things a plain proxy does not:
+MindGate is a self-hosted gateway that gives your apps one OpenAI-compatible endpoint for cloud models and for the models on your own GPU PC. It wakes that PC with Wake-on-LAN when a request needs it, and asks it to shut down again when it has been idle.
 
-- **Control over where data goes.** A key (or a single request) can be *local-only*: nothing is sent to the cloud, fallbacks included.
-- **No surprises in routing.** A model is never replaced by another one behind your back: the response says which one answered, and when it fails the error says whether the app may try another (`fallback: true`).
-- **A GPU that costs nothing while idle.** The compute machine is woken with Wake-on-LAN when a request needs it and asked to shut down when it has been idle.
+The hub runs on a small always-on machine (a Raspberry Pi or any Linux host with Docker). Every app gets its own key with rate limits, token budgets, a priority and, if needed, a local-only flag that the hub enforces before a request can leave your network. Prompts and answers are never stored.
 
-Try it with Docker; the admin panel is then at `http://localhost:3000/admin/` ([next steps](#getting-started)):
+**Status:** [[Q1: Do you run MindGate day to day (Pi + PC)? Since when, with which apps or how many keys? What may the README say about it?]]
+
+[[Q2: In one sentence, why did you build it? (It would go here, after the status line.)]]
+
+<p>
+  <img src="docs/img/overview.png" alt="Overview: three providers (a local GPU machine, OpenRouter, Gemini), today's requests and tokens, the share served on your own hardware, requests per day for 14 days" width="49%">
+  <img src="docs/img/machine.png" alt="The GPU machine's page: memory, graphics memory and disk, the model in memory, and the installed models with load, unload and delete" width="49%">
+</p>
+
+*The admin panel, filled with demo data by [`tools/screenshots.mjs`](tools/screenshots.mjs): the real hub, agent and panel, with stand-ins for Ollama and the cloud providers. More screens in [docs/09](docs/09-panel.md#screenshots).*
+
+## What it does
+
+- **One API for many providers.** `POST /v1/chat/completions` (streaming, tools, images), `POST /v1/embeddings` and `GET /v1/models`, in the OpenAI format. Behind it: any OpenAI-compatible server (OpenRouter, OpenAI, Gemini's compatibility endpoint, Ollama, LM Studio, vLLM, llama.cpp) and Anthropic's Messages API, translated both ways.
+- **A GPU PC that sleeps.** A request for one of its models wakes it (if the request's priority is high enough), waits for it to boot, then queues by priority for a free slot. After a set idle time the hub asks the PC to shut down; the PC refuses while it is working or while someone is using it.
+- **Models on the PC are managed from the hub.** Download (including GGUF models from Hugging Face), delete, load into GPU memory, unload, and see CPU, RAM, GPU and disk, through the agent that runs next to Ollama.
+- **A key per app.** Requests per minute and per day, tokens per day and per month (in your time zone), a priority range, an allow-list of models, and `local_only`.
+- **No silent substitution.** A request is served by the model it names, `provider/model`, or it fails. Failures that another model could fix carry `"fallback": true`, so the app can choose what to try next.
+- **An admin panel and a CLI.** Providers, models, keys, usage, a request log without content, and the machines; key management, backups and a configuration check from the command line.
+
+[[Q3: Do you want a short, fair comparison with other gateways (for example LiteLLM's proxy, or Ollama exposed directly)? If yes, which ones, and what do you see as the difference?]]
+
+## Quick start
+
+You need Docker with Compose, `openssl`, `curl`, `jq`, and an API key for one cloud provider (the example uses OpenRouter). To add your own GPU PC, see [the next section](#add-your-gpu-machine).
+
+**1. Start the hub.**
 
 ```bash
-git clone https://github.com/prod-explore/mindgate.git && cd mindgate/gate
+git clone https://github.com/prod-explore/mindgate.git
+cd mindgate/gate
+
+# two different random secrets; the hub refuses to start with placeholders or weak values
 printf 'MINDGATE_MASTER_KEY=%s\nMINDGATE_ADMIN_TOKEN=%s\n' "$(openssl rand -hex 32)" "$(openssl rand -hex 32)" > .env
-docker network create mindgate_net
-docker compose -f docker-compose.yml -f docker-compose.local.yml up -d
+
+docker network create mindgate_net     # docker-compose.yml expects it (a reverse proxy joins it)
+docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build
+curl http://127.0.0.1:3000/health      # {"status":"ok"}
 ```
 
-The image comes from the GitHub Container Registry (amd64 and arm64, built by CI on every push to `main`), so this takes seconds; add `--build` to build it from your checkout instead.
+`docker-compose.local.yml` publishes the port on `127.0.0.1` only. Behind nginx or Caddy you leave it out: see [docs/01](docs/01-gate.md#reverse-proxy-nginx).
 
-```mermaid
-graph LR
-    Client["Clients<br>IDE · chat UI · scripts · apps"] -->|"OpenAI API, mg-… key"| Hub
+The panel is at <http://127.0.0.1:3000/admin/>. Sign in with the admin token: `sed -n 's/^MINDGATE_ADMIN_TOKEN=//p' .env`.
 
-    subgraph Hub["MindGate hub — Fastify + SQLite (Raspberry Pi / Docker)"]
-        direction TB
-        Auth["Client keys<br>limits · priorities · local-only"] --> Router["Models<br>no silent fallback"]
-        Router --> Queue["Priority queue<br>per provider"]
-    end
-
-    Queue -->|"OpenAI / Anthropic APIs"| Cloud["OpenRouter · Gemini<br>Anthropic · OpenAI"]
-    Queue -->|"LAN"| Ollama["Ollama · LM Studio"]
-    Queue -->|"LAN + Wake-on-LAN"| Node["Compute machine<br>mindgate-agent + Ollama<br>models managed from the hub"]
-    Tray["mindgate-tray"] -.->|"PC in use?"| Node
-```
-
----
-
-## The admin panel
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/img/overview-dark.png">
-  <img src="docs/img/overview.png" alt="The overview: state of the providers, today's requests and tokens, the share served on your own hardware, and a 14-day chart" width="100%">
-</picture>
-
-<table>
-  <tr>
-    <td width="50%"><img src="docs/img/machine.png" alt="A GPU machine: hardware, the model in memory, installed models with load and delete"><br><b>A machine with a GPU</b> — its hardware, what sits in VRAM, and every installed model. Load, unload, download or delete from here.</td>
-  </tr>
-  <tr>
-    <td><img src="docs/img/models.png" alt="The model catalogue with search, filters and switches"><br><b>Models</b> — everything the hub can serve, synced from the providers, switchable one by one.</td>
-    <td><img src="docs/img/keys.png" alt="Client keys with limits and usage against them"><br><b>Client keys</b> — one per app, with its own limits, allowed models and priority range.</td>
-  </tr>
-  <tr>
-    <td><img src="docs/img/usage.png" alt="Thirty days of usage, split between local and cloud"><br><b>Usage</b> — requests, tokens and errors per day, key and model. Counts only, never text.</td>
-    <td><img src="docs/img/log.png" alt="The request log with who asked, which model answered and how it went"><br><b>Request log</b> — who asked for what, which model answered, how long it took, how it ended.</td>
-  </tr>
-</table>
-
-<sub>Demo data: the pictures come from the real hub, agent and panel with a stand-in for the model runtime, generated by <code>tools/screenshots.mjs</code>.</sub>
-
----
-
-## Features
-
-- **OpenAI-compatible API** — chat completions (streaming, tools, images, JSON mode), embeddings, `/v1/models`. Works with Cursor, Continue, Open WebUI and any OpenAI SDK by changing the base URL.
-- **Providers** — OpenAI-compatible servers (passed through untouched) and the native **Anthropic Messages API** (translated both ways: tools, images, extended thinking with signatures, cache usage, streaming).
-- **Models** — canonical ids `provider/model`; model lists are synced from the providers, with owner overrides for names, tags (`free`, `coder`, `vision`… — apps choose a fallback by them), context length and locality.
-- **Local-only mode** — on a key or per request (`X-MindGate-Local-Only`); cloud targets are skipped without being contacted, and the model list shows only what such a caller can reach.
-- **Client keys** — stored as hashes, shown once; per key: requests per minute/day, token budgets per day/month (reset at local midnight in your time zone), allowed models, priority range. `GET /v1/usage` tells a client where it stands. Limits answer `429` with distinct codes (`rate_limited` vs `budget_exhausted`).
-- **Priority queue** — 5 → 1, first come first served within a level, for providers that can do only one thing at a time (one GPU). Clients that disconnect leave the line.
-- **Wake-on-LAN and idle shutdown** — low-priority requests do not wake the machine (they fail fast with `node_asleep`, so the app can ask another model); the connection is kept alive with SSE comments while it boots; a machine that vanishes mid-request is noticed and woken again. In Docker a small relay container on the host's network sends the broadcast (a bridge cannot).
-- **Models on your own machines, managed from the hub** — the agent on a GPU machine exposes a small authenticated API: list what is installed (size, quantisation, capabilities, what sits in VRAM), download models (including `hf.co/…` GGUF repositories, with progress), delete, load and unload them, read CPU/RAM/GPU/disk, shut the machine down. Finished downloads appear in the hub's catalog by themselves; uncensored/abliterated models are tagged and stay local. No model list lives in a config file on the node.
-- **Tray app on the GPU machine** (`/tray`, Windows; Linux best-effort) — shows what the agent is doing, notices that someone is using the PC, and has the final say before the agent powers it off; it also holds a manual Windows shutdown back while a request or a download is running.
-- **Admin panel** — a web UI served by the hub at `/admin/` (React, no CDN or external requests, strict content security policy): providers, models, client keys, usage charts, the request log, and the models on each machine — download, load, unload, delete, shut down — with the hub never waking a machine just to look at it. Light and dark.
-- **Private by construction** — the request log holds who, which model, how long, how many tokens, what failed. Never prompts or answers. Provider keys are encrypted at rest (AES-256-GCM, key from the environment); admin and client credentials are separate; failed logins are throttled.
-- **Operations** — one SQLite file, `backup` and `check` commands, a hardened Docker setup (read-only root filesystem, no capabilities, an unprivileged user), 530+ tests as node:test and Vitest count them (hub 220+, panel 200+, agent 80+, end-to-end 10, tray 7): the hub against fake upstreams, the agent against a fake Ollama, the panel's screens, and a hub-to-agent end-to-end chain. CI builds and tests every package, builds the Docker image and checks that it serves `/health` and the panel, and runs `npm audit`, CodeQL and a gitleaks secret scan; Dependabot keeps the dependencies current.
-
----
-
-## Key decisions
-
-- **Why no automatic fallback between models?** A silent substitution changes quality, cost and — worst — *where your data goes*. Fallback is therefore the calling app's decision: the hub only says whether it is sensible (`fallback: true` in the error — provider failures only, never bad requests, never after the first byte of an answer reached the client).
-- **Why does local-only filter fallbacks too?** The guarantee has to hold for the whole path, or it is not a guarantee. A cloud target is not skipped *after* an attempt — it is never attempted.
-- **Why SQLite and not a config file?** Providers, models and keys change while the hub runs (and are edited from the admin panel). A single file with versioned migrations is easy to back up and needs no extra service on a Raspberry Pi.
-- **Why a hub and a separate agent?** The always-on part (a Pi) must be cheap and small; the GPU machine should be off most of the time. The hub is the first, the agent and tray the second. The agent runs next to Ollama and does what only the machine can: start the runtime, report its hardware and models, download and delete models, and decide whether it is safe to power the PC off. It does no routing and holds no model list of its own — the hub is the one place where models, names and keys are managed.
-- **Why priorities instead of a FIFO queue?** An IDE autocomplete must not wait behind a script summarising fifty documents, and a script should not wake the GPU at 3 a.m.
-
----
-
-## Getting started
-
-After the four commands at the top the hub runs in Docker, listening on `127.0.0.1:3000` only (`docker-compose.local.yml` publishes the port; behind nginx or Caddy you leave that file out, see [01 Hub](docs/01-gate.md)). `.env.example` lists every other setting. Still in `gate/`:
+**2. Add a provider, switch on a model, create a key.** In the panel: *Providers → OpenRouter*, then *Models*, then *Client keys*. Or from the shell, in the same directory:
 
 ```bash
-MINDGATE_ADMIN_TOKEN=$(grep '^MINDGATE_ADMIN_TOKEN=' .env | cut -d= -f2-)
+HUB=http://127.0.0.1:3000
+ADMIN="Authorization: Bearer $(sed -n 's/^MINDGATE_ADMIN_TOKEN=//p' .env)"
 
-# a provider (the admin API; see docs/08-api.md) …
-curl -X POST http://localhost:3000/admin/api/providers \
-  -H "Authorization: Bearer $MINDGATE_ADMIN_TOKEN" -H 'Content-Type: application/json' \
-  -d '{"id":"openrouter","type":"openai","base_url":"https://openrouter.ai/api/v1","api_key":"sk-or-…"}'
+# the hub fetches the provider's model list at once; OpenRouter's models start switched off
+curl -s -X POST $HUB/admin/api/providers -H "$ADMIN" -H 'Content-Type: application/json' -d '{
+  "id": "openrouter", "type": "openai", "base_url": "https://openrouter.ai/api/v1",
+  "api_key": "<your OpenRouter key>", "locality": "cloud", "options": { "auto_enable_models": false }
+}'
 
-# … and a key for a client (shown once)
+# list the model ids, pick one and switch it on
+curl -s "$HUB/admin/api/models?provider=openrouter" -H "$ADMIN" | jq -r '.data[].id'
+MODEL=<one of the ids above>
+curl -s -X PATCH "$HUB/admin/api/models/$MODEL" -H "$ADMIN" -H 'Content-Type: application/json' -d '{"enabled": true}'
+
+# a key for one client: the full key is printed once and only its hash is stored
 docker compose exec gate node dist/cli.js keys create laptop --rpm 30
 ```
 
-Then open `http://localhost:3000/admin/` and sign in with `MINDGATE_ADMIN_TOKEN`: everything above can be done there too.
-
-Without Docker: Node 22, `cd panel && npm ci && npm run build`, then `npm ci && npm run build && npm start` in `gate/` (it reads `gate/.env`).
-
-Setup guides are in [`docs/`](docs):
-[01 Hub](docs/01-gate.md) · [02 Agent](docs/02-agent.md) · [03 Tray](docs/03-tray.md) · [04 Ollama](docs/04-models.md) · [05 Nodes](docs/05-nodes.md) · [06 Wake-on-LAN](docs/06-wol.md) · [07 Clients](docs/07-clients.md) · [08 API](docs/08-api.md) · [09 Panel](docs/09-panel.md)
-
----
-
-## API usage
+**3. Send a request.**
 
 ```bash
-curl http://localhost:3000/v1/chat/completions \
-  -H "Authorization: Bearer mg-your-key" \
-  -H "X-MindGate-Priority: 4" \
-  -H "X-MindGate-Local-Only: true" \
-  -H "Content-Type: application/json" \
-  -d '{"model": "pc/qwen3:4b", "messages": [{"role": "user", "content": "Explain transformer attention."}]}'
+KEY=<the mg-... key printed above>
+curl -s $HUB/v1/chat/completions -H "Authorization: Bearer $KEY" -H 'Content-Type: application/json' \
+  -d '{"model": "'"$MODEL"'", "messages": [{"role": "user", "content": "Say hi"}]}'
 ```
 
-`model` is always `provider/model` (`pc/qwen3:4b` on your own machine, `openrouter/deepseek/deepseek-chat` in the cloud); there are no aliases. The response carries `X-MindGate-Model` / `X-MindGate-Provider` — who actually answered.
+The answer is an OpenAI chat completion plus a `mindgate` object that names the model and provider that answered. Any OpenAI SDK works with base URL `http://127.0.0.1:3000/v1`, the key and a model id: [docs/07](docs/07-clients.md).
 
-| Header | Meaning |
-|---|---|
-| `X-MindGate-Priority: 1–5` | queue position and whether the sleeping machine is woken (clamped to the key's range) |
-| `X-MindGate-Local-Only: true` | only models on your own hardware, fallbacks included |
-| `X-MindGate-Tag: my-app` | label stored in the request log |
-
----
-
-## Updating
-
-CI publishes `ghcr.io/prod-explore/mindgate-hub` with two tags, `latest` and `sha-<commit>`. On the host:
+<details>
+<summary>Without Docker (Node.js 22.9 or newer)</summary>
 
 ```bash
-scripts/deploy.sh               # pull latest, restart the hub, wait for it to be healthy
-scripts/deploy.sh sha-1a2b3c4   # a specific build; the same command rolls back
+cd mindgate
+(cd panel && npm ci && npm run build)      # the panel; the hub serves panel/dist at /admin/
+cd gate && npm ci && npm run build
+printf 'MINDGATE_MASTER_KEY=%s\nMINDGATE_ADMIN_TOKEN=%s\n' "$(openssl rand -hex 32)" "$(openssl rand -hex 32)" > .env
+npm start                                  # reads gate/.env; the database goes to gate/data/
 ```
 
-If the new image does not become healthy within 90 seconds, the script puts the previous one back and exits with an error. Nothing is compiled on the host, and the data volume is not touched.
+The hub listens on all interfaces (`MINDGATE_HOST=127.0.0.1` keeps it on this machine). Steps 2 and 3 are the same, with `npm run cli -- keys create laptop --rpm 30` in `gate/` instead of `docker compose exec`.
+</details>
+
+### Deploying
+
+CI publishes the hub image for amd64 and arm64 to `ghcr.io/prod-explore/mindgate-hub` ([image.yml](.github/workflows/image.yml)). [`scripts/deploy.sh`](scripts/deploy.sh) pulls a tag, waits for the container's health check, and goes back to the previous image when the new one does not become healthy. [[Q4: Is the ghcr.io/prod-explore/mindgate-hub package public? If yes, the quick start can pull the image instead of building it.]]
+
+Tested on: [[Q5: Which hardware do you run it on (Raspberry Pi model and RAM, the PC's GPU, operating systems)? docs/01 says a Pi 4 with 2 GB of RAM is enough: is that measured?]]
+
+Reverse proxy, backups, environment variables and troubleshooting: [docs/01](docs/01-gate.md).
+
+## Add your GPU machine
+
+The PC runs two small programs next to [Ollama](https://ollama.com): the **agent** (`agent/`), which the hub talks to, and on a desktop the **tray** app (`tray/`), which tells the agent whether someone is using the computer.
+
+1. **The agent** (Windows or Linux, Node.js 22, Ollama installed):
+
+   ```bash
+   cd mindgate/agent
+   npm ci && npm run build
+   printf 'MINDGATE_NODE_SECRET=%s\n' "$(openssl rand -hex 32)" > .env
+   npm start    # as a service: npm run install-service (Windows) or mindgate-agent.service (systemd)
+   ```
+
+   It adopts a running Ollama or starts one, and puts it behind the secret. Details: [docs/02](docs/02-agent.md).
+
+2. **Wake-on-LAN** in the BIOS and the network driver, and, when the hub runs in Docker, the small relay container that sends the packet from the host's network (`COMPOSE_PROFILES=wol`): [docs/06](docs/06-wol.md).
+
+3. **Register the machine** as a provider (the panel has a preset for it):
+
+   ```bash
+   curl -s -X POST $HUB/admin/api/providers -H "$ADMIN" -H 'Content-Type: application/json' -d '{
+     "id": "pc", "name": "My PC", "type": "openai",
+     "base_url": "http://192.168.1.100:3001/v1", "api_key": "<MINDGATE_NODE_SECRET from agent/.env>",
+     "locality": "local", "max_concurrency": 1,
+     "node": { "mac": "AA:BB:CC:DD:EE:FF", "broadcast": "192.168.1.255",
+               "control_url": "http://192.168.1.100:3001", "idle_shutdown_minutes": 15 }
+   }'
+   ```
+
+   Its models then appear as `pc/<ollama name>`, for example `pc/qwen3:4b`. Download new ones from the panel or with `POST /admin/api/providers/pc/node/pulls` ([docs/04](docs/04-models.md)).
+
+4. **The tray** on a Windows desktop (Linux on a best-effort basis): [docs/03](docs/03-tray.md). Without it, set `MINDGATE_TRAY_URL=` (empty) in `agent/.env`; otherwise the agent refuses every idle shutdown, because it cannot rule out that someone is at the computer.
+
+## How it works
+
+```mermaid
+flowchart LR
+  apps["Apps<br/>(any OpenAI client)"] -- "/v1 + client key" --> hub
+  you["Panel / CLI"] -- "/admin/api + admin token" --> hub
+  subgraph box ["Always-on host"]
+    hub["Hub (gate/)<br/>Fastify, SQLite"]
+    relay["WoL relay<br/>(host network)"]
+  end
+  hub -- HTTPS --> cloud["Cloud providers<br/>OpenRouter, Gemini, Anthropic, OpenAI…"]
+  hub -- "wake request" --> relay
+  relay -. "magic packet" .-> pc
+  subgraph pc ["GPU PC (sleeps when idle)"]
+    agent["Agent (agent/)"] --> ollama["Ollama"]
+    agent -- "may I shut down?" --> tray["Tray (tray/)"]
+  end
+  hub -- "/v1, /node/* + node secret" --> agent
+```
+
+A request to `/v1/chat/completions` goes through these steps ([`gate/src/chat.ts`](gate/src/chat.ts)):
+
+1. **Key.** The bearer key is hashed and looked up; repeated failures from one address are throttled.
+2. **Model.** `provider/model` must exist, be allowed for the key, be the right kind (chat or embedding) and, for a local-only request, run locally. Otherwise the request is refused before anything is sent.
+3. **Limits.** Requests per minute and per day, tokens per day and per month.
+4. **Machine.** If the provider is a PC that sleeps, the hub probes it, wakes it (one wake-up for all waiting requests) and waits up to `boot_timeout_ms`. A request below the PC's `min_wake_priority` gets `503 node_asleep` at once instead.
+5. **Slot.** A provider with `max_concurrency` (one GPU) has a queue ordered by priority, 5 first.
+6. **Answer.** The upstream's answer is relayed; a stream is passed on chunk by chunk, with SSE comments while a cold model loads so that proxies keep the connection open.
+7. **Record.** Who, which model, status, timings and token counts go to the request log and the daily totals. The text does not.
+
+### Decisions and their trade-offs
+
+**The hub never answers with a model the client did not ask for.** There are no aliases and no hub-side fallback chains. A silent switch would change behaviour behind the app's back, and could move a private request to a provider the app did not choose. Instead, every failure that another model could fix carries a flag:
+
+```json
+{"error":{"message":"Provider \"openrouter\" is not reachable (ECONNREFUSED)","type":"server_error","code":"upstream_unreachable","provider":"openrouter","fallback":true}}
+```
+
+Errors in the request itself (a context that is too long, a model the key may not use) never carry it. The cost: each app implements its own retry, typically by picking another model by the `tags` that `GET /v1/models` shows.
+
+**Waking the PC depends on priority.** Requests with priority 3 or more (the default `min_wake_priority`) may wake it. Lower-priority ones, such as background jobs, get `node_asleep` with `fallback: true` straight away, so they can use a cloud model instead of booting the PC. The cost: the first request after a sleep waits for the boot (up to two minutes by default).
+
+**The PC decides whether it shuts down.** The hub only asks. The agent refuses while a request or a download is running, and asks the tray, which refuses while someone has used the keyboard or mouse recently or has ticked "Don't shut down this computer". A tray that does not answer counts as a "no". After a refusal the hub waits five minutes before it asks again. The cost: the PC may stay on longer than its idle time.
+
+**An agent in front of Ollama instead of Ollama on the network.** Ollama has no authentication. The agent adds a secret, model management, the hardware status and the shutdown guard. It stops generation when the hub disconnects, and it reports the context length Ollama is really configured for (`OLLAMA_CONTEXT_LENGTH`), not the model's theoretical maximum. The cost: one more service on the PC. Any OpenAI-compatible server still works as a plain provider without it.
+
+**One process, SQLite, state in memory.** Providers, models, keys and usage are in one SQLite file. The queues, the per-minute window and the machines' state are in the process. Nothing else has to run next to it. The cost: one hub instance, and a restart forgets the per-minute window and drops queued requests.
+
+**Numbers, not text.** The request log has who, what, how long and how many tokens; it never contains a prompt or an answer, and it is pruned after 30 days by default.
+
+### Security model
+
+What is protected, and how ([SECURITY.md](SECURITY.md) has the reporting process and the scope):
+
+- **Provider API keys** are encrypted at rest with AES-256-GCM. The key comes from `MINDGATE_MASTER_KEY` through HKDF with a random salt per value, and the provider id is bound in as associated data, so a ciphertext copied to another row does not decrypt. The master key lives in the environment, not in the database: a stolen database or backup alone does not reveal the keys. Someone with root on the host does get them. Stored keys never come back from the API; only the last four characters do.
+- **Client keys** are generated at random (`mg-` and 32 random bytes) and stored only as SHA-256 hashes.
+- **The admin API and the panel** need a separate admin token. Twenty failed authentications (client key or admin token) from one address within a minute block that address for up to a minute; behind a proxy this needs `MINDGATE_TRUST_PROXY=true`, and the hub warns when it is missing. The panel is served with a strict Content-Security-Policy and loads nothing from other origins.
+- **Weak secrets are refused at start**: placeholders, values under 24 characters and values with too few distinct characters, for the hub and the agent alike.
+- **Local-only** is checked on the hub for every request, from the key or from the `X-MindGate-Local-Only` header. A model is local when its provider is marked local; a provider can report one of its models as cloud, but only the owner can mark a model local.
+- **The agent** answers nothing, `/health` included, without the node secret (compared in constant time), and does not pass the secret on to Ollama.
+- **The container** runs as an unprivileged user with a read-only root filesystem, all capabilities dropped and `no-new-privileges`; its port is not published unless you add `docker-compose.local.yml`.
+- **The Wake-on-LAN relay** needs a shared token and sends packets only to the broadcast addresses of the host's own networks.
+
+What is not protected: traffic between the hub and the agent is plain HTTP, so it belongs on a trusted LAN or inside a VPN such as WireGuard or Tailscale. The hub does not terminate TLS; put a reverse proxy in front of it. There is one admin token and no user accounts.
+
+## Known limits
+
+- **One hub instance.** Queues, per-minute limits and machine state are held in memory (see above).
+- **Budgets are checked before a request.** Requests already running can take a key slightly past its token budget; the next one is refused. When a provider reports no token usage, the hub estimates it at about four characters per token and marks the numbers as estimated.
+- **Endpoints:** chat completions, embeddings, models and usage. No `/v1/responses`, images or audio.
+- **Provider protocols:** OpenAI-compatible and Anthropic Messages. With Anthropic, `n > 1` is refused and parameters without an equivalent are ignored.
+- **A stream that breaks midway** ends with an error event. Nothing resumes it, and the error has no `fallback` flag once content has been sent.
+- **The agent drives Ollama only.** Other engines would implement the `Runtime` interface in [`agent/src/runtime.ts`](agent/src/runtime.ts). GPU figures come from `nvidia-smi`, so other GPUs show none.
+- **Wake-on-LAN works within one LAN.** The relay sends only to its own networks' broadcast addresses.
+- **The tray targets Windows.** On Linux the icon and the idle check work but the shutdown block does not. The agent's documentation covers Windows and Linux.
+- **The panel is in English only.**
+
+## Repository layout
+
+| Path | What | Built with |
+|---|---|---|
+| [`gate/`](gate/) | The hub: client API, admin API, routing, limits, queues, Wake-on-LAN, the CLI and the Docker setup | TypeScript, Fastify, better-sqlite3, undici |
+| [`panel/`](panel/) | The admin panel, served by the hub at `/admin/` | React, Vite, TypeScript |
+| [`agent/`](agent/) | The service on the GPU PC: proxy to Ollama, model management, power | TypeScript, Fastify |
+| [`tray/`](tray/) | The tray app on the PC: status icon, "someone is here", shutdown guard | JavaScript, systray2, small C# helpers on Windows |
+| [`e2e/`](e2e/) | The real hub, the real agent and an Ollama stand-in, end to end | `node:test` |
+| [`scripts/`](scripts/) | `deploy.sh` with rollback; Windows helpers (restart the agent and the tray, start the hub without a console) | Bash, batch, VBScript |
+| [`tools/`](tools/) | Regenerates the screenshots from the real code and demo data | Playwright |
+| [`docs/`](docs/) | Reference documentation, listed below | |
 
 ## Development
 
-```bash
-cd gate
-npm ci
-npm test            # builds and runs the contract tests against fake OpenAI/Anthropic upstreams
-npm run dev         # rebuild on change, restart on change
+Each component has its own `package.json` and lockfile; Node.js 22 or newer.
 
-cd ../agent && npm ci && npm test      # the node agent against a fake Ollama
-cd ../panel && npm ci && npm test      # the admin panel (Vitest + Testing Library); npm run build type-checks it, npm run dev for development
-cd ../tray && npm ci && npm test       # the tray's state logic
-cd .. && node --test e2e/*.test.mjs    # hub + agent + fake Ollama, after building both packages
-npm ci && npm run lint                 # ESLint over every component (one config at the repository root)
+```bash
+npm ci && npm run lint                            # ESLint over every component, from the root
+(cd gate  && npm ci && npm test)                  # compile, then node:test
+(cd panel && npm ci && npm run build && npm test) # type check and build, then Vitest + Testing Library
+(cd agent && npm ci && npm test)
+(cd tray  && npm ci && npm test)
+node --test --test-timeout=60000 e2e/*.test.mjs   # after gate and agent are built
 ```
 
-The tests start real servers (the hub and fake upstreams, including a "machine" that sleeps) and cover streaming, tool calls, error mapping, fallback rules, local-only, limits with a fake clock across daylight-saving changes, the queue, Wake-on-LAN, the admin API and secret handling. The agent's tests run a fake Ollama (and a fake binary to start) and cover the authenticated API, model pulls with progress and cancellation, the passthrough proxy and the shutdown guard; the end-to-end chain checks that hub, agent and tray agree on every path.
+For panel work, run `npm run dev` in `gate/` and in `panel/`: Vite serves the panel at <http://localhost:5173/admin/> and forwards `/admin/api` to the hub ([docs/09](docs/09-panel.md#developing-the-panel)).
 
-## Repository structure
+CI ([`.github/workflows`](.github/workflows)) runs on every push and pull request: the lint, each component's tests, the end-to-end chain, a Docker build that must start and serve `/health` and the panel, and `npm audit` on production dependencies. CodeQL and a gitleaks scan of the full history run too; Dependabot proposes minor and patch updates weekly.
 
-- `/gate` — the hub (TypeScript, Fastify, SQLite): routing, keys, limits, queue, adapters, admin API, CLI
-- `/panel` — the admin panel (Vite, React, TypeScript), built to static files that the hub serves under `/admin/`
-- `/agent` — compute-machine service (TypeScript, Fastify): authenticated node API, Ollama runtime and model management, OpenAI passthrough, power guard
-- `/e2e` — end-to-end tests: hub, agent and a fake Ollama together
-- `/tray` — desktop tray app (JavaScript, `systray2`) for the compute machine: agent status in the tray, idle detection, the last word on shutdown
-- `/docs` — setup guides
-- `/scripts/windows` — helpers for a Windows compute machine (restart the agent and the tray after an update, start the hub without a window)
-- `/tools` — `screenshots.mjs`, which regenerates the pictures above from a seeded stack
+## Documentation
 
----
-<div align="center">
-  <i>Self-hosted AI infrastructure with the data staying where you put it.</i>
-</div>
+| | |
+|---|---|
+| [01 Hub](docs/01-gate.md) | Installation, the request path, keys and limits, backups, reverse proxy, environment variables |
+| [02 Agent](docs/02-agent.md) | The service on the GPU PC: installation, configuration, running it as a service, security |
+| [03 Tray](docs/03-tray.md) | The tray app and the shutdown guard |
+| [04 Models](docs/04-models.md) | Managing Ollama models from the hub, what fits in GPU memory, uncensored models |
+| [05 Node protocol](docs/05-nodes.md) | The agent's API, for writing another agent |
+| [06 Wake-on-LAN](docs/06-wol.md) | BIOS, network card, router, and the relay for a hub in Docker |
+| [07 Clients](docs/07-clients.md) | Open WebUI, Continue, Cursor, Python, Node.js |
+| [08 API](docs/08-api.md) | Every endpoint and error code |
+| [09 Panel](docs/09-panel.md) | The admin panel and its security |
+
+## License
+
+[MIT](LICENSE), © 2026 Futumore (prod-explore).

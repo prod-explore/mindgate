@@ -51,7 +51,7 @@ Tags:
 curl -X PATCH -H "$A" -H 'Content-Type: application/json' $H/models/pc/qwen3:4b -d '{"tags": ["fast", "free"]}'
 ```
 
-A model installed by hand on the machine (`ollama pull` in a terminal, `ollama create`) shows up in the hub at the next sync (`POST …/providers/pc/sync`, or automatically after a start and once a day).
+A model installed by hand on the machine (`ollama pull` in a terminal, `ollama create`) shows up in the hub at the next sync: `POST …/providers/pc/sync`, or the automatic one every `MINDGATE_SYNC_INTERVAL_HOURS` (24 by default). When the hub starts, it syncs only providers it has never synced.
 
 ---
 

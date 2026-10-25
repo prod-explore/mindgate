@@ -181,7 +181,7 @@ The tray asks the agent to stop (the agent answers, after half a second stops th
 
 - **Checks the state**: `GET <control_url>/health` (by default; `node.health_url` overrides it) on a request when the last answer is older than 30 s, and every 30 s in the background. Any answer below 500 means "the machine is up".
 - **Wakes** (Wake-on-LAN) only when a client request needs it and has a sufficient priority. Model management from the panel **never** wakes the machine — a person should see that it sleeps and decide for themselves (the "Wake" button).
-- **Syncs the model list** from the agent's `GET /v1/models`: after a start, every `MINDGATE_SYNC_INTERVAL_HOURS`, on demand, after a download finishes, after a model is deleted.
+- **Syncs the model list** from the agent's `GET /v1/models`: every `MINDGATE_SYNC_INTERVAL_HOURS` (when the machine is up), on demand, after a download finishes, after a model is deleted, and once when the hub starts if this provider has never been synced.
 - **Watches the downloads it ordered itself** (every 2 s), so that a finished model appears in the catalogue even when nobody has the panel open. Downloads ordered another way (for example from a command line on the machine) are picked up at the next look at the job list or at an ordinary sync.
 - **Asks for a shutdown** after `node.idle_shutdown_minutes` without requests through the hub: `POST <control_url>/node/power/shutdown-request`. A "no" means: ask again no sooner than in 5 minutes. An answer without the `allow` field (your own script that returns a bare `200`) is treated by the hub as a "yes".
 

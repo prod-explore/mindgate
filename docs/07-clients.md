@@ -95,7 +95,7 @@ response = client.chat.completions.create(
     ],
     extra_headers={
         "X-MindGate-Priority": "3",        # 1-5, within the range allowed for the key
-        "X-MindGate-Local-Only": "true",   # optional: local models only, fallbacks too
+        "X-MindGate-Local-Only": "true",   # optional: a cloud model is refused with 403
     }
 )
 print(response.model)   # who really answered: always the model asked for, here "pc/qwen3:4b"

@@ -213,13 +213,13 @@ gate/src/
 ├── routes-v1.ts              /v1/models, /v1/chat/completions, /v1/embeddings, /v1/usage
 ├── routes-admin.ts           /admin/api/* (providers, models, keys, usage, log)
 ├── panel.ts                  the panel files under /admin/ (GET/HEAD only, content policy, path protection)
-├── chat.ts                   one request from the key to the last byte (fallback, SSE, accounting)
-├── routing.ts                name → list of targets; local_only, allowed_models
+├── chat.ts                   one request from the key to the last byte (waking, queue, SSE, accounting)
+├── routing.ts                model id → the model and provider that serve it; local_only, allowed_models
 ├── limits.ts, queue.ts       key limits, the priority queue
 ├── node.ts                   machine state, waking, shutdown on idle
 ├── wol.ts                    the magic packet, and the client of the relay
 ├── wol-relay.ts              the relay: sends the packet from the host's network (own container)
-├── adapters/                 openai (transparent), anthropic (translation both ways)
+├── adapters/                 openai (transparent, with Gemini's quirks smoothed over), anthropic (translation both ways)
 ├── store/                    providers, models, keys, usage (SQLite)
 ├── crypto.ts, db.ts, …       secret encryption, database migrations
 └── cli.ts                    keys, backup, check
