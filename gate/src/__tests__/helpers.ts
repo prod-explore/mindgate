@@ -5,6 +5,7 @@ import { loadConfig, type HubConfig } from '../config.js';
 import { createHub, silentLogger, type Hub, type HubOverrides } from '../context.js';
 import { buildServer } from '../server.js';
 
+/** Fixed fake secrets that pass the startup strength check (secret-check.ts). */
 export const MASTER = 'm'.repeat(8) + 'aB3dE5gH7jK9mN1pQ3rS5tU7vW9xY1zA';
 export const ADMIN = 'adm-' + 'Zy9Xw7Vu5Ts3Rq1Po9Nm7Lk5Ji3Hg1Fe';
 
@@ -84,7 +85,7 @@ export function sendSse(res: ServerResponse, items: SseItem[], opts: { gapMs?: n
   })();
 }
 
-// ─── OpenAI-style fake ───────────────────────────────────────────────────────
+// An OpenAI-compatible upstream
 
 export const completion = (content: string | null, extra: Json = {}): Json => ({
   id: 'chatcmpl-fake',
@@ -151,7 +152,7 @@ export function openaiUpstream(opts: OpenAIFakeOptions = {}, port = 0): Promise<
   }, port);
 }
 
-// ─── Hub under test ──────────────────────────────────────────────────────────
+// The hub under test
 
 export interface TestHub {
   hub: Hub;
@@ -239,7 +240,7 @@ export function parseSse(text: string): Array<Json | string> {
 
 export const sleep = (ms: number): Promise<void> => new Promise(r => setTimeout(r, ms));
 
-// ─── A MindGate agent, as far as the hub is concerned ────────────────────────
+// A MindGate agent, as far as the hub is concerned
 
 export interface FakeAgentState {
   /** Bearer token the agent insists on; null = open. */

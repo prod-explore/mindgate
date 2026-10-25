@@ -7,6 +7,7 @@ export interface MagicTarget {
   port: number;
 }
 
+/** Six 0xFF bytes followed by the MAC address sixteen times. */
 export function magicPacket(mac: string): Buffer {
   const bytes = Buffer.from(mac.split(/[:-]/).map(h => parseInt(h, 16)));
   return Buffer.concat([Buffer.alloc(6, 0xff), ...Array.from({ length: 16 }, () => bytes)]);

@@ -1,6 +1,6 @@
 /**
  * "A day" and "a month" for usage limits start at midnight in MINDGATE_USAGE_TZ, so a daily budget resets when the
- * owner's day starts rather than at 02:00 local time.
+ * owner's day starts rather than at midnight UTC.
  */
 
 interface Ymd {

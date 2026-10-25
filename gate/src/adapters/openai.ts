@@ -144,8 +144,6 @@ async function embeddings(call: ChatCall): Promise<Json> {
   return json;
 }
 
-// ─── Model discovery ─────────────────────────────────────────────────────────
-
 const zero = (v: unknown): boolean => (typeof v === 'string' || typeof v === 'number') && Number(v) === 0;
 
 /** Reads one entry of GET /models. OpenAI sends little; OpenRouter, MindGate and others add context length, modalities... */

@@ -58,6 +58,7 @@ export function assertTimeZone(tz: string): void {
 /** The panel next to the hub in the repository: gate/dist/config.js -> panel/dist. */
 const DEFAULT_PANEL_DIR = fileURLToPath(new URL('../../panel/dist', import.meta.url));
 
+/** Reads and checks the environment. Throws an Error whose message is meant for the operator. */
 export function loadConfig(env: NodeJS.ProcessEnv = process.env, warn: (m: string) => void = m => console.warn(`[config] ${m}`)): HubConfig {
   const masterKey = env['MINDGATE_MASTER_KEY'] ?? '';
   const adminToken = env['MINDGATE_ADMIN_TOKEN'] ?? '';

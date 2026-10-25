@@ -118,8 +118,8 @@ const MIGRATIONS: ReadonlyArray<(db: Db) => void> = [
       CREATE INDEX request_log_key ON request_log(key_id, ts);
     `);
   },
-  // Aliases are gone: an app that wants a fallback picks it from the models' tags itself. A key that was limited to an
-  // alias keeps working: its allow-list now names the models the alias pointed at.
+  // Drops aliases (an app that wants a fallback picks it from the models' tags itself). A key that was limited to an
+  // alias keeps working: its allow-list is rewritten to name the models the alias pointed at.
   db => {
     const aliases = db.prepare('SELECT name, targets FROM aliases').all() as Array<{ name: string; targets: string }>;
     if (aliases.length) {

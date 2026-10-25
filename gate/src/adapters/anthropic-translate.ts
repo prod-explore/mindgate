@@ -21,7 +21,7 @@ export interface TranslateOptions {
 
 export interface Translated {
   request: Json;
-  /** Things the hub changed on purpose that a client might wonder about (for the log). */
+  /** Things the hub changed on purpose that a client might wonder about (thinking skipped, and why). */
   notes: string[];
 }
 
@@ -229,8 +229,6 @@ export function toAnthropicRequest(body: Json, o: TranslateOptions): Translated 
   return { request, notes };
 }
 
-// ─── Responses ──────────────────────────────────────────────────────────────
-
 const STOP_REASON: Record<string, string> = {
   end_turn: 'stop',
   stop_sequence: 'stop',
@@ -377,7 +375,7 @@ export class AnthropicStreamTranslator {
         });
       }
       default:
-        return []; // ping and event types added later
+        return []; // ping, and event types this translator does not know
     }
   }
 

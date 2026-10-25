@@ -12,7 +12,7 @@ import { ClientAbort } from './upstream.js';
 import { isPlainObject } from './util.js';
 
 /**
- * One client request, from authentication to the last byte.
+ * One authenticated client request, from routing to the last byte of the answer.
  *
  *   resolve the model -> admit against the key's limits ->
  *     wake the node if needed -> wait for a free slot -> call the upstream -> relay the answer
@@ -32,6 +32,7 @@ interface Attempt {
 const TAG = /^[\w.:@/-]{1,64}$/;
 const truthy = (v: string | undefined): boolean => v !== undefined && /^(1|true|yes|on)$/i.test(v.trim());
 
+/** The X-MindGate-Priority header, clamped to the range the key allows; the key's default when there is none. */
 export function parsePriority(raw: string | undefined, key: ApiKeyRecord): number {
   if (raw === undefined || raw === '') return key.defaultPriority;
   const n = Number(raw);
@@ -61,6 +62,7 @@ function write(res: ServerResponse, data: string): Promise<void> {
   });
 }
 
+/** The response side of one request: a plain JSON reply, or a server-sent event stream once the headers are out. */
 class Sink {
   headersSent = false;
   /** The first byte of the model's answer has gone out; from here on a failure can no longer be handed to a fallback. */
@@ -106,6 +108,7 @@ class Sink {
   }
 }
 
+/** Characters of model output in one stream chunk: the basis of a token estimate when the upstream reports no usage. */
 function sniffOutputChars(chunk: Json): number {
   let n = 0;
   for (const c of (Array.isArray(chunk['choices']) ? chunk['choices'] : []) as Json[]) {
@@ -121,6 +124,7 @@ function sniffOutputChars(chunk: Json): number {
   return n;
 }
 
+/** The same count for a whole (non-streamed) completion. */
 function completionChars(json: Json): number {
   let n = 0;
   for (const c of (Array.isArray(json['choices']) ? json['choices'] : []) as Json[]) {
@@ -132,6 +136,7 @@ function completionChars(json: Json): number {
   return n;
 }
 
+/** Names the provider and model in an error that does not name them yet. */
 function withContext(e: HubError, c: Candidate): HubError {
   if (e.extra['provider']) return e;
   return new HubError({ status: e.status, code: e.code, message: e.message, ...(e.param ? { param: e.param } : {}), extra: { ...e.extra, provider: c.provider.id, model: c.model.id }, headers: e.headers, fallback: e.fallback });
@@ -213,8 +218,6 @@ class RequestRun {
     }
   }
 
-  // ── Validate ──────────────────────────────────────────────────────────────
-
   private validate(): void {
     const { body, headers, endpoint, key } = this;
     const named = headers['x-mindgate-model'] || body['model'];
@@ -231,8 +234,6 @@ class RequestRun {
     this.localOnly = key.localOnly || truthy(headers['x-mindgate-local-only']);
     this.clientWantsUsage = this.stream && isPlainObject(body['stream_options']) && body['stream_options']['include_usage'] === true;
   }
-
-  // ── Route and admit ───────────────────────────────────────────────────────
 
   private routeAndAdmit(): Candidate {
     const { hub, key } = this;
@@ -260,8 +261,6 @@ class RequestRun {
     }, Math.min(1000, hub.config.keepaliveIntervalMs));
     this.keepalive.unref();
   }
-
-  // ── Call the model ────────────────────────────────────────────────────────
 
   private async callModel(c: Candidate): Promise<void> {
     this.finalCandidate = c;
@@ -425,8 +424,6 @@ class RequestRun {
     return { 'X-Request-Id': this.requestId, 'X-MindGate-Model': c.model.id, 'X-MindGate-Provider': c.provider.id };
   }
 
-  // ── When it goes wrong ────────────────────────────────────────────────────
-
   private async fail(e: unknown): Promise<void> {
     const { sink, reply } = this;
     if (e instanceof ClientAbort || this.ac.signal.aborted) {
@@ -455,8 +452,6 @@ class RequestRun {
       reply.code(he.status).headers({ 'X-Request-Id': this.requestId, ...he.headers }).send(he.payload());
     }
   }
-
-  // ── Account for it ────────────────────────────────────────────────────────
 
   private finish(): void {
     const { hub, key, usage, finalCandidate, status, errorCode } = this;

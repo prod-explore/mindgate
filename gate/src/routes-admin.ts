@@ -134,7 +134,7 @@ export function registerAdmin(app: FastifyInstance, hub: Hub, throttle: AuthThro
 
       admin.get('/presets', async () => ({ data: PRESETS }));
 
-      // ── providers ────────────────────────────────────────────────────────
+      // Providers
       admin.get('/providers', async () => ({ data: hub.providers.list().map(p => providerView(hub, p)) }));
 
       admin.post('/providers', async (req, reply) => {
@@ -194,7 +194,8 @@ export function registerAdmin(app: FastifyInstance, hub: Hub, throttle: AuthThro
         return { status: hub.nodes.status(provider) };
       });
 
-      // ── nodes: the machine behind a provider, through its MindGate agent ──
+      // Nodes: the machine behind a provider, through its MindGate agent
+
       /** What the hub knows about the machine, and — when it is up — what its agent says. */
       admin.get('/providers/:id/node', async req => {
         const provider = hub.providers.require((req.params as { id: string }).id);
@@ -280,7 +281,7 @@ export function registerAdmin(app: FastifyInstance, hub: Hub, throttle: AuthThro
         return hub.nodeClient.shutdown(provider, b['force'] === true);
       });
 
-      // ── models ───────────────────────────────────────────────────────────
+      // Models
       admin.get('/models', async req => {
         const q = req.query as { provider?: string };
         const records = new Map(hub.models.records(q.provider).map(r => [r.id, r]));
@@ -307,7 +308,7 @@ export function registerAdmin(app: FastifyInstance, hub: Hub, throttle: AuthThro
         return { id, ...hub.models.delete(id) };
       });
 
-      // ── client keys ──────────────────────────────────────────────────────
+      // Client keys
       admin.get('/keys', async () => ({ data: hub.keys.list().map(k => keyView(hub, k)) }));
 
       admin.post('/keys', async (req, reply) => {
@@ -328,7 +329,7 @@ export function registerAdmin(app: FastifyInstance, hub: Hub, throttle: AuthThro
         return reply.send({ deleted: true });
       });
 
-      // ── usage and log ────────────────────────────────────────────────────
+      // Usage and the request log
       admin.get('/usage', async req => {
         const q = req.query as { from?: string; to?: string; key?: string; model?: string };
         const today = dayKey(hub.clock(), hub.config.usageTz);

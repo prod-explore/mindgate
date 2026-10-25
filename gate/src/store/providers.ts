@@ -195,7 +195,7 @@ export class ProviderStore {
     private readonly box: SecretBox,
   ) {}
 
-  /** Called after a provider is created, changed or deleted (the router and the node monitor drop their caches). */
+  /** Called after a provider is created, changed or deleted (the registry drops its concurrency limiter, the node manager its state). */
   onChange(fn: ProviderListener): () => void {
     this.listeners.add(fn);
     return () => this.listeners.delete(fn);

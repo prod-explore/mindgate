@@ -1,6 +1,8 @@
 import type { Hub } from './context.js';
 import type { ApiKeyRecord, ModelFields, ModelOverrides, ProviderRecord, ResolvedModel, ModelRecord } from './types.js';
 
+/** How the admin API shows stored records: snake_case JSON, with the live state (node status, queue, usage) added. */
+
 /** The admin API speaks snake_case JSON; the code inside uses camelCase. These two convert, shallowly. */
 const snake = (k: string): string => k.replace(/[A-Z]/g, c => `_${c.toLowerCase()}`);
 const camel = (k: string): string => k.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase());

@@ -64,7 +64,7 @@ export interface LogRow {
 export class UsageStore {
   constructor(private readonly db: Db) {}
 
-  /** One finished request: it counts once, against the model that actually answered (or the one that failed last). */
+  /** Adds one finished request to the day's totals of its key and of the model it was routed to. */
   record(day: string, keyId: string, modelId: string, add: { requests: number; errors: number; inputTokens: number; outputTokens: number }): void {
     this.db
       .prepare(

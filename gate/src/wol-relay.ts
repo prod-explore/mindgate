@@ -10,6 +10,7 @@ import { localBroadcasts, sendMagicPacket, type MagicTarget } from './wol.js';
  *
  *   POST /wake   Authorization: Bearer <token>   { "mac": "AA:BB:CC:DD:EE:FF", "broadcast": "192.168.1.255", "port": 9 }
  */
+
 const MAC = /^[0-9a-f]{2}([:-][0-9a-f]{2}){5}$/i;
 
 export interface RelayDeps {

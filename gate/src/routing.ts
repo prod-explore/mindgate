@@ -41,12 +41,17 @@ export function allowedBy(patterns: string[] | null, name: string): boolean {
   return patterns.some(p => p === '*' || p === name || (p.endsWith('/*') && name.startsWith(p.slice(0, -1))));
 }
 
+/** Decides which model serves a request, and which models a key may see. */
 export class Router {
   constructor(
     private readonly models: ModelStore,
     private readonly providers: ProviderStore,
   ) {}
 
+  /**
+   * The model that serves `name` for this key, or the error the client gets: unknown model, not allowed for the key,
+   * wrong kind for the endpoint, not local for a local-only request, or not usable right now.
+   */
   resolve(name: string, key: ApiKeyRecord, opts: ResolveOptions): Resolution {
     const requested = name.trim();
     const skipped: Resolution['skipped'] = [];

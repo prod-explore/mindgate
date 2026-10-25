@@ -148,7 +148,10 @@ export function describeError(text: string): { message: string; code: string | u
   return { message: text.trim().slice(0, 300) || 'no details', code: undefined };
 }
 
-/** Upstream codes that mean the provider's quota or credit is used up (the agy wrapper, OpenAI), as opposed to "too fast". */
+/**
+ * Upstream codes that mean the quota or credit is used up, as opposed to "too fast": `budget_exhausted` (another
+ * MindGate, or a wrapper that answers in its format) and OpenAI's `insufficient_quota`.
+ */
 const QUOTA_CODES = new Set(['budget_exhausted', 'insufficient_quota']);
 
 /** The moment an upstream says its quota comes back (`error.reset_at`, ISO 8601), when it says so. */
@@ -236,8 +239,7 @@ export async function fetchJson(provider: ProviderRecord, url: string, opts: Fet
   }
 }
 
-// ─── Server-sent events ──────────────────────────────────────────────────────
-
+/** One server-sent event: a `data` event, or a comment line (an upstream's keep-alive). */
 export type SseEvent = { kind: 'data'; event?: string; data: string } | { kind: 'comment'; text: string };
 
 function parseBlock(block: string): SseEvent | null {

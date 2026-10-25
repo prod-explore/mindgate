@@ -3,6 +3,11 @@ import { loadConfig } from './config.js';
 import { createHub } from './context.js';
 import { buildServer } from './server.js';
 
+/**
+ * Entry point of the hub: reads the environment, wires the hub, starts the background jobs (log pruning, node
+ * monitor, model sync) and serves HTTP until SIGINT or SIGTERM.
+ */
+
 async function main(): Promise<void> {
   let config;
   try {

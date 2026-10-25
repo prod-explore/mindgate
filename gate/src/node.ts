@@ -32,7 +32,9 @@ interface State {
 
 /** How long a successful probe or request is trusted before the next request probes again. */
 const TRUST_MS = 30_000;
+/** How often the monitor probes the nodes and looks for one that has been idle long enough to shut down. */
 const MONITOR_MS = 30_000;
+/** Wake-on-LAN is a single UDP packet that nothing acknowledges, so it is sent again this often until the machine answers. */
 const RESEND_MAGIC_MS = 10_000;
 /** How long to leave a node alone after it refused a shutdown (someone is using it, a download is running...). */
 const SHUTDOWN_RETRY_MS = 5 * 60_000;

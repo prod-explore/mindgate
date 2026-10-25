@@ -11,6 +11,8 @@ import { createCipheriv, createDecipheriv, createHash, hkdfSync, randomBytes, ti
  *   authentication instead of quietly sending one provider's key to a different upstream.
  * - The master key lives in the process environment, not in the database, so a stolen database file or backup is not
  *   enough on its own. It does not protect against someone who has both (root on the host) or a compromised process.
+ *
+ * Client API keys are the other secret handled here: generated at random and stored only as a SHA-256 hash.
  */
 
 const INFO = 'mindgate/secret/v1';
@@ -61,8 +63,6 @@ export class SecretBox {
     }
   }
 }
-
-// ─── Client API keys ────────────────────────────────────────────────────────────
 
 export const sha256Hex = (value: string): string => createHash('sha256').update(value).digest('hex');
 

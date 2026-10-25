@@ -10,6 +10,11 @@ import { isHubError } from './errors.js';
 import { withDeadline } from './upstream.js';
 import type { ApiKeyRecord } from './types.js';
 
+/**
+ * The operator's command line: client keys, database backups and a configuration check. It opens the same database
+ * with the same environment as the hub, so it runs where the hub runs.
+ */
+
 export interface CliIo {
   out(line: string): void;
   err(line: string): void;
@@ -140,8 +145,6 @@ function keysCommand(hub: Hub, p: Parsed, io: CliIo): number {
   }
 }
 
-// ─── backup ──────────────────────────────────────────────────────────────────
-
 const stamp = (d = new Date()): string => d.toISOString().replace(/[-:]/g, '').replace('T', '-').slice(0, 15);
 
 export async function backupDatabase(hub: Hub, target: string): Promise<{ file: string; schemaVersion: number; providers: number; keys: number }> {
@@ -193,8 +196,6 @@ async function backupCommand(hub: Hub, p: Parsed, io: CliIo): Promise<number> {
   return 0;
 }
 
-// ─── check ───────────────────────────────────────────────────────────────────
-
 async function checkCommand(hub: Hub, p: Parsed, io: CliIo): Promise<number> {
   const online = p.flags.get('online') === true;
   let problems = 0;
@@ -229,8 +230,6 @@ async function checkCommand(hub: Hub, p: Parsed, io: CliIo): Promise<number> {
   io.out(problems ? `${problems} problem${problems === 1 ? '' : 's'} found.` : 'No problems found.');
   return problems ? 1 : 0;
 }
-
-// ─── entry ───────────────────────────────────────────────────────────────────
 
 export async function runCli(argv: string[], env: NodeJS.ProcessEnv = process.env, io: CliIo = consoleIo): Promise<number> {
   let hub: Hub | null = null;
