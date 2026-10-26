@@ -10,7 +10,8 @@ permissions:
   contents: read
 
 jobs:
-  # Each component's `engines.node` floor, so the matrices below test the declared minimum next to the current Node 22
+  # Reads each component's `engines.node` floor, so every job below runs on the declared minimum as well as on the
+  # current Node 22.
   floors:
     name: minimum Node versions (from engines)
     runs-on: ubuntu-latest
@@ -32,7 +33,7 @@ jobs:
             echo "$c=${v#>=}" >> "$GITHUB_OUTPUT"
             declare "$c=${v#>=}"
           done
-          # the chain runs the hub and the agent in one Node, so it needs the higher of their floors
+          # The chain runs the hub and the agent on one Node, so it needs the higher of their two floors.
           echo "chain=$(printf '%s\n' "$gate" "$agent" | sort -V | tail -n 1)" >> "$GITHUB_OUTPUT"
 
   lint:
