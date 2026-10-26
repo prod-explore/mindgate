@@ -1,11 +1,7 @@
 import { readFileSync } from 'node:fs';
 
-/** The version in package.json (one level above dist/). */
-export const VERSION: string = (() => {
-  try {
-    const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version?: string };
-    return pkg.version ?? '0.0.0';
-  } catch {
-    return '0.0.0';
-  }
-})();
+/**
+ * The agent's version, read from package.json (one level above dist/) so the manifest stays the single source.
+ * A missing or unreadable manifest is a broken install, so the import throws instead of reporting a made-up version.
+ */
+export const VERSION: string = (JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string }).version;
