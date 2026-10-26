@@ -16,8 +16,8 @@ describe('texts', () => {
     for (const k of keys) expect(en[k], k).not.toMatch(/undefined|\$\{|\[object/);
   });
 
-  it('is English only: no Polish letters', () => {
-    for (const k of keys) expect(en[k], k).not.toMatch(/[ąćęłńóśźżĄĆĘŁŃÓŚŹŻ]/);
+  it('is English only: no letters outside A-Z', () => {
+    for (const k of keys) expect(en[k], k).not.toMatch(/[^\P{L}A-Za-z]/u);
   });
 
   it('fills placeholders and leaves unknown ones visible', () => {

@@ -1,6 +1,6 @@
 /** Every text the panel shows, in one place; components read it through `useT()` (index.ts). */
 export const en = {
-  // @@common
+  // Common
   'common.close': 'Close',
   'common.cancel': 'Cancel',
   'common.confirm': 'Confirm',
@@ -32,7 +32,7 @@ export const en = {
   'common.not_set': 'Not set',
   'common.unlimited': 'No limit',
 
-  // @@shell
+  // App shell: navigation and sign-in
   'nav.overview': 'Overview',
   'nav.providers': 'Providers',
   'provider.all': 'All providers',
@@ -68,7 +68,7 @@ export const en = {
   'login.expired': 'The hub did not accept the token. Sign in again.',
   'login.checking': 'Checking…',
 
-  // @@errors
+  // Errors
   'err.network': 'The hub does not answer. Check that it is running and reachable from here.',
   'err.node_auth_failed': 'The machine’s agent rejected the secret stored for this provider. Put the agent’s MINDGATE_NODE_SECRET into the provider’s API key.',
   'err.agent_missing': 'Nothing at the node’s control URL answers like a MindGate agent. Is the agent running, and is the address right?',
@@ -77,7 +77,7 @@ export const en = {
   'err.too_many_auth_failures': 'Too many wrong tokens from this address. Wait a minute.',
   'err.invalid_admin_token': 'That is not the admin token.',
 
-  // @@status
+  // Status and locality labels
   'status.online': 'Online',
   'status.disabled': 'Disabled',
   'status.asleep': 'Asleep',
@@ -88,7 +88,7 @@ export const en = {
   'locality.local_title': 'Runs on your own hardware',
   'locality.cloud_title': 'Runs at a provider',
 
-  // @@pages-traffic
+  // Traffic pages: overview, request log, usage, client keys
   'overview.today': 'Today',
   'overview.details': 'Usage details',
   'overview.manage': 'Manage providers',
@@ -230,7 +230,7 @@ export const en = {
   'keys.new_usage': 'Use it as a Bearer token with any OpenAI-compatible client:',
   'keys.new_done': 'I have copied it',
 
-  // @@pages-providers
+  // Providers page
   'providers.sub': 'Where requests go: your own machines and the cloud services behind the hub. Each provider brings its own models.',
   'providers.add': 'Add provider',
   'providers.empty': 'No providers yet.',
@@ -338,7 +338,7 @@ export const en = {
   'providers.f.header_name': 'Header name',
   'providers.f.header_value': 'Header value',
 
-  // @@pages-models
+  // Models page
   'models.sub': 'Everything the hub can serve. Turn models on to let clients see them; rename, tag or correct what a provider reports.',
   'models.add': 'Add model',
   'models.add_hint': 'For a model the provider does not list, such as one that was added a moment ago or a private fine-tune.',
@@ -409,7 +409,7 @@ export const en = {
   'models.delete_synced': 'The provider still offers it, so it is only turned off and stays in the list.',
   'models.deleted': 'Done.',
 
-  // @@pages-nodes
+  // Machine pages
   'nodes.not_found': 'There is no such machine.',
   'nodes.not_found_hint': 'It may have been deleted, or it is not set up as a machine.',
   'nodes.no_agent_title': 'No agent address.',
