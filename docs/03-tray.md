@@ -8,7 +8,7 @@ Built with Node.js and the `systray2` library. It is written for Windows (the id
 
 ## Requirements
 
-- Node.js 21+ (the agent on the same machine needs 22.19+)
+- Node.js 20+ (the agent on the same machine needs 22.19+)
 - Windows 10+ — or Linux with a desktop environment (GNOME, KDE, XFCE) and `xprintidle`
 - On Linux: `libappindicator` (most desktop environments have it)
 - On Windows, the .NET Framework compiler (`csc.exe`, part of Windows) — the tray compiles two tiny helper programs the first time it needs them: one reads the idle time, one holds the shutdown back
