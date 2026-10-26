@@ -95,8 +95,7 @@ async function pollAgentStatus() {
       updateAgentState({
         status: data.status || 'ok',
         busy,
-        models: data.models_loaded || [],
-        runtime: data.runtime
+        models: data.models_loaded || []
       })
 
       updateShutdownBlock(busy)

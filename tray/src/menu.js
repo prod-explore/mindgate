@@ -28,8 +28,7 @@ export const SEPARATOR = '<SEPARATOR>'
 
 let agentState = {
   status: 'unknown',
-  busy: 0,
-  lastCheck: null
+  busy: 0
 }
 
 /** The hub panel address, if tray.yml has one and it is an http(s) URL. */
@@ -102,10 +101,7 @@ export function buildMenuItems() {
  * Updates the agent state (called from the polling loop).
  */
 export function updateAgentState(state) {
-  agentState = {
-    ...state,
-    lastCheck: new Date()
-  }
+  agentState = state
 }
 
 /**

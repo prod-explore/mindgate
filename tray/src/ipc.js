@@ -15,7 +15,6 @@ let userToggleActive = false // "I'm using this PC — don't shut it down"
 /** Listens on 127.0.0.1 only: its caller is the agent on this machine. */
 export function startIpcServer() {
   const app = express()
-  app.use(express.json())
 
   /**
    * POST /shutdown-check — the agent asks whether the machine may be shut down
@@ -98,16 +97,14 @@ async function reportToAgent() {
  * The toggle stays on until it is switched off by hand in the tray menu.
  */
 export function checkUserActivity() {
-  if (userToggleActive) return false
+  if (userToggleActive) return
 
   const idleSeconds = getIdleSeconds()
   if (idleSeconds < config.shutdown_guard.idle_threshold_seconds) {
     userToggleActive = true
     log.info({ idle_seconds: idleSeconds }, 'User activity detected — switching the "in use" toggle on')
     reportToAgent()
-    return true
   }
-  return false
 }
 
 export function startAgentReporting() {

@@ -25,7 +25,7 @@ let isBlocking = false
  * Turns the shutdown block on.
  * Compiles (if needed) and starts a hidden C# program that holds the shutdown back.
  */
-export function enableShutdownBlock() {
+function enableShutdownBlock() {
   if (process.platform !== 'win32') return
   if (isBlocking) return
 
@@ -72,7 +72,7 @@ export function enableShutdownBlock() {
  * Turns the shutdown block off.
  * Ends the hidden blocker process.
  */
-export function disableShutdownBlock() {
+function disableShutdownBlock() {
   if (!isBlocking || !blockerProcess) return
 
   try {
@@ -84,13 +84,6 @@ export function disableShutdownBlock() {
 
   isBlocking = false
   blockerProcess = null
-}
-
-/**
- * Tells whether the block is active.
- */
-export function isShutdownBlocked() {
-  return isBlocking
 }
 
 /**
