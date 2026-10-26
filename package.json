@@ -4,7 +4,7 @@
   "description": "Repository-wide tooling (lint). Each component — gate, panel, agent, tray — is built and tested on its own.",
   "type": "module",
   "engines": {
-    "node": ">=22"
+    "node": ">=22.13.0"
   },
   "scripts": {
     "lint": "eslint --max-warnings 0 ."

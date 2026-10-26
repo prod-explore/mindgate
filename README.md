@@ -82,7 +82,7 @@ curl -s $HUB/v1/chat/completions -H "Authorization: Bearer $KEY" -H 'Content-Typ
 The answer is an OpenAI chat completion plus a `mindgate` object that names the model and provider that answered. Any OpenAI SDK works with base URL `http://127.0.0.1:3000/v1`, the key and a model id: [docs/07](docs/07-clients.md).
 
 <details>
-<summary>Without Docker (Node.js 22.9 or newer)</summary>
+<summary>Without Docker (Node.js 22.19 or newer)</summary>
 
 ```bash
 cd mindgate
@@ -107,7 +107,7 @@ Reverse proxy, backups, environment variables and troubleshooting: [docs/01](doc
 
 The PC runs two small programs next to [Ollama](https://ollama.com): the **agent** (`agent/`), which the hub talks to, and on a desktop the **tray** app (`tray/`), which tells the agent whether someone is using the computer.
 
-1. **The agent** (Windows or Linux, Node.js 22, Ollama installed):
+1. **The agent** (Windows or Linux, Node.js 22.19 or newer, Ollama installed):
 
    ```bash
    cd mindgate/agent
@@ -228,7 +228,7 @@ What is not protected: traffic between the hub and the agent is plain HTTP, so i
 
 ## Development
 
-Each component has its own `package.json` and lockfile; Node.js 22 or newer.
+Each component has its own `package.json` and lockfile; its `engines` field names the Node.js 22 release it needs.
 
 ```bash
 npm ci && npm run lint                            # ESLint over every component, from the root

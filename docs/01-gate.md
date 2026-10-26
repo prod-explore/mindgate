@@ -2,7 +2,7 @@
 
 The hub is the single entry point to MindGate: one OpenAI-compatible API with **providers** behind it — a local GPU machine (woken by Wake-on-LAN), OpenRouter, Gemini, Anthropic, Ollama, anything that speaks HTTP. A client knows one address and one key; the hub decides where each request goes, enforces limits and stores nothing but numbers.
 
-It runs on a Raspberry Pi 4+ (ARM64, 2 GB of RAM is enough) or on any Linux box with Docker or Node 22.
+It runs on a Raspberry Pi 4+ (ARM64, 2 GB of RAM is enough) or on any Linux box with Docker or Node.js 22.19+.
 
 ---
 
@@ -41,7 +41,7 @@ cd mindgate/panel && npm ci && npm run build      # the panel (into panel/dist);
 cd ../gate
 npm ci
 npm run build
-npm start          # reads .env from the current directory (Node >= 22.9)
+npm start          # reads .env from the current directory, if there is one
 ```
 
 ---

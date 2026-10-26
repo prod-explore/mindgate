@@ -5,7 +5,7 @@
   "description": "MindGate admin panel: providers, models, keys, usage, log and the models on your nodes",
   "type": "module",
   "engines": {
-    "node": ">=22"
+    "node": ">=22.22.2"
   },
   "scripts": {
     "dev": "vite",

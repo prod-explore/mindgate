@@ -16,7 +16,7 @@ What the agent does **not** do: there are no profiles (`flash`, `reasoning`…),
 ## Requirements
 
 - Windows 10/11 or Linux (Ubuntu 22.04+ / Debian 12+)
-- Node.js 22+
+- Node.js 22.19+
 - [Ollama](https://ollama.com) installed (the agent can start it, but does not install it)
 - A GPU with CUDA (optional, but without one larger models will be slow); `nvidia-smi` on the PATH lets the hub show the card's memory use
 
