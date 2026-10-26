@@ -4,6 +4,9 @@
   "description": "MindGate Tray — system tray app for shutdown guard",
   "type": "module",
   "main": "src/index.js",
+  "engines": {
+    "node": ">=21.0.0"
+  },
   "scripts": {
     "start": "node src/index.js",
     "test": "node --test \"test/*.test.mjs\"",
