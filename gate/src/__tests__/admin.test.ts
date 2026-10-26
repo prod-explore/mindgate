@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { after, before, describe, it } from 'node:test';
 import { isHubError } from '../errors.js';
 import { ClientAbort, send, withDeadline } from '../upstream.js';
@@ -335,7 +336,8 @@ describe('admin API', () => {
 
     it('status gives a quick overview', async () => {
       const s = (await call('GET', '/status')).json;
-      assert.equal(s.version, '2.0.0');
+      const manifest = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')) as { version: string };
+      assert.equal(s.version, manifest.version);
       assert.ok(s.counts.providers >= 2);
       assert.ok(s.counts.keys >= 1);
       assert.ok(Array.isArray(s.providers));

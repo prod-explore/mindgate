@@ -10,6 +10,7 @@ import type { ProviderInput, ProviderPatch } from './store/providers.js';
 import { dayKey } from './time.js';
 import type { AuthScheme, Locality, NodeConfig, ProviderOptions, ProviderType } from './types.js';
 import { isPlainObject } from './util.js';
+import { VERSION } from './version.js';
 import { canonicalId, type ModelPatch } from './store/models.js';
 import type { KeyInput, KeyPatch } from './store/keys.js';
 
@@ -121,7 +122,7 @@ export function registerAdmin(app: FastifyInstance, hub: Hub, throttle: AuthThro
       });
 
       admin.get('/status', async () => ({
-        version: '2.0.0',
+        version: VERSION,
         uptime_seconds: Math.floor(process.uptime()),
         providers: hub.providers.list().map(p => ({ id: p.id, status: hub.nodes.status(p) ?? (p.enabled ? 'online' : 'disabled'), queue: hub.registry.queueState(p.id) })),
         counts: {
