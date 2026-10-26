@@ -17,6 +17,7 @@ describe('texts', () => {
   });
 
   it('is English only: no letters outside A-Z', () => {
+    // The class is a letter (not \P{L}) other than A-Z; punctuation such as ’ is not a letter, so it passes.
     for (const k of keys) expect(en[k], k).not.toMatch(/[^\P{L}A-Za-z]/u);
   });
 

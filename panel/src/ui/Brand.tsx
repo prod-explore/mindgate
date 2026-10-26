@@ -1,7 +1,7 @@
 /**
- * The mark: a hub that merges clients and several providers into one universal API. The top branch is the local node,
- * which has its own logic, so it takes the local line colour; it is drawn first so the cloud branches cover the shared
- * junction. public/favicon.svg is the same drawing with fixed colours.
+ * The mark: a hub that merges clients and several providers into one API. The top branch is the local node, so it takes
+ * the local line colour; it is drawn first so the cloud branches cover the shared junction. public/favicon.svg is the
+ * same drawing with fixed colours, and changes with it.
  */
 export function BrandMark({ className = 'brand-mark' }: { className?: string }) {
   return (
