@@ -6,9 +6,7 @@ MindGate is a self-hosted gateway that gives your apps one OpenAI-compatible end
 
 The hub runs on a small always-on machine (a Raspberry Pi or any Linux host with Docker). Every app gets its own key with rate limits, token budgets, a priority and, if needed, a local-only flag that the hub enforces before a request can leave your network. Prompts and answers are never stored.
 
-**Status:** [[Q1: Do you run MindGate day to day (Pi + PC)? Since when, with which apps or how many keys? What may the README say about it?]]
-
-[[Q2: In one sentence, why did you build it? (It would go here, after the status line.)]]
+**Status:** in daily use: the hub runs on a Raspberry Pi 5, the local node on my desktop PC. I built it to reach the models on that PC remotely through an API, and grew it into a hub for local and cloud providers.
 
 <p>
   <img src="docs/img/overview.png" alt="Overview: three providers (a local GPU machine, OpenRouter, Gemini), today's requests and tokens, the share served on your own hardware, requests per day for 14 days" width="49%">
@@ -25,8 +23,6 @@ The hub runs on a small always-on machine (a Raspberry Pi or any Linux host with
 - **A key per app.** Requests per minute and per day, tokens per day and per month (in your time zone), a priority range, an allow-list of models, and `local_only`.
 - **No silent substitution.** A request is served by the model it names, `provider/model`, or it fails. Failures that another model could fix carry `"fallback": true`, so the app can choose what to try next.
 - **An admin panel and a CLI.** Providers, models, keys, usage, a request log without content, and the machines; key management, backups and a configuration check from the command line.
-
-[[Q3: Do you want a short, fair comparison with other gateways (for example LiteLLM's proxy, or Ollama exposed directly)? If yes, which ones, and what do you see as the difference?]]
 
 ## Quick start
 
@@ -97,9 +93,9 @@ The hub listens on all interfaces (`MINDGATE_HOST=127.0.0.1` keeps it on this ma
 
 ### Deploying
 
-CI publishes the hub image for amd64 and arm64 to `ghcr.io/prod-explore/mindgate-hub` ([image.yml](.github/workflows/image.yml)). [`scripts/deploy.sh`](scripts/deploy.sh) pulls a tag, waits for the container's health check, and goes back to the previous image when the new one does not become healthy. [[Q4: Is the ghcr.io/prod-explore/mindgate-hub package public? If yes, the quick start can pull the image instead of building it.]]
+CI publishes the hub image for amd64 and arm64 to `ghcr.io/prod-explore/mindgate-hub` ([image.yml](.github/workflows/image.yml)). [`scripts/deploy.sh`](scripts/deploy.sh) pulls a tag, waits for the container's health check, and goes back to the previous image when the new one does not become healthy. The package is public, so it pulls without logging in.
 
-Tested on: [[Q5: Which hardware do you run it on (Raspberry Pi model and RAM, the PC's GPU, operating systems)? docs/01 says a Pi 4 with 2 GB of RAM is enough: is that measured?]]
+Runs on a Raspberry Pi 5 (8 GB) for the hub and a desktop PC as the local node.
 
 Reverse proxy, backups, environment variables and troubleshooting: [docs/01](docs/01-gate.md).
 
