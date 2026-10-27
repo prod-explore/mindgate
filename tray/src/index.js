@@ -1,3 +1,7 @@
+/**
+ * Entry point of the tray app: an icon in the system tray that shows the agent's state, and a small HTTP server on
+ * 127.0.0.1 that the agent asks before an automatic shutdown (ipc.js).
+ */
 import systray2 from 'systray2'
 const SysTray = systray2.default || systray2
 
@@ -13,11 +17,6 @@ import { updateShutdownBlock } from './shutdown-block.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const log = pino({ name: 'mindgate-tray' })
-
-/**
- * Entry point of the tray app: an icon in the system tray that shows the agent's state, and a small HTTP server on
- * 127.0.0.1 that the agent asks before an automatic shutdown (ipc.js).
- */
 
 /** An icon file as the base64 string systray2 expects. */
 function loadIcon(name) {

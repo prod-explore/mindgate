@@ -1,3 +1,11 @@
+/**
+ * Holds a Windows shutdown back while the agent is busy (requests in flight or downloads running).
+ * Uses a small C# WinForms EXE (blocker.cs) that handles WM_QUERYENDSESSION.
+ * When someone picks "Shut down" in the Start menu, Windows lists it among the apps that prevent shutdown,
+ * with the reason blocker.cs gives.
+ *
+ * On Linux, shutdown is controlled by systemd/polkit — nothing is blocked there.
+ */
 import { execSync, spawn } from 'child_process'
 import { existsSync } from 'fs'
 import { fileURLToPath } from 'url'
@@ -8,15 +16,6 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 
 const log = pino({ name: 'shutdown-block' })
-
-/**
- * Holds a Windows shutdown back while the agent is busy (requests in flight or downloads running).
- * Uses a small C# WinForms EXE (blocker.cs) that handles WM_QUERYENDSESSION.
- * When someone picks "Shut down" in the Start menu, Windows lists it among the apps that prevent shutdown,
- * with the reason blocker.cs gives.
- *
- * On Linux, shutdown is controlled by systemd/polkit — nothing is blocked there.
- */
 
 let blockerProcess = null
 let isBlocking = false

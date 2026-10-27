@@ -1,14 +1,13 @@
+/**
+ * The tray's side of the conversation with the agent: a small HTTP server on 127.0.0.1 that answers the agent's
+ * shutdown check, and the "I'm using this PC" toggle, which is reported to the agent.
+ */
 import express from 'express'
 import { config } from './config.js'
 import { getIdleSeconds } from './idle.js'
 import pino from 'pino'
 
 const log = pino({ name: 'ipc' })
-
-/**
- * The tray's side of the conversation with the agent: a small HTTP server on 127.0.0.1 that answers the agent's
- * shutdown check, and the "I'm using this PC" toggle, which is reported to the agent.
- */
 
 let userToggleActive = false // "I'm using this PC — don't shut it down"
 
