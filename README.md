@@ -6,7 +6,7 @@ MindGate is a self-hosted gateway that gives your apps one OpenAI-compatible end
 
 The hub runs on a small always-on machine (a Raspberry Pi or any Linux host with Docker). Every app gets its own key with rate limits, token budgets, a priority and, if needed, a local-only flag that the hub enforces before a request can leave your network. Prompts and answers are never stored.
 
-**Status:** in daily use: the hub runs on a Raspberry Pi 5, the local node on my desktop PC. I built it to reach the models on that PC remotely through an API, and grew it into a hub for local and cloud providers.
+**Status:** in daily use: the hub runs on a Raspberry Pi 5 (8 GB), the local node on my desktop PC. I built it to reach the models on that PC remotely through an API, and grew it into a hub for local and cloud providers.
 
 <p>
   <img src="docs/img/overview.png" alt="Overview: three providers (a local GPU machine, OpenRouter, Gemini), today's requests and tokens, the share served on your own hardware, requests per day for 14 days" width="49%">
@@ -94,8 +94,6 @@ The hub listens on all interfaces (`MINDGATE_HOST=127.0.0.1` keeps it on this ma
 ### Deploying
 
 CI publishes the hub image for amd64 and arm64 to `ghcr.io/prod-explore/mindgate-hub` ([image.yml](.github/workflows/image.yml)). [`scripts/deploy.sh`](scripts/deploy.sh) pulls a tag, waits for the container's health check, and goes back to the previous image when the new one does not become healthy. The package is public, so it pulls without logging in.
-
-Runs on a Raspberry Pi 5 (8 GB) for the hub and a desktop PC as the local node.
 
 Reverse proxy, backups, environment variables and troubleshooting: [docs/01](docs/01-gate.md).
 
@@ -246,7 +244,7 @@ CI ([`.github/workflows`](.github/workflows)) runs on every push and pull reques
 | [01 Hub](docs/01-gate.md) | Installation, the request path, keys and limits, backups, reverse proxy, environment variables |
 | [02 Agent](docs/02-agent.md) | The service on the GPU PC: installation, configuration, running it as a service, security |
 | [03 Tray](docs/03-tray.md) | The tray app and the shutdown guard |
-| [04 Models](docs/04-models.md) | Managing Ollama models from the hub, what fits in GPU memory, uncensored models |
+| [04 Models](docs/04-models.md) | Managing Ollama models from the hub, what fits in GPU memory, any Hugging Face GGUF model |
 | [05 Node protocol](docs/05-nodes.md) | The agent's API, for writing another agent |
 | [06 Wake-on-LAN](docs/06-wol.md) | BIOS, network card, router, and the relay for a hub in Docker |
 | [07 Clients](docs/07-clients.md) | Open WebUI, Continue, Cursor, Python, Node.js |
