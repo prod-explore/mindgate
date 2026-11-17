@@ -169,6 +169,7 @@ export interface TestHub {
 }
 
 export interface TestHubOptions {
+  /** Added to the defaults of the tests; the hub does not retry upstream failures unless a test sets MINDGATE_UPSTREAM_RETRY_MS. */
   env?: Record<string, string>;
   hub?: HubOverrides;
   /** Called after the hub exists and before the server starts: add providers, keys... */
@@ -176,7 +177,7 @@ export interface TestHubOptions {
 }
 
 export async function startHub(opts: TestHubOptions = {}): Promise<TestHub> {
-  const config: HubConfig = loadConfig({ MINDGATE_MASTER_KEY: MASTER, MINDGATE_ADMIN_TOKEN: ADMIN, MINDGATE_DB: ':memory:', MINDGATE_PANEL_DIR: '', MINDGATE_KEEPALIVE_AFTER_MS: '150', MINDGATE_KEEPALIVE_INTERVAL_MS: '150', ...opts.env }, () => undefined);
+  const config: HubConfig = loadConfig({ MINDGATE_MASTER_KEY: MASTER, MINDGATE_ADMIN_TOKEN: ADMIN, MINDGATE_DB: ':memory:', MINDGATE_PANEL_DIR: '', MINDGATE_KEEPALIVE_AFTER_MS: '150', MINDGATE_KEEPALIVE_INTERVAL_MS: '150', MINDGATE_UPSTREAM_RETRY_MS: '0', ...opts.env }, () => undefined);
   const hub = createHub(config, silentLogger, opts.hub);
   const { key } = hub.keys.create({ name: 'test' });
   await opts.setup?.(hub);

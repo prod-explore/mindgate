@@ -5,6 +5,7 @@ import { usageOf, type Json, type StreamItem } from './adapters/types.js';
 import type { Hub } from './context.js';
 import { estimateInput, estimated } from './estimate.js';
 import { HubError, badRequest, isHubError } from './errors.js';
+import { pause, retryDelayMs } from './retry.js';
 import type { Candidate } from './routing.js';
 import { dayKey } from './time.js';
 import type { ApiKeyRecord, Usage } from './types.js';
@@ -16,6 +17,9 @@ import { isPlainObject } from './util.js';
  *
  *   resolve the model -> admit against the key's limits ->
  *     wake the node if needed -> wait for a free slot -> call the upstream -> relay the answer
+ *   A call that fails with "not now" (rate limit, overload, timeout) before any of the answer went out is tried again on the
+ *   same model for a while (MINDGATE_UPSTREAM_RETRY_MS), honouring the upstream's Retry-After; the client's own limits are
+ *   charged once, at admission, not per try.
  *   Nothing is retried on another model: when a call fails the client gets the error (with `fallback: true` when it failed
  *   before any of the answer went out, so the app may pick another model by its tags) and decides for itself.
  *
@@ -274,8 +278,33 @@ class RequestRun {
     }
   }
 
-  /** One call, and — only for a machine that turns out to be down — one more after waking it. */
+  /**
+   * The call, and — while the upstream only says "not now" and nothing of the answer has gone out — the same call again
+   * after the wait it asked for. Each failed try stays in `attempts`. The wait is a plain sleep: no concurrency slot is held
+   * (callOnce gives it back), and the keep-alive timer keeps a streaming client's connection warm.
+   */
   private async attempt(c: Candidate): Promise<void> {
+    const budgetMs = this.hub.config.upstreamRetryMs;
+    let deadline = 0;
+    for (let retried = 0; ; retried++) {
+      try {
+        await this.callWithWake(c);
+        return;
+      } catch (e) {
+        if (budgetMs === 0 || !isHubError(e) || this.sink.contentStarted || this.ac.signal.aborted) throw e;
+        const now = Date.now();
+        if (retried === 0) deadline = now + budgetMs;
+        const delay = retryDelayMs(e, retried, deadline - now);
+        if (delay === null) throw e;
+        this.attempts.push({ model: c.model.id, outcome: e.code });
+        this.hub.log.info({ requestId: this.requestId, provider: c.provider.id, model: c.model.id, error: e.code, retry: retried + 1, waitMs: Math.round(delay) }, 'upstream said not now, trying again');
+        await pause(delay, this.ac.signal);
+      }
+    }
+  }
+
+  /** One call, and — only for a machine that turns out to be down — one more after waking it. */
+  private async callWithWake(c: Candidate): Promise<void> {
     const provider = c.provider;
     for (let pass = 0; ; pass++) {
       try {

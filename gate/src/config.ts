@@ -19,6 +19,13 @@ export interface HubConfig {
   /** How long a request may wait for a slot at a concurrency-limited provider (0 = forever). */
   queueTimeoutMs: number;
   logRetentionDays: number;
+  /**
+   * How long after the first failure the hub keeps trying the same model again when the upstream says "not now" (rate
+   * limit, overload, timeout), before the first byte of the answer has gone out. 0 = never retry.
+   */
+  upstreamRetryMs: number;
+  /** The longest a request waits at a provider with an `rpm`/`tpm` pace when MINDGATE_QUEUE_TIMEOUT_MS is not set. */
+  pacingMaxWaitMs: number;
   /** A streaming request that has produced nothing after this long gets an SSE comment so proxies keep the connection. */
   keepaliveAfterMs: number;
   keepaliveIntervalMs: number;
@@ -95,6 +102,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, warn: (m: strin
     queueMax: int(env, 'MINDGATE_QUEUE_MAX', 100, 1),
     queueTimeoutMs: int(env, 'MINDGATE_QUEUE_TIMEOUT_MS', 0),
     logRetentionDays: int(env, 'MINDGATE_LOG_RETENTION_DAYS', 30),
+    upstreamRetryMs: int(env, 'MINDGATE_UPSTREAM_RETRY_MS', 45_000),
+    pacingMaxWaitMs: int(env, 'MINDGATE_PACING_MAX_WAIT_MS', 120_000),
     keepaliveAfterMs: int(env, 'MINDGATE_KEEPALIVE_AFTER_MS', 10_000, 100),
     keepaliveIntervalMs: int(env, 'MINDGATE_KEEPALIVE_INTERVAL_MS', 10_000, 100),
     syncIntervalHours: int(env, 'MINDGATE_SYNC_INTERVAL_HOURS', 24),
