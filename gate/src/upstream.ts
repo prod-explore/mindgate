@@ -1,5 +1,6 @@
 import { Agent, fetch } from 'undici';
 import { HubError } from './errors.js';
+import { nextDayStart } from './time.js';
 import type { ProviderRecord } from './types.js';
 
 /**
@@ -132,6 +133,69 @@ function retryAfterSeconds(res: Res): string | undefined {
   return Number.isNaN(at) ? undefined : String(Math.max(1, Math.ceil((at - Date.now()) / 1000)));
 }
 
+/**
+ * The time zone in which Google resets its per-day quotas (midnight Pacific). Used for any upstream whose error body
+ * reports a per-day quota in Google's format; the body decides, never the provider's name or URL.
+ */
+const DAILY_QUOTA_TZ = 'America/Los_Angeles';
+
+/** A `retryDelay` longer than this cannot be a per-minute window: the quota is used up for the day. */
+const DAILY_RETRY_DELAY_S = 600;
+
+/** What Google's error format (google.rpc.Status) says about a 429 beyond the message. */
+export interface QuotaDetails {
+  /** `google.rpc.RetryInfo.retryDelay`, in seconds. */
+  retryDelayS?: number;
+  /** `quotaId` and `quotaMetric` of every `google.rpc.QuotaFailure` violation. */
+  quotaNames: string[];
+}
+
+/** A protobuf Duration as JSON: "37s", "1.402s", a plain number of seconds, or `{ seconds, nanos }`. */
+function durationSeconds(v: unknown): number | undefined {
+  if (typeof v === 'number') return Number.isFinite(v) && v >= 0 ? v : undefined;
+  if (typeof v === 'string') {
+    const m = /^\s*(\d+(?:\.\d+)?)\s*s?\s*$/i.exec(v);
+    return m ? Number(m[1]) : undefined;
+  }
+  if (typeof v === 'object' && v !== null) {
+    const d = v as { seconds?: unknown; nanos?: unknown };
+    const seconds = durationSeconds(typeof d.seconds === 'string' ? Number(d.seconds) : d.seconds);
+    if (seconds === undefined) return undefined;
+    const nanos = typeof d.nanos === 'number' && Number.isFinite(d.nanos) ? d.nanos : 0;
+    return seconds + nanos / 1e9;
+  }
+  return undefined;
+}
+
+/**
+ * Reads `error.details[]` of a Google-style error (the body may be wrapped in an array, as the OpenAI compatibility
+ * endpoint of Gemini does it). Everything missing or malformed is simply left out.
+ */
+export function quotaDetails(text: string): QuotaDetails {
+  const out: QuotaDetails = { quotaNames: [] };
+  let j: unknown;
+  try {
+    j = JSON.parse(text);
+  } catch {
+    return out;
+  }
+  const o = (Array.isArray(j) ? j[0] : j) as { error?: { details?: unknown } } | undefined;
+  const details = o?.error?.details;
+  if (!Array.isArray(details)) return out;
+  for (const d of details as Array<Record<string, unknown> | null>) {
+    const type = typeof d?.['@type'] === 'string' ? d['@type'] : '';
+    if (type.endsWith('google.rpc.RetryInfo')) {
+      const s = durationSeconds(d?.['retryDelay']);
+      if (s !== undefined) out.retryDelayS = out.retryDelayS === undefined ? s : Math.max(out.retryDelayS, s);
+    } else if (type.endsWith('google.rpc.QuotaFailure') && Array.isArray(d?.['violations'])) {
+      for (const v of d['violations'] as Array<Record<string, unknown> | null>) {
+        for (const k of ['quotaId', 'quotaMetric']) if (typeof v?.[k] === 'string') out.quotaNames.push(v[k]);
+      }
+    }
+  }
+  return out;
+}
+
 /** Pulls a human-readable message and the upstream's own error code out of whatever JSON an upstream returns. */
 export function describeError(text: string): { message: string; code: string | undefined } {
   try {
@@ -185,26 +249,48 @@ export function embeddedClientStatus(body: string): number | null {
  * look like the *client's* key was wrong. Failures that retrying elsewhere could fix allow a fallback; a request the
  * upstream rejected as invalid does not, because every target would reject it the same way.
  */
-export async function upstreamError(res: Res, provider: string, model: string): Promise<HubError> {
+export async function upstreamError(res: Res, provider: string, model: string, now: Date = new Date()): Promise<HubError> {
   const text = await readText(res, 64_000);
   const { message, code } = describeError(text);
   const detail = `${provider}: ${message}`;
   const extra = { provider, model, upstream_status: res.status };
   const s = res.status;
   if (s === 429) {
-    const ra = retryAfterSeconds(res);
-    const headers = ra ? { headers: { 'Retry-After': ra } } : {};
+    const header = retryAfterSeconds(res);
+    const quota = quotaDetails(text);
+    // The Retry-After header wins; Google puts the same information in the body (`RetryInfo.retryDelay`) and sends no header.
+    const bodyDelay = quota.retryDelayS === undefined ? undefined : String(Math.max(1, Math.ceil(quota.retryDelayS)));
+    const wait = header ?? bodyDelay;
+    const headers = wait ? { headers: { 'Retry-After': wait } } : {};
     // A used-up subscription or credit is not "slow down": waiting seconds will not help, and the client can show when it comes back.
     if (code && QUOTA_CODES.has(code)) {
       const resetAt = upstreamResetAt(text);
       return new HubError({ status: 429, code: 'upstream_quota_exhausted', message: detail, extra: { ...extra, ...(resetAt ? { reset_at: resetAt } : {}) }, fallback: true, ...headers });
     }
-    return new HubError({ status: 429, code: 'upstream_rate_limited', message: detail, extra, fallback: true, ...headers });
+    // Google's free tier says "per day" in the quota name, or asks to wait longer than any per-minute window lasts.
+    const daily = quota.quotaNames.some(n => /PerDay/i.test(n)) || (quota.retryDelayS !== undefined && quota.retryDelayS > DAILY_RETRY_DELAY_S);
+    if (daily) {
+      const resetAt = nextDayStart(now, DAILY_QUOTA_TZ);
+      const untilReset = String(Math.max(1, Math.ceil((resetAt.getTime() - now.getTime()) / 1000)));
+      return new HubError({ status: 429, code: 'upstream_quota_exhausted', message: detail, extra: { ...extra, reset_at: resetAt.toISOString() }, fallback: true, headers: { 'Retry-After': untilReset } });
+    }
+    return new HubError({
+      status: 429,
+      code: 'upstream_rate_limited',
+      message: detail,
+      extra: header === undefined && bodyDelay !== undefined ? { ...extra, retry_after_s: Number(bodyDelay) } : extra,
+      fallback: true,
+      ...headers,
+    });
   }
   if (s === 401 || s === 403) return new HubError({ status: 502, code: 'upstream_auth_failed', message: `${provider} rejected the credentials stored for it (${message})`, extra, fallback: true });
   if (s === 404) return new HubError({ status: 404, code: 'model_not_found', message: `${provider} does not know the model "${model}" (${message})`, extra, fallback: true });
   if (s === 408 || s === 504) return new HubError({ status: 504, code: 'upstream_timeout', message: detail, extra, fallback: true });
-  if (s === 503 || s === 529) return new HubError({ status: 503, code: 'upstream_overloaded', message: detail, extra, fallback: true });
+  if (s === 503 || s === 529) {
+    // An overloaded upstream sometimes says how long to hold off; the hub's own retry honours it.
+    const wait = retryAfterSeconds(res);
+    return new HubError({ status: 503, code: 'upstream_overloaded', message: detail, extra, fallback: true, ...(wait ? { headers: { 'Retry-After': wait } } : {}) });
+  }
   if (s >= 500) {
     // Ollama and llama.cpp answer 500 for a request that can never succeed (a generated tool call that is not valid JSON).
     // Retrying or failing over would only repeat it, so it is reported as the client error it is.
