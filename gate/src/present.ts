@@ -33,6 +33,8 @@ export function providerView(hub: Hub, p: ProviderRecord): Record<string, unknow
     extra_headers: p.extraHeaders,
     options: snakeKeys(p.options),
     max_concurrency: p.maxConcurrency,
+    rpm: p.rpm,
+    tpm: p.tpm,
     node: p.node ? snakeKeys(p.node) : null,
     enabled: p.enabled,
     position: p.position,

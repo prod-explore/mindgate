@@ -61,6 +61,8 @@ function providerFields(b: Body): ProviderPatch {
   if (has(b, 'extra_headers')) p.extraHeaders = (b['extra_headers'] ?? {}) as Record<string, string>;
   if (has(b, 'options')) p.options = camelKeys(b['options']) as ProviderOptions;
   set('maxConcurrency', numOrNull(b, 'max_concurrency'));
+  set('rpm', numOrNull(b, 'rpm'));
+  set('tpm', numOrNull(b, 'tpm'));
   if (has(b, 'node')) p.node = b['node'] === null ? null : (camelKeys(b['node']) as Partial<NodeConfig>);
   set('enabled', bool(b, 'enabled'));
   set('position', numOrNull(b, 'position') as number | undefined);

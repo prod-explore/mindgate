@@ -93,6 +93,31 @@ describe('admin API', () => {
       assert.equal((await call('POST', '/providers', 'nope')).status, 400);
     });
 
+    it('stores the pace of a provider (rpm, tpm), shows it, and clears it with null', async () => {
+      const created = await makeProvider('paced', { rpm: 15, tpm: 250_000 });
+      assert.equal(created.status, 201);
+      assert.equal(created.json.rpm, 15);
+      assert.equal(created.json.tpm, 250_000);
+      assert.equal((await call('GET', '/providers/paced')).json.rpm, 15);
+      assert.equal((await call('GET', '/providers/alpha')).json.rpm, null, 'a provider without a pace says so');
+      const patched = await call('PATCH', '/providers/paced', { rpm: 10 });
+      assert.equal(patched.json.rpm, 10);
+      assert.equal(patched.json.tpm, 250_000, 'a patch without tpm leaves it alone');
+      const cleared = await call('PATCH', '/providers/paced', { rpm: null, tpm: null });
+      assert.equal(cleared.json.rpm, null);
+      assert.equal(cleared.json.tpm, null);
+    });
+
+    it('rejects a pace that is not a whole number in range', async () => {
+      for (const bad of [0, -1, 1.5, 1_000_001, '15']) assert.equal((await makeProvider('badrpm', { rpm: bad })).status, 400, `rpm ${String(bad)}`);
+      for (const bad of [0, 2.5, 1_000_000_001]) assert.equal((await makeProvider('badtpm', { tpm: bad })).status, 400, `tpm ${String(bad)}`);
+      const r = await call('PATCH', '/providers/alpha', { tpm: 0 });
+      assert.equal(r.status, 400);
+      assert.equal(r.json.error.code, 'invalid_option');
+      assert.equal(r.json.error.param, 'tpm');
+      assert.equal((await call('GET', '/providers/alpha')).json.tpm, null, 'nothing was changed');
+    });
+
     it('a provider that cannot be reached is still created; the sync error is reported', async () => {
       const r = await call('POST', '/providers', { id: 'offline', type: 'openai', base_url: 'http://127.0.0.1:9/v1', auth_scheme: 'none' });
       assert.equal(r.status, 201);

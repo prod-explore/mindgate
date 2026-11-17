@@ -71,6 +71,10 @@ export interface ProviderRecord {
   options: ProviderOptions;
   /** Requests handled at once; more wait in a priority queue. null = no limit. */
   maxConcurrency: number | null;
+  /** Requests per minute the hub lets through to this provider; more wait their turn. null = no pace. */
+  rpm: number | null;
+  /** Prompt tokens per minute, the same way. null = no pace. */
+  tpm: number | null;
   node: NodeConfig | null;
   enabled: boolean;
   position: number;

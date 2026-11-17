@@ -5,6 +5,7 @@ import { usageOf, type Json, type StreamItem } from './adapters/types.js';
 import type { Hub } from './context.js';
 import { estimateInput, estimated } from './estimate.js';
 import { HubError, badRequest, isHubError } from './errors.js';
+import type { Reservation } from './pacer.js';
 import { pause, retryDelayMs } from './retry.js';
 import type { Candidate } from './routing.js';
 import { dayKey } from './time.js';
@@ -190,6 +191,8 @@ class RequestRun {
   private status = 200;
   private errorCode: string | null = null;
   private admission: { release(): void } | null = null;
+  /** The place of the call in progress in its provider's pace (null when the provider has none). */
+  private pacing: Reservation | null = null;
 
   constructor({ hub, req, reply, key, endpoint }: RunParams) {
     this.hub = hub;
@@ -340,17 +343,29 @@ class RequestRun {
     const limiter = hub.registry.limiter(provider);
     const waitFrom = Date.now();
     const release = limiter ? await limiter.acquire(this.priority!, ac.signal) : () => undefined;
-    this.queueMs += Date.now() - waitFrom;
-    hub.nodes.begin(provider.id);
     try {
-      const call: AdapterCall = { runtime: hub.registry.runtime(provider), model: c.model, body: this.body, stream: this.stream, signal: ac.signal };
-      const callStart = Date.now();
-      if (this.endpoint === 'embeddings') await this.answerEmbeddings(c, adapter, call, callStart);
-      else await this.answerChat(c, adapter, call, callStart);
+      // The pace is taken with the slot in hand, so the moment it records is the moment the call goes out.
+      const pacer = hub.registry.pacer(provider);
+      this.pacing = pacer ? await pacer.acquire(this.priority!, this.inputEstimate, ac.signal) : null;
+      this.queueMs += Date.now() - waitFrom;
+      hub.nodes.begin(provider.id);
+      try {
+        const call: AdapterCall = { runtime: hub.registry.runtime(provider), model: c.model, body: this.body, stream: this.stream, signal: ac.signal };
+        const callStart = Date.now();
+        if (this.endpoint === 'embeddings') await this.answerEmbeddings(c, adapter, call, callStart);
+        else await this.answerChat(c, adapter, call, callStart);
+      } finally {
+        hub.nodes.end(provider.id);
+      }
     } finally {
-      hub.nodes.end(provider.id);
+      this.pacing = null;
       release();
     }
+  }
+
+  /** Tells the provider's pace what the prompt really cost, when the upstream reported it (an estimate is not better than the pacer's own). */
+  private settlePacing(usage: Usage): void {
+    if (!usage.estimated) this.pacing?.settle(usage.inputTokens);
   }
 
   private async answerEmbeddings(c: Candidate, adapter: ReturnType<typeof adapterFor>, call: AdapterCall, callStart: number): Promise<void> {
@@ -358,6 +373,7 @@ class RequestRun {
     const json = await adapter.embeddings(call);
     this.ttfbMs = Date.now() - callStart;
     this.usage = usageOf(json) ?? estimated(this.inputEstimate, 0);
+    this.settlePacing(this.usage);
     json['model'] = c.model.id;
     this.attempts.push({ model: c.model.id, outcome: 'ok' });
     this.reply.code(200).headers(this.responseHeaders(c)).send({ ...json, mindgate: this.info(c) });
@@ -375,6 +391,7 @@ class RequestRun {
     json['model'] = c.model.id;
     const usage = usageOf(json) ?? estimated(this.inputEstimate, completionChars(json));
     this.usage = usage;
+    this.settlePacing(usage);
     if (!json['usage']) json['usage'] = { prompt_tokens: usage.inputTokens, completion_tokens: usage.outputTokens, total_tokens: usage.inputTokens + usage.outputTokens };
     this.attempts.push({ model: c.model.id, outcome: 'ok' });
     this.reply.code(200).headers(this.responseHeaders(c)).send({ ...json, mindgate: { ...this.info(c), ...(usage.estimated ? { usage_estimated: true } : {}) } });
@@ -406,6 +423,7 @@ class RequestRun {
       }
       const usage = tally.reported ?? estimated(this.inputEstimate, tally.outChars);
       this.usage = usage;
+      this.settlePacing(usage);
       if (this.clientWantsUsage && !tally.usageSent) {
         await sink.data({
           id: `chatcmpl-${this.requestId}`,

@@ -12,10 +12,12 @@ const allowedOf = (db: Database.Database, id: string): unknown => {
 };
 
 describe('migration: aliases are removed', () => {
+  /** The schema as it was before the migration that drops aliases (the second one). */
+  const BEFORE_ALIASES_DROPPED = 1;
   const before = (): Database.Database => {
     const db = new Database(':memory:');
-    migrate(db, LATEST_SCHEMA_VERSION - 1);
-    assert.equal(schemaVersion(db), LATEST_SCHEMA_VERSION - 1);
+    migrate(db, BEFORE_ALIASES_DROPPED);
+    assert.equal(schemaVersion(db), BEFORE_ALIASES_DROPPED);
     return db;
   };
 

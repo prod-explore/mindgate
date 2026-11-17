@@ -148,6 +148,10 @@ const MIGRATIONS: ReadonlyArray<(db: Db) => void> = [
     }
     db.exec('DROP TABLE aliases');
   },
+  // Optional per-provider pace (requests and prompt tokens per minute) for upstreams with a quota, such as a free tier.
+  db => {
+    db.exec('ALTER TABLE providers ADD COLUMN rpm INTEGER; ALTER TABLE providers ADD COLUMN tpm INTEGER;');
+  },
 ];
 
 export const LATEST_SCHEMA_VERSION = MIGRATIONS.length;

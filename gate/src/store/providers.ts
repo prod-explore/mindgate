@@ -34,6 +34,8 @@ export interface ProviderInput {
   extraHeaders?: Record<string, string>;
   options?: ProviderOptions;
   maxConcurrency?: number | null;
+  rpm?: number | null;
+  tpm?: number | null;
   node?: Partial<NodeConfig> | null;
   enabled?: boolean;
   position?: number;
@@ -54,6 +56,8 @@ interface Row {
   extra_headers: string;
   options: string;
   max_concurrency: number | null;
+  rpm: number | null;
+  tpm: number | null;
   node: string | null;
   enabled: number;
   position: number;
@@ -77,6 +81,8 @@ function toRecord(r: Row): ProviderRecord {
     extraHeaders: parseJson(r.extra_headers, {}),
     options: parseJson(r.options, {}),
     maxConcurrency: r.max_concurrency,
+    rpm: r.rpm,
+    tpm: r.tpm,
     node: r.node ? parseJson<NodeConfig | null>(r.node, null) : null,
     enabled: r.enabled === 1,
     position: r.position,
@@ -108,6 +114,16 @@ function intIn(v: unknown, name: string, min: number, max: number): number | und
   if (n === undefined || !Number.isInteger(n) || n < min || n > max) throw badRequest('invalid_option', `${name} must be an integer between ${min} and ${max}`, name);
   return n;
 }
+
+/** A limit that is a whole number in [min, max], or null for "none"; undefined (not sent) is left to the caller. */
+function limitOrNull(v: unknown, name: string, min: number, max: number): number | null {
+  if (v === undefined || v === null) return null;
+  if (typeof v !== 'number' || !Number.isInteger(v) || v < min || v > max) throw badRequest('invalid_option', `${name} must be an integer between ${min} and ${max} (or null)`, name);
+  return v;
+}
+
+export const MAX_RPM = 1_000_000;
+export const MAX_TPM = 1_000_000_000;
 
 function safePath(v: unknown, name: string): string | undefined {
   if (v === undefined || v === null || v === '') return undefined;
@@ -237,6 +253,8 @@ export class ProviderStore {
     if (maxConcurrency !== null && (!Number.isInteger(maxConcurrency) || maxConcurrency < 1 || maxConcurrency > 256)) {
       throw badRequest('invalid_option', 'max_concurrency must be an integer between 1 and 256 (or null)', 'max_concurrency');
     }
+    const rpm = limitOrNull(input.rpm, 'rpm', 1, MAX_RPM);
+    const tpm = limitOrNull(input.tpm, 'tpm', 1, MAX_TPM);
     const node = normalizeNode(input.node);
     const seal = this.sealKey(input.id, input.apiKey);
     const position = input.position ?? (this.db.prepare('SELECT COALESCE(MAX(position), -1) + 1 AS n FROM providers').get() as { n: number }).n;
@@ -244,9 +262,9 @@ export class ProviderStore {
     this.db
       .prepare(
         `INSERT INTO providers (id, name, type, base_url, locality, auth_scheme, auth_header, secret_enc, secret_hint,
-                                extra_headers, options, max_concurrency, node, enabled, position)
+                                extra_headers, options, max_concurrency, rpm, tpm, node, enabled, position)
          VALUES (@id, @name, @type, @base_url, @locality, @auth_scheme, @auth_header, @secret_enc, @secret_hint,
-                 @extra_headers, @options, @max_concurrency, @node, @enabled, @position)`,
+                 @extra_headers, @options, @max_concurrency, @rpm, @tpm, @node, @enabled, @position)`,
       )
       .run({
         id: input.id,
@@ -261,6 +279,8 @@ export class ProviderStore {
         extra_headers: JSON.stringify(normalizeHeaders(input.extraHeaders)),
         options: JSON.stringify(normalizeOptions(input.options)),
         max_concurrency: maxConcurrency,
+        rpm,
+        tpm,
         node: node ? JSON.stringify(node) : null,
         enabled: input.enabled === false ? 0 : 1,
         position,
@@ -312,6 +332,8 @@ export class ProviderStore {
       if (m !== null && (!Number.isInteger(m) || m < 1 || m > 256)) throw badRequest('invalid_option', 'max_concurrency must be an integer between 1 and 256 (or null)', 'max_concurrency');
       set('max_concurrency', m);
     }
+    if (patch.rpm !== undefined) set('rpm', limitOrNull(patch.rpm, 'rpm', 1, MAX_RPM));
+    if (patch.tpm !== undefined) set('tpm', limitOrNull(patch.tpm, 'tpm', 1, MAX_TPM));
     if (patch.node !== undefined) {
       const n = normalizeNode(patch.node);
       set('node', n ? JSON.stringify(n) : null);
