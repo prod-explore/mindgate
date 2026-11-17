@@ -156,8 +156,8 @@ A request to `/v1/chat/completions` goes through these steps ([`gate/src/chat.ts
 2. **Model.** `provider/model` must exist, be allowed for the key, be the right kind (chat or embedding) and, for a local-only request, run locally. Otherwise the request is refused before anything is sent.
 3. **Limits.** Requests per minute and per day, tokens per day and per month.
 4. **Machine.** If the provider is a PC that sleeps, the hub probes it, wakes it (one wake-up for all waiting requests) and waits up to `boot_timeout_ms`. A request below the PC's `min_wake_priority` gets `503 node_asleep` at once instead.
-5. **Slot.** A provider with `max_concurrency` (one GPU) has a queue ordered by priority, 5 first.
-6. **Answer.** The upstream's answer is relayed; a stream is passed on chunk by chunk, with SSE comments while a cold model loads so that proxies keep the connection open.
+5. **Slot and pace.** A provider with `max_concurrency` (one GPU) has a queue ordered by priority, 5 first; one with `rpm`/`tpm` (a free tier) lets requests through at the pace of its quota.
+6. **Answer.** If the provider says "not now" (429, 503, a timeout) before anything went out, the hub tries the same model again for a while. The upstream's answer is relayed; a stream is passed on chunk by chunk, with SSE comments while a cold model loads so that proxies keep the connection open.
 7. **Record.** Who, which model, status, timings and token counts go to the request log and the daily totals. The text does not.
 
 ### Decisions and their trade-offs
@@ -168,7 +168,7 @@ A request to `/v1/chat/completions` goes through these steps ([`gate/src/chat.ts
 {"error":{"message":"Provider \"openrouter\" is not reachable (ECONNREFUSED)","type":"server_error","code":"upstream_unreachable","provider":"openrouter","fallback":true}}
 ```
 
-Errors in the request itself (a context that is too long, a model the key may not use) never carry it. The cost: each app implements its own retry, typically by picking another model by the `tags` that `GET /v1/models` shows.
+Retrying the *same* model before the first byte is the exception: it changes nothing for the client but the wait. Errors in the request itself (a context that is too long, a model the key may not use) never carry it. The cost: each app implements its own retry, typically by picking another model by the `tags` that `GET /v1/models` shows.
 
 **Waking the PC depends on priority.** Requests with priority 3 or more (the default `min_wake_priority`) may wake it. Lower-priority ones, such as background jobs, get `node_asleep` with `fallback: true` straight away, so they can use a cloud model instead of booting the PC. The cost: the first request after a sleep waits for the boot (up to two minutes by default).
 

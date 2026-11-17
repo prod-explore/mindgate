@@ -84,8 +84,8 @@ It works for a key that has used up its limit as well.
 | 429 | `rate_limited` | too many requests per minute; the `Retry-After` header, the `retry_after` field |
 | 429 | `budget_exhausted` | the daily/monthly limit; the `limit` field (`requests_per_day`, `tokens_per_day`, `tokens_per_month`) and `reset_at` |
 | 429 | `too_many_auth_failures` | the address is blocked after 20 failed sign-ins per minute |
-| 429 | `upstream_rate_limited` | a limit on the provider's side (with its `Retry-After`) |
-| 429 | `upstream_quota_exhausted` | the provider's quota or credit is used up (the subscription wrapper's `budget_exhausted`, OpenAI's `insufficient_quota`); `reset_at` when the provider says when it comes back, `Retry-After` in seconds |
+| 429 | `upstream_rate_limited` | a limit on the provider's side, still there after the hub's own retries (`MINDGATE_UPSTREAM_RETRY_MS`). `Retry-After` is the provider's header or, for Google's error format, its `retryDelay` rounded up (then also `retry_after_s` in the error) |
+| 429 | `upstream_quota_exhausted` | the provider's quota or credit is used up (the subscription wrapper's `budget_exhausted`, OpenAI's `insufficient_quota`); `reset_at` when the provider says when it comes back, `Retry-After` in seconds. Also for a Google-style error that names a per-day quota (`PerDay` in a `quotaId` or `quotaMetric`) or asks for a wait longer than 10 minutes: `reset_at` is the next midnight in `America/Los_Angeles` |
 | 500 | `internal_error` | a bug in the hub; the details are in its log under the same `X-Request-Id` |
 | 502 | `upstream_error`, `upstream_unreachable`, `upstream_empty_response`, `upstream_invalid_response`, `upstream_auth_failed` | a provider failure / a wrong provider key (the owner's, not the client's) |
 | 502 | `node_connection_lost` | the machine disappeared mid-request, and the retry failed too |
@@ -94,11 +94,12 @@ It works for a key that has used up its limit as well.
 | 503 | `no_available_model` | the model's provider or the model itself is disabled |
 | 503 | `node_asleep` | the machine sleeps, and the request's priority is too low to wake it |
 | 503 | `node_unavailable`, `wol_failed` | the machine did not come up in time / the packet could not be sent |
-| 503 | `queue_full`, `upstream_overloaded` | the provider's queue is full / the provider is overloaded |
+| 503 | `queue_full`, `upstream_overloaded` | the provider's queue (or the line of a provider with `rpm`/`tpm`) is full / the provider is overloaded (with its `Retry-After`, when it sends one) |
+| 503 | `pacing_timeout` | the provider's `rpm`/`tpm` would make the request wait longer than `MINDGATE_QUEUE_TIMEOUT_MS` / `MINDGATE_PACING_MAX_WAIT_MS`; `Retry-After` is when it would fit |
 | 504 | `queue_timeout`, `upstream_timeout` | waiting for too long |
 | in the stream | `upstream_stream_interrupted` | the provider broke off the answer midway |
 
-The hub itself never retries on another model. Errors that another model could fix carry `"fallback": true` in the `error` object, so the calling app can choose: `upstream_error`, `upstream_unreachable`, `upstream_overloaded`, `upstream_timeout`, `upstream_rate_limited`, `upstream_quota_exhausted`, `upstream_empty_response`, `upstream_invalid_response`, `upstream_auth_failed`, `upstream_stream_interrupted` (not when the stream had already produced content), a provider that does not know the model (`model_not_found` from the provider), `node_*`, `wol_failed`, `queue_full`, `queue_timeout`. Errors of the request itself (`400`, `403`, a key's `429`) never carry it.
+The hub never retries on another model. It does try the *same* model again, before the first byte of the answer, when the provider says "not now" (`upstream_rate_limited`, `upstream_overloaded`, `upstream_timeout`) — see [Providers with a quota](01-gate.md#providers-with-a-quota-pace-retries-and-daily-limits); the errors above are what is left when that did not help, and every try is in the `attempts` of the request log. Errors that another model could fix carry `"fallback": true` in the `error` object, so the calling app can choose: `upstream_error`, `upstream_unreachable`, `upstream_overloaded`, `upstream_timeout`, `upstream_rate_limited`, `upstream_quota_exhausted`, `upstream_empty_response`, `upstream_invalid_response`, `upstream_auth_failed`, `upstream_stream_interrupted` (not when the stream had already produced content), a provider that does not know the model (`model_not_found` from the provider), `node_*`, `wol_failed`, `queue_full`, `queue_timeout`, `pacing_timeout`. Errors of the request itself (`400`, `403`, a key's `429`) never carry it.
 
 ---
 
@@ -111,7 +112,7 @@ The hub itself never retries on another model. Errors that another model could f
 | `GET /status` | version, uptime, the state of providers and queues, counters |
 | `GET /presets` | ready-made provider settings (OpenRouter, Gemini, Anthropic, OpenAI, Ollama, LM Studio, custom, `mindgate-node` — a machine with a MindGate agent) |
 | `GET /providers`, `GET /providers/{id}` | the list / one provider |
-| `POST /providers` | add: `id`, `type` (`openai` / `anthropic`), `base_url`, `api_key`, `locality`, `auth_scheme` (`bearer` / `header` / `none`) + `auth_header`, `extra_headers`, `options`, `max_concurrency`, `node`, `enabled`. It fetches the model list right away (`"sync": false` turns that off) |
+| `POST /providers` | add: `id`, `type` (`openai` / `anthropic`), `base_url`, `api_key`, `locality`, `auth_scheme` (`bearer` / `header` / `none`) + `auth_header`, `extra_headers`, `options`, `max_concurrency`, `rpm` and `tpm` (requests and prompt tokens per minute the hub lets through; `null` = no pace), `node`, `enabled`. It fetches the model list right away (`"sync": false` turns that off) |
 | `PATCH /providers/{id}` | change any of the fields; `api_key: null` removes the key, a missing field leaves it alone |
 | `DELETE /providers/{id}` | removes the provider with its models |
 | `POST /providers/{id}/test` | checks the connection without changing anything (`ok`, latency, number of models) |

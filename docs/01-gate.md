@@ -122,6 +122,16 @@ The token budget counts finished requests; requests that are still running may g
 
 `X-MindGate-Priority: 1–5` (by default from the key, clamped to the key's range). A provider with `max_concurrency` (for example 1 for a single GPU) has a queue: 5 before 1, and first come first served within a priority. The queue has a size limit (`MINDGATE_QUEUE_MAX`) and an optional wait limit (`MINDGATE_QUEUE_TIMEOUT_MS`); a client that disconnects drops out of the queue and does not hold a place.
 
+### Providers with a quota: pace, retries and daily limits
+
+A free tier allows a handful of requests and tokens per minute and a number per day. Three things keep the hub inside it, and the owner's apps out of the 429 log.
+
+**Pace (`rpm`, `tpm`).** A provider can carry two optional limits, set in the panel or as `rpm` and `tpm` on the provider: requests per minute and prompt tokens per minute (what Gemini's free tier counts). The hub keeps the last 60 seconds (a sliding window, in memory) and lets a request through when it is under both. The size of a prompt is estimated from its text (about four characters per token) and replaced by the provider's own count as soon as the answer reports it. A request that is bigger than `tpm` on its own is let through when nothing else is in the window (it would never fit otherwise). Requests wait in a line ordered like the concurrency queue (priority 5 first, first come first served), a streaming client gets SSE comments while it waits, and a client that disconnects leaves the line. A request waits at most `MINDGATE_QUEUE_TIMEOUT_MS` (when set) or `MINDGATE_PACING_MAX_WAIT_MS`; when its turn is further away than that it is answered at once with `503 pacing_timeout` (`"fallback": true`, `Retry-After` = the seconds until it would fit) instead of holding the connection. The time spent waiting shows as the queue time in the log. Changing a provider's limits keeps the window.
+
+**Retries.** When a provider answers `429 upstream_rate_limited`, `503 upstream_overloaded` or does not answer in time (`upstream_timeout`) and nothing of the answer has gone out yet, the hub tries the same model again, up to six times and for as long as `MINDGATE_UPSTREAM_RETRY_MS` after the first failure (`0` turns it off). It waits as long as the provider asks — the `Retry-After` header or, for Google's error format, `retryDelay` in the body (`error.details[]`, `google.rpc.RetryInfo`) — and otherwise 1 s, 2 s, 4 s… with a little jitter. If the wait that was asked for no longer fits in the budget the client gets the error at once, with that `Retry-After`. The wait holds no concurrency slot, a streaming client gets SSE comments during it, a disconnect cancels it, every try is listed in the log (`attempts`) and the key's own `rpm`/`rpd` are charged once for the request, not per try. A used-up quota is not retried.
+
+**Daily quota.** A `429` is told apart from a per-minute limit by the shape of the body, not by whose it is: a `google.rpc.QuotaFailure` violation whose `quotaId` or `quotaMetric` contains `PerDay`, or a `retryDelay` longer than 10 minutes, means the day's quota is used up. The client gets `429 upstream_quota_exhausted` with `reset_at` — the next midnight in `America/Los_Angeles`, when Google resets its daily quotas, daylight-saving time included — and `Retry-After` pointing at it. When the provider gives a retry delay only in the body, the hub adds it as the `Retry-After` header and as `retry_after_s` in the error (a header the provider sends itself wins).
+
 ### A machine that sleeps (Wake-on-LAN)
 
 A provider with `node` set is a computer the hub wakes:
@@ -194,7 +204,9 @@ server {
 | `MINDGATE_USAGE_TZ` | `UTC` | the time zone in which a day/month for limits starts |
 | `MINDGATE_TRUST_PROXY` | `false` | trust `X-Forwarded-For` |
 | `MINDGATE_BODY_LIMIT_MB` | `20` | maximum request size |
-| `MINDGATE_QUEUE_MAX`, `MINDGATE_QUEUE_TIMEOUT_MS` | `100`, `0` | the queue of a provider with `max_concurrency` (0 = no time limit) |
+| `MINDGATE_QUEUE_MAX`, `MINDGATE_QUEUE_TIMEOUT_MS` | `100`, `0` | the queue of a provider with `max_concurrency`, also the longest wait for a provider with `rpm`/`tpm` (0 = no time limit) |
+| `MINDGATE_UPSTREAM_RETRY_MS` | `45000` | how long after its first failure the hub keeps retrying the same model when the provider says "not now" (429, 503, no answer in time) before the answer starts; `0` = never |
+| `MINDGATE_PACING_MAX_WAIT_MS` | `120000` | the longest a request waits for its turn at a provider with `rpm`/`tpm`, when `MINDGATE_QUEUE_TIMEOUT_MS` is not set (`0` = no limit); then `503 pacing_timeout` |
 | `MINDGATE_LOG_RETENTION_DAYS` | `30` | how long the request log is kept |
 | `MINDGATE_LOG_LEVEL` | `info` | the process log level |
 | `MINDGATE_KEEPALIVE_AFTER_MS`, `…_INTERVAL_MS` | `10000` | SSE comments during a long wait |
