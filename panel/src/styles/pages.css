@@ -576,6 +576,13 @@ a.btn-primary:hover {
   overflow-wrap: anywhere;
 }
 
+.fact .attempts {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12.5px;
+}
+
 /* Nodes */
 .node-cards {
   display: grid;

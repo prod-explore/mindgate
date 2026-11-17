@@ -53,6 +53,10 @@ export interface Provider {
   extra_headers: Record<string, string>;
   options: ProviderOptions;
   max_concurrency: number | null;
+  /** Requests per minute the hub lets through to the provider (null = no pace). */
+  rpm: number | null;
+  /** Prompt tokens per minute, the same way. */
+  tpm: number | null;
   node: NodeSettings | null;
   enabled: boolean;
   position: number;
@@ -80,6 +84,8 @@ export interface ProviderInput {
   extra_headers?: Record<string, string>;
   options?: ProviderOptions;
   max_concurrency?: number | null;
+  rpm?: number | null;
+  tpm?: number | null;
   node?: Partial<NodeSettings> | null;
   enabled?: boolean;
   sync?: boolean;
@@ -188,6 +194,12 @@ export interface UsageResponse {
   data: UsageRow[];
 }
 
+/** One try at a model, as the hub records it: `ok`, or the error code the try ended with. */
+export interface LogAttempt {
+  model: string;
+  outcome: string;
+}
+
 export interface LogRow {
   id: number;
   ts: string;
@@ -203,7 +215,8 @@ export interface LogRow {
   priority: number;
   local_only: boolean;
   tag: string | null;
-  attempts: number;
+  /** Every try, in order: a retry after a rate limit shows up as a failed try followed by another one. Empty when the request never reached a model. */
+  attempts: LogAttempt[];
   queue_ms: number | null;
   ttfb_ms: number | null;
   latency_ms: number | null;

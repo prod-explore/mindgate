@@ -16,7 +16,7 @@ describe('request log', () => {
     api.log.mockResolvedValue([
       logRow({ id: 3 }),
       logRow({ id: 2, status: 429, error_code: 'rate_limited', model: null, requested_model: 'cloud/ghost', input_tokens: null, output_tokens: null, latency_ms: 3 }),
-      logRow({ id: 1, status: 502, error_code: 'upstream_error', attempts: 2 }),
+      logRow({ id: 1, status: 502, error_code: 'upstream_error', attempts: [{ model: 'home/qwen3:4b', outcome: 'upstream_error' }, { model: 'cloud/gemini', outcome: 'upstream_error' }] }),
     ]);
     renderPage(<Log />, api);
     const rows = await screen.findAllByRole('row');
@@ -47,6 +47,52 @@ describe('request log', () => {
     expect(within(detail).getByText(/tag private/)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Hide' }));
     expect(screen.queryByText('Request id')).not.toBeInTheDocument();
+  });
+
+  it('opens the details of a request that took several tries without breaking the page', async () => {
+    const user = userEvent.setup();
+    const api = fakeApi();
+    api.log.mockResolvedValue([
+      logRow({
+        status: 429,
+        error_code: 'upstream_rate_limited',
+        attempts: [
+          { model: 'gemini/flash-lite', outcome: 'upstream_rate_limited' },
+          { model: 'gemini/flash-lite', outcome: 'upstream_rate_limited' },
+          { model: 'gemini/flash-lite', outcome: 'upstream_rate_limited' },
+        ],
+      }),
+    ]);
+    renderPage(<Log />, api);
+    expect(await screen.findByText('3 attempts')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Details' }));
+    const detail = screen.getByText('Request id').closest('dl')!;
+    const list = within(detail).getByRole('list');
+    const items = within(list).getAllByRole('listitem').map(li => li.textContent);
+    expect(items).toEqual(['gemini/flash-lite — upstream_rate_limited', 'gemini/flash-lite — upstream_rate_limited', 'gemini/flash-lite — upstream_rate_limited']);
+  });
+
+  it('lists a retry that worked: the failed try, then the one that answered', async () => {
+    const user = userEvent.setup();
+    const api = fakeApi();
+    api.log.mockResolvedValue([logRow({ attempts: [{ model: 'gemini/flash-lite', outcome: 'upstream_rate_limited' }, { model: 'gemini/flash-lite', outcome: 'ok' }] })]);
+    renderPage(<Log />, api);
+    expect(await screen.findByText('2 attempts')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Details' }));
+    const items = within(within(screen.getByText('Request id').closest('dl')!).getByRole('list')).getAllByRole('listitem');
+    expect(items.map(li => li.textContent)).toEqual(['gemini/flash-lite — upstream_rate_limited', 'gemini/flash-lite — ok']);
+  });
+
+  it('a request that never reached a model has no attempts to list, and a single try shows no count in the row', async () => {
+    const user = userEvent.setup();
+    const api = fakeApi();
+    api.log.mockResolvedValue([logRow({ id: 2, status: 400, error_code: 'invalid_messages', model: null, attempts: [] }), logRow({ id: 1 })]);
+    renderPage(<Log />, api);
+    await screen.findAllByRole('row');
+    expect(screen.queryByText(/attempts?$/)).not.toBeInTheDocument();
+    await user.click(screen.getAllByRole('button', { name: 'Details' })[0]!);
+    const fact = screen.getByText('Attempts').closest('.fact')!;
+    expect(within(fact as HTMLElement).queryByRole('list')).not.toBeInTheDocument();
   });
 
   it('starts with only errors when the address says so (from the overview)', async () => {

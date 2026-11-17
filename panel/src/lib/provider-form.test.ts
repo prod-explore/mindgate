@@ -44,6 +44,17 @@ describe('building the request', () => {
     });
   });
 
+  it('sends the pace, and null for one that is empty so that PATCH can remove it', () => {
+    const none = toInput(filled(), 'edit');
+    expect(none.rpm).toBeNull();
+    expect(none.tpm).toBeNull();
+    const d = { ...filled(), rpm: 15, tpm: 250_000 };
+    expect(toInput(d, 'create')).toMatchObject({ rpm: 15, tpm: 250_000 });
+    const back = draftFromProvider(provider({ rpm: 10, tpm: null }));
+    expect(back.rpm).toBe(10);
+    expect(back.tpm).toBeNull();
+  });
+
   it('drops headers without a name', () => {
     const d = { ...filled(), headers: [{ name: 'X-Title', value: 'MindGate' }, { name: ' ', value: 'x' }] };
     expect(toInput(d, 'create').extra_headers).toEqual({ 'X-Title': 'MindGate' });

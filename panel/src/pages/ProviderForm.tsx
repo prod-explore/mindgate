@@ -110,6 +110,8 @@ export function ProviderForm({ mode, initial, provider, onClose, onSaved }: Prop
           <h3>{t('providers.s.behaviour')}</h3>
         </div>
         <NumberField label={t('providers.f.concurrency')} hint={t('providers.f.concurrency_hint')} value={d.max_concurrency} onChange={v => set('max_concurrency', v)} placeholder={t('common.unlimited')} />
+        <NumberField label={t('providers.f.rpm')} hint={t('providers.f.rpm_hint')} value={d.rpm} onChange={v => set('rpm', v)} min={1} placeholder={t('common.unlimited')} />
+        <NumberField label={t('providers.f.tpm')} hint={t('providers.f.tpm_hint')} value={d.tpm} onChange={v => set('tpm', v)} min={1} placeholder={t('common.unlimited')} />
         <NumberField label={t('providers.f.first_byte')} hint={t('providers.f.first_byte_hint')} value={d.first_byte_timeout_ms} onChange={v => set('first_byte_timeout_ms', v)} placeholder="300000" />
         <NumberField label={t('providers.f.idle')} hint={t('providers.f.idle_hint')} value={d.idle_timeout_ms} onChange={v => set('idle_timeout_ms', v)} placeholder="120000" />
         {d.type === 'anthropic' ? <NumberField label={t('providers.f.default_max')} hint={t('providers.f.default_max_hint')} value={d.default_max_tokens} onChange={v => set('default_max_tokens', v)} placeholder="4096" /> : <div />}

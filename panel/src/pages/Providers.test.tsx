@@ -229,6 +229,35 @@ describe('providers', () => {
       expect(sent).not.toHaveProperty('id');
     });
 
+    it('sets the pace of a provider and clears it again', async () => {
+      const user = userEvent.setup();
+      const api = fakeApi();
+      renderPage(<Providers />, api);
+      await user.click(within(await rowOf('OpenRouter')).getByRole('button', { name: 'Edit' }));
+      const form = await screen.findByRole('dialog', { name: 'Edit “OpenRouter”' });
+      expect(within(form).getByLabelText('Requests per minute')).toHaveValue('');
+      await user.type(within(form).getByLabelText('Requests per minute'), '15');
+      await user.type(within(form).getByLabelText('Prompt tokens per minute'), '250000');
+      await user.click(within(form).getByRole('button', { name: 'Save changes' }));
+      await waitFor(() => expect(api.providers.update).toHaveBeenCalledTimes(1));
+      expect(api.providers.update.mock.calls[0]![1]).toMatchObject({ rpm: 15, tpm: 250_000 });
+    });
+
+    it('shows the pace a provider has, and sends null when it is emptied', async () => {
+      const user = userEvent.setup();
+      const api = fakeApi();
+      api.providers.list.mockResolvedValue([provider(), cloud({ rpm: 15, tpm: 250_000 })]);
+      renderPage(<Providers />, api);
+      await user.click(within(await rowOf('OpenRouter')).getByRole('button', { name: 'Edit' }));
+      const form = await screen.findByRole('dialog', { name: 'Edit “OpenRouter”' });
+      expect(within(form).getByLabelText('Requests per minute')).toHaveValue('15');
+      expect(within(form).getByLabelText('Prompt tokens per minute')).toHaveValue('250000');
+      await user.clear(within(form).getByLabelText('Requests per minute'));
+      await user.click(within(form).getByRole('button', { name: 'Save changes' }));
+      await waitFor(() => expect(api.providers.update).toHaveBeenCalledTimes(1));
+      expect(api.providers.update.mock.calls[0]![1]).toMatchObject({ rpm: null, tpm: 250_000 });
+    });
+
     it('removes the key only when asked to', async () => {
       const user = userEvent.setup();
       const api = fakeApi();

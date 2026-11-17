@@ -12,6 +12,8 @@ export interface ProviderDraft {
   api_key: string;
   clear_key: boolean;
   max_concurrency: number | null;
+  rpm: number | null;
+  tpm: number | null;
   enabled: boolean;
 
   first_byte_timeout_ms: number | null;
@@ -54,6 +56,8 @@ export function blankDraft(): ProviderDraft {
     api_key: '',
     clear_key: false,
     max_concurrency: null,
+    rpm: null,
+    tpm: null,
     enabled: true,
     first_byte_timeout_ms: null,
     idle_timeout_ms: null,
@@ -131,6 +135,8 @@ export function draftFromProvider(p: Provider): ProviderDraft {
   d.auth_scheme = p.auth_scheme;
   d.auth_header = p.auth_header ?? '';
   d.max_concurrency = p.max_concurrency;
+  d.rpm = p.rpm;
+  d.tpm = p.tpm;
   d.enabled = p.enabled;
   d.headers = Object.entries(p.extra_headers).map(([name, value]) => ({ name, value }));
   applyOptions(d, p.options);
@@ -183,6 +189,8 @@ export function toInput(d: ProviderDraft, mode: 'create' | 'edit'): ProviderInpu
     extra_headers: Object.fromEntries(d.headers.filter(h => h.name.trim()).map(h => [h.name.trim(), h.value])),
     options: optionsOf(d),
     max_concurrency: d.max_concurrency,
+    rpm: d.rpm,
+    tpm: d.tpm,
     node: d.is_node ? nodeOf(d) : null,
     enabled: d.enabled,
   };

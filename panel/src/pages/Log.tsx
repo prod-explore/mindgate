@@ -146,7 +146,7 @@ function LogLine({ row: r, open, onToggle }: { row: LogRow; open: boolean; onTog
         </td>
         <td>
           <Badge tone={statusTone(r.status)}>{r.status}</Badge> {r.error_code ? <span className="mono">{r.error_code}</span> : null}
-          {r.attempts > 1 ? <span className="cell-sub"> {t('log.attempts', { n: r.attempts })}</span> : null}
+          {r.attempts.length > 1 ? <span className="cell-sub"> {t('log.attempts', { n: r.attempts.length })}</span> : null}
         </td>
         <td className="num">
           {num(tokens)}
@@ -179,7 +179,17 @@ function LogLine({ row: r, open, onToggle }: { row: LogRow; open: boolean; onTog
                 {r.local_only ? <> · {t('log.d.local_only')}</> : null}
                 {r.tag ? <> · {t('log.d.tag', { tag: r.tag })}</> : null}
               </Fact>
-              <Fact label={t('log.d.attempts')}>{r.attempts}</Fact>
+              <Fact label={t('log.d.attempts')}>
+                {r.attempts.length === 0 ? (
+                  dash
+                ) : (
+                  <ol className="attempts mono">
+                    {r.attempts.map((a, i) => (
+                      <li key={i}>{t('log.d.attempt', { model: a.model, outcome: a.outcome })}</li>
+                    ))}
+                  </ol>
+                )}
+              </Fact>
               <Fact label={t('log.d.queue')}>{ms(r.queue_ms)}</Fact>
               <Fact label={t('log.d.ttfb')}>{ms(r.ttfb_ms)}</Fact>
               <Fact label={t('log.d.latency')}>{ms(r.latency_ms)}</Fact>
