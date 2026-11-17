@@ -224,6 +224,8 @@ What is not protected: traffic between the hub and the agent is plain HTTP, so i
 
 Each component has its own `package.json` and lockfile; its `engines` field names the Node.js 22 release it needs.
 
+There are 500+ tests across the components, the end-to-end suite included.
+
 ```bash
 npm ci && npm run lint                            # ESLint over every component, from the root
 (cd gate  && npm ci && npm test)                  # compile, then node:test
